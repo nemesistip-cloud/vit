@@ -190,6 +190,7 @@ export default function App() {
         <Route path="/vaults"           element={wrap(<Vaults />)}          />
         <Route path="/bridge"           element={wrap(<Bridge />)}          />
         <Route path="/admin"            element={wrap(<Admin />)}           />
+        <Route path="/admin/:tab"       element={wrap(<Admin />)}           />
         <Route path="*"                 element={wrap(<NotFound />)}        />
       </Route>
       </Route>

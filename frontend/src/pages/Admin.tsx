@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Shield, Users, Activity, Database, Server,
@@ -16,12 +16,50 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
+function getRequestErrorMessage(payload: any, fallback: string) {
+  if (!payload) return fallback
+  if (typeof payload === 'string') return payload
+  if (payload.detail) return payload.detail
+  if (payload.message) return payload.message
+  if (payload.error) {
+    if (typeof payload.error === 'string') return payload.error
+    if (payload.error.message) return payload.error.message
+  }
+  return fallback
+}
+
+async function fetchAdminJson<T>(url: string, init: RequestInit = {}, requireAuth = true): Promise<T> {
+  const headers = new Headers(init.headers ?? {})
+  if (requireAuth) {
+    const token = getAuthToken()
+    if (token) headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  const response = await fetch(url, { ...init, headers })
+  if (!response.ok) {
+    let payload: any = {}
+    try {
+      payload = await response.json()
+    } catch {
+      payload = {}
+    }
+    throw new Error(getRequestErrorMessage(payload, `Request failed (${response.status})`))
+  }
+
+  if (response.status === 204) return null as T
+  return response.json() as Promise<T>
+}
+
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
 function useSystemStatus() {
   return useQuery({ queryKey: ['admin-system-status'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/system/status`, { signal })
-    return r.ok ? r.json() : null
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `System status request failed (${r.status})`))
+    }
+    return r.json()
   }, staleTime: 30_000, refetchInterval: 30_000 })
 }
 
@@ -108,7 +146,10 @@ function ControlPlaneTab() {
 function useAdminHealth() {
   return useQuery({ queryKey: ['admin-health'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/system/health`, { signal, headers: authHeaders() })
-    if (!r.ok) return null
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `System health request failed (${r.status})`))
+    }
     const data = await r.json()
     return {
       ...data,
@@ -120,7 +161,11 @@ function useAdminHealth() {
 function useAdminUsers() {
   return useQuery({ queryKey: ['admin-users'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/users?limit=50`, { signal, headers: authHeaders() })
-    return r.ok ? r.json() : null
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `Users request failed (${r.status})`))
+    }
+    return r.json()
   }, retry: false, staleTime: 60_000 })
 }
 function useAdminKycQueue(status: string = 'all') {
@@ -130,7 +175,10 @@ function useAdminKycQueue(status: string = 'all') {
       const params = new URLSearchParams({ limit: '50' })
       if (status && status !== 'all') params.set('status', status)
       const r = await fetch(`${ENDPOINTS.gateway}/api/kyc/admin/queue?${params}`, { signal, headers: authHeaders() })
-      if (!r.ok) return { items: [], count: 0 }
+      if (!r.ok) {
+        const payload = await r.json().catch(() => ({}))
+        throw new Error(getRequestErrorMessage(payload, `KYC queue request failed (${r.status})`))
+      }
       const data = await r.json()
       const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : []
       return { items, count: data?.count ?? items.length }
@@ -142,7 +190,10 @@ function useAdminKycQueue(status: string = 'all') {
 function useAdminMetrics() {
   return useQuery({ queryKey: ['admin-metrics'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/system/metrics`, { signal, headers: authHeaders() })
-    if (!r.ok) return null
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `Metrics request failed (${r.status})`))
+    }
     const data = await r.json()
     return {
       ...data,
@@ -155,21 +206,30 @@ function useAdminMetrics() {
 function useAdminWalletTxs() {
   return useQuery({ queryKey: ['admin-wallet-txs'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/wallet/transactions?limit=30`, { signal, headers: authHeaders() })
-    if (!r.ok) return { total: 0, rows: [] }
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `Wallet transactions request failed (${r.status})`))
+    }
     const d = await r.json(); return Array.isArray(d) ? d : d.transactions ?? d.items ?? []
   }, retry: false, staleTime: 60_000 })
 }
 function useAdminMatches() {
   return useQuery({ queryKey: ['admin-matches'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/matches?limit=30`, { signal, headers: authHeaders() })
-    if (!r.ok) return { total: 0, rows: [] }
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `Matches request failed (${r.status})`))
+    }
     const d = await r.json(); return Array.isArray(d) ? d : d.matches ?? d.items ?? []
   }, retry: false, staleTime: 60_000 })
 }
 function useAdminValidators() {
   return useQuery({ queryKey: ['admin-validators'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/validators`, { signal, headers: authHeaders() })
-    if (!r.ok) return { total: 0, rows: [] }
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `Validators request failed (${r.status})`))
+    }
     const d = await r.json()
     const rows = Array.isArray(d) ? d : d.items ?? d.validators ?? []
     return rows.map((v: any) => ({
@@ -184,7 +244,10 @@ function useAdminValidators() {
 function useAdminModels() {
   return useQuery({ queryKey: ['admin-models'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/models`, { signal, headers: authHeaders() })
-    if (!r.ok) return []
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `Models request failed (${r.status})`))
+    }
     const d = await r.json()
     const rows = Array.isArray(d) ? d : d.items ?? d.models ?? []
     return rows.map((m: any) => ({
@@ -197,7 +260,10 @@ function useAdminModels() {
 function useAdminSecrets() {
   return useQuery({ queryKey: ['admin-secrets'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/secrets`, { signal, headers: authHeaders() })
-    if (!r.ok) return []
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `Secrets request failed (${r.status})`))
+    }
     const data = await r.json()
     return Array.isArray(data) ? data : []
   }, retry: false, staleTime: 120_000 })
@@ -206,7 +272,10 @@ function useAdminSecrets() {
 function useAdminConfig() {
   return useQuery({ queryKey: ['admin-config'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/config`, { signal, headers: authHeaders() })
-    if (!r.ok) return null
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `Config request failed (${r.status})`))
+    }
     const data = await r.json()
     if (!Array.isArray(data)) return data
     return data.reduce((config: Record<string, unknown>, entry: any) => {
@@ -219,7 +288,10 @@ function useAdminConfig() {
 function useAdminApiKeys() {
   return useQuery({ queryKey: ['admin-api-keys'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/api-keys?limit=100`, { signal, headers: authHeaders() })
-    if (!r.ok) return []
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `API keys request failed (${r.status})`))
+    }
     const data = await r.json()
     return Array.isArray(data) ? data : (data.keys ?? [])
   } })
@@ -228,7 +300,10 @@ function useAdminApiKeys() {
 function useAdminListings() {
   return useQuery({ queryKey: ['admin-marketplace-listings'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/marketplace/listings?status=pending`, { signal, headers: authHeaders() })
-    if (!r.ok) return []
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `Marketplace listings request failed (${r.status})`))
+    }
     const data = await r.json()
     return Array.isArray(data) ? data : (data.listings ?? [])
   } })
@@ -237,7 +312,10 @@ function useAdminListings() {
 function useAdminTrainingJobs() {
   return useQuery({ queryKey: ['admin-training-jobs'], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/training-jobs?limit=100`, { signal, headers: authHeaders() })
-    if (!r.ok) return []
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `Training jobs request failed (${r.status})`))
+    }
     const data = await r.json()
     return Array.isArray(data) ? data : (data.jobs ?? [])
   }, refetchInterval: 3000 })
@@ -251,7 +329,10 @@ function useAdminAudit(filters: { page: number; adminId: string; action: string;
   if (filters.dateTo) params.set('date_to', `${filters.dateTo}T23:59:59Z`)
   return useQuery({ queryKey: ['admin-audit', filters], queryFn: async ({ signal }) => {
     const r = await fetch(`${ENDPOINTS.gateway}/api/admin/audit-log?${params}`, { signal, headers: authHeaders() })
-    if (!r.ok) return { total: 0, rows: [] }
+    if (!r.ok) {
+      const payload = await r.json().catch(() => ({}))
+      throw new Error(getRequestErrorMessage(payload, `Audit log request failed (${r.status})`))
+    }
     const d = await r.json()
     const rows = Array.isArray(d) ? d : d.logs ?? d.items ?? []
     return { total: d.total ?? rows.length, rows: rows.map((entry: any) => ({
@@ -296,10 +377,37 @@ function EmptyState({ icon: Icon, msg }: { icon: React.ElementType; msg: string 
   )
 }
 
+function AdminErrorState({ title, message, onRetry }: { title?: string; message?: string; onRetry?: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+      <AlertTriangle className="h-10 w-10 text-amber-400" />
+      <div className="space-y-1">
+        <p className="text-base font-semibold text-white">{title ?? 'Admin data unavailable'}</p>
+        <p className="max-w-lg text-sm text-white/55">{message ?? 'The backend rejected this request, or the service is temporarily unavailable.'}</p>
+      </div>
+      {onRetry && (
+        <button type="button" onClick={onRetry} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:text-white">
+          Retry request
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── Tab: Overview ─────────────────────────────────────────────────────────────
 
-function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, loadingStatus, loadingHealth }: any) {
+function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, loadingStatus, loadingHealth, statusError, healthError, metricsError }: any) {
   if (loadingStatus && loadingHealth) return <div className="flex justify-center py-20"><Spinner className="w-8 h-8 text-vit-400" /></div>
+
+  if (statusError || healthError || metricsError) {
+    return (
+      <div className="space-y-4">
+        {statusError && <AdminErrorState title="System status unavailable" message={statusError.message} onRetry={refetchStatus} />}
+        {healthError && <AdminErrorState title="System health unavailable" message={healthError.message} onRetry={refetchHealth} />}
+        {metricsError && <AdminErrorState title="Metrics unavailable" message={metricsError.message} onRetry={() => window.location.reload()} />}
+      </div>
+    )
+  }
 
   const actionCards = [
     { label: 'Audit Log', href: `${ENDPOINTS.gateway}/api/admin/audit-log`, icon: ClipboardList, accent: 'text-vit-400', external: true },
@@ -417,7 +525,10 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
 
 function UsersTab() {
   const queryClient = useQueryClient()
-  const { data: raw, isLoading, refetch } = useAdminUsers()
+  const { data: raw, isLoading, refetch, error } = useAdminUsers()
+  if (error) {
+    return <AdminErrorState title="Users unavailable" message={error.message} onRetry={refetch} />
+  }
   const list: any[] = Array.isArray(raw?.users ?? raw?.items ?? raw)
     ? (raw?.users ?? raw?.items ?? raw)
     : []
@@ -510,7 +621,10 @@ function UsersTab() {
 // ── Tab: Wallet ───────────────────────────────────────────────────────────────
 
 function WalletAdminTab() {
-  const { data: list = [], isLoading, refetch } = useAdminWalletTxs()
+  const { data: list = [], isLoading, refetch, error } = useAdminWalletTxs()
+  if (error) {
+    return <AdminErrorState title="Wallet transactions unavailable" message={error.message} onRetry={refetch} />
+  }
   const txs: any[] = Array.isArray(list) ? list : []
   return (
     <div className="space-y-4">
@@ -554,7 +668,10 @@ function KYCReviewTab() {
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'pending' | 'manual_review'>('all')
   const [notes, setNotes] = useState<Record<number, string>>({})
   const [reasons, setReasons] = useState<Record<number, string>>({})
-  const { data, isLoading, refetch } = useAdminKycQueue(selectedStatus)
+  const { data, isLoading, refetch, error } = useAdminKycQueue(selectedStatus)
+  if (error) {
+    return <AdminErrorState title="KYC queue unavailable" message={error.message} onRetry={refetch} />
+  }
   const items = data?.items ?? []
 
   const approveMutation = useMutation({
@@ -704,7 +821,10 @@ function KYCReviewTab() {
 // ── Tab: Matches ──────────────────────────────────────────────────────────────
 
 function MatchesTab() {
-  const { data: list = [], isLoading, refetch } = useAdminMatches()
+  const { data: list = [], isLoading, refetch, error } = useAdminMatches()
+  if (error) {
+    return <AdminErrorState title="Matches unavailable" message={error.message} onRetry={refetch} />
+  }
   const matches: any[] = Array.isArray(list) ? list : []
   return (
     <div className="space-y-4">
@@ -727,8 +847,11 @@ function MatchesTab() {
 // ── Tab: Validators ───────────────────────────────────────────────────────────
 
 function ValidatorsTab() {
-  const { data: list = [], isLoading, refetch } = useAdminValidators()
+  const { data: list = [], isLoading, refetch, error } = useAdminValidators()
   const queryClient = useQueryClient()
+  if (error) {
+    return <AdminErrorState title="Validators unavailable" message={error.message} onRetry={refetch} />
+  }
   const vals: any[] = Array.isArray(list) ? list : []
   const lifecycle = useMutation({
     mutationFn: async ({ id, action }: { id: string | number; action: string }) => {
@@ -802,8 +925,11 @@ function ModelsTab() {
 }
 
 function ApiKeysTab() {
-  const { data: keys = [], isLoading, refetch } = useAdminApiKeys()
+  const { data: keys = [], isLoading, refetch, error } = useAdminApiKeys()
   const queryClient = useQueryClient()
+  if (error) {
+    return <AdminErrorState title="API keys unavailable" message={error.message} onRetry={refetch} />
+  }
   const revoke = useMutation({
     mutationFn: async (id: number) => {
       const response = await fetch(`${ENDPOINTS.gateway}/api/admin/api-keys/${id}`, { method: 'PATCH', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: false }) })
@@ -816,8 +942,11 @@ function ApiKeysTab() {
 }
 
 function MarketplaceAdminTab() {
-  const { data: listings = [], isLoading, refetch } = useAdminListings()
+  const { data: listings = [], isLoading, refetch, error } = useAdminListings()
   const queryClient = useQueryClient()
+  if (error) {
+    return <AdminErrorState title="Marketplace review unavailable" message={error.message} onRetry={refetch} />
+  }
   const moderate = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: 'approve' | 'reject' }) => {
       const response = await fetch(`${ENDPOINTS.gateway}/api/admin/marketplace/listings/${id}/${action}`, {
@@ -1522,15 +1651,21 @@ type TabId = typeof TABS[number]['id']
 
 export default function Admin() {
   const navigate    = useNavigate()
+  const params      = useParams()
   const token       = getAuthToken()
   const user        = getStoredUser()
-  const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const tabFromRoute = params.tab as TabId | undefined
+  const activeTab = tabFromRoute && TABS.some(tab => tab.id === tabFromRoute) ? tabFromRoute : 'overview'
 
   useEffect(() => { if (!token) navigate('/login', { replace: true }) }, [token, navigate])
 
-  const { data: status,  isLoading: loadingStatus,  refetch: refetchStatus  } = useSystemStatus()
-  const { data: health,  isLoading: loadingHealth,  refetch: refetchHealth  } = useAdminHealth()
-  const { data: metrics                                                       } = useAdminMetrics()
+  const handleTabChange = (nextTab: TabId) => {
+    navigate(nextTab === 'overview' ? '/admin' : `/admin/${nextTab}`)
+  }
+
+  const { data: status,  isLoading: loadingStatus,  refetch: refetchStatus, error: statusError  } = useSystemStatus()
+  const { data: health,  isLoading: loadingHealth,  refetch: refetchHealth, error: healthError  } = useAdminHealth()
+  const { data: metrics, error: metricsError } = useAdminMetrics()
 
   if (!token) return <div className="pt-16 min-h-screen flex items-center justify-center"><Spinner className="w-8 h-8 text-vit-400" /></div>
 
@@ -1575,7 +1710,7 @@ export default function Admin() {
           {/* Tab bar */}
           <div className="flex items-center gap-1 mt-6 overflow-x-auto pb-px [mask-image:linear-gradient(to_right,transparent_0%,black_12px,black_calc(100%-12px),transparent_100%)]">
             {TABS.map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              <button key={tab.id} onClick={() => handleTabChange(tab.id)}
                 className={cn('flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap',
                   activeTab === tab.id ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70 hover:bg-white/5')}>
                 <tab.icon className="w-3.5 h-3.5" />
@@ -1587,7 +1722,7 @@ export default function Admin() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {activeTab === 'overview'   && <OverviewTab  status={status} health={health} metrics={metrics} refetchStatus={refetchStatus} refetchHealth={refetchHealth} loadingStatus={loadingStatus} loadingHealth={loadingHealth} />}
+        {activeTab === 'overview'   && <OverviewTab  status={status} health={health} metrics={metrics} refetchStatus={refetchStatus} refetchHealth={refetchHealth} loadingStatus={loadingStatus} loadingHealth={loadingHealth} statusError={statusError} healthError={healthError} metricsError={metricsError} />}
         {activeTab === 'users'      && <UsersTab      />}
         {activeTab === 'wallet'     && <WalletAdminTab />}
         {activeTab === 'kyc'        && <KYCReviewTab />}
