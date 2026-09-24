@@ -354,13 +354,27 @@ function MetricCard({ icon: Icon, label, value, color = 'text-white', i = 0 }: {
 }) {
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-      className="p-5 bg-surface-800/60 border border-white/8 rounded-xl">
-      <Icon className={`w-4 h-4 mb-3 ${color}`} />
-      <p className={cn('text-2xl font-bold', color)}>{value ?? '—'}</p>
-      <p className="text-white/50 text-sm mt-0.5">{label}</p>
+      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(17,24,39,0.88),rgba(10,14,22,0.94))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/5 backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:shadow-[0_24px_50px_rgba(16,52,90,0.28)]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(125,211,252,0.12),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(168,85,247,0.12),transparent_30%)] opacity-90" />
+      <div className="relative">
+        <div className="mb-4 inline-flex rounded-xl border border-white/10 bg-white/5 p-2">
+          <Icon className={`w-4 h-4 ${color}`} />
+        </div>
+        <p className={cn('text-2xl font-bold tracking-tight', color)}>{value ?? '—'}</p>
+        <p className="mt-1 text-sm text-white/55">{label}</p>
+      </div>
     </motion.div>
   )
 }
+
+function PanelCard({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <div className={cn('rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(11,13,18,0.96))] p-5 shadow-[0_18px_38px_rgba(0,0,0,0.18)] ring-1 ring-white/5 backdrop-blur-xl', className)}>
+      {children}
+    </div>
+  )
+}
+
 function Row({ label, value }: { label: string; value?: string | number | null }) {
   return (
     <div className="flex items-center justify-between py-2.5 border-b border-white/6 last:border-0">
@@ -371,8 +385,11 @@ function Row({ label, value }: { label: string; value?: string | number | null }
 }
 function EmptyState({ icon: Icon, msg }: { icon: React.ElementType; msg: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 gap-2">
-      <Icon className="w-8 h-8 text-white/10" /><p className="text-white/30 text-sm">{msg}</p>
+    <div className="flex flex-col items-center justify-center gap-3 py-16">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+        <Icon className="w-7 h-7 text-white/15" />
+      </div>
+      <p className="text-sm text-white/35">{msg}</p>
     </div>
   )
 }
@@ -425,18 +442,19 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
 
   return (
     <div className="space-y-8">
-      <section className="rounded-2xl border border-white/8 bg-surface-800/60 p-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(13,19,31,0.95),rgba(7,10,16,0.98))] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.28)] ring-1 ring-white/5">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(168,85,247,0.12),transparent_28%)]" />
+        <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-white/40">Operations overview</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Platform health at a glance</h2>
+            <p className="text-[10px] uppercase tracking-[0.24em] text-vit-200/80">Operations overview</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Platform health at a glance</h2>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-300">
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-medium text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.15)]">
             <span className="h-2 w-2 rounded-full bg-emerald-400" />
             System operational
           </div>
         </div>
-        <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="relative mt-5 grid grid-cols-2 md:grid-cols-4 gap-4">
           <MetricCard icon={Users} label="Total Users" value={status?.total_users?.toLocaleString()} color="text-vit-400" i={0} />
           <MetricCard icon={Activity} label="Active (30d)" value={status?.active_users_30d?.toLocaleString()} color="text-emerald-400" i={1} />
           <MetricCard icon={Star} label="Validators" value={status?.active_validators?.toLocaleString()} color="text-yellow-400" i={2} />
@@ -1748,41 +1766,42 @@ export default function Admin() {
   )
 
   return (
-    <div className="pt-16 min-h-screen">
-      <div className="relative border-b border-white/8">
-        <div className="absolute inset-0 section-grid opacity-25" />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-10">
-          <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.10),transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.08),transparent_30%),linear-gradient(180deg,#070b12_0%,#0b1018_100%)] pt-16">
+      <div className="relative border-b border-white/10 bg-slate-950/55 backdrop-blur-xl">
+        <div className="absolute inset-0 section-grid opacity-20" />
+        <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between gap-4">
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center shadow-lg">
-                <Shield className="w-4 h-4 text-white" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-vit-500 via-red-500 to-violet-600 shadow-[0_16px_30px_rgba(124,58,237,0.35)] ring-1 ring-white/10">
+                <Shield className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">Administration</h1>
-                <p className="text-white/40 text-sm">System management and monitoring</p>
+                <h1 className="text-2xl font-bold tracking-tight text-white">Administration</h1>
+                <p className="text-sm text-white/45">System management and monitoring</p>
               </div>
             </motion.div>
             <button onClick={() => { refetchStatus(); refetchHealth() }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-800/60 border border-white/10 text-white/50 hover:text-white text-sm transition-all">
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/65 transition-all hover:border-white/15 hover:text-white shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
               <RefreshCw className={cn('w-3.5 h-3.5', (loadingStatus || loadingHealth) && 'animate-spin')} />
               Refresh
             </button>
           </div>
-          {/* Tab bar */}
-          <div className="flex items-center gap-1 mt-6 overflow-x-auto pb-px [mask-image:linear-gradient(to_right,transparent_0%,black_12px,black_calc(100%-12px),transparent_100%)]">
-            {TABS.map(tab => (
-              <button key={tab.id} onClick={() => handleTabChange(tab.id)}
-                className={cn('flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap',
-                  activeTab === tab.id ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70 hover:bg-white/5')}>
-                <tab.icon className="w-3.5 h-3.5" />
-                {tab.label}
-              </button>
-            ))}
+          <div className="mt-6 overflow-x-auto pb-1">
+            <div className="flex min-w-max items-center gap-2 rounded-2xl border border-white/10 bg-surface-900/70 p-1.5 shadow-[0_8px_20px_rgba(0,0,0,0.18)] backdrop-blur-xl">
+              {TABS.map(tab => (
+                <button key={tab.id} onClick={() => handleTabChange(tab.id)}
+                  className={cn('flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium transition-all whitespace-nowrap',
+                    activeTab === tab.id ? 'bg-white/10 text-white shadow-inner shadow-white/5' : 'text-white/45 hover:text-white hover:bg-white/5')}>
+                  <tab.icon className="w-3.5 h-3.5" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {activeTab === 'overview'   && <OverviewTab  status={status} health={health} metrics={metrics} refetchStatus={refetchStatus} refetchHealth={refetchHealth} loadingStatus={loadingStatus} loadingHealth={loadingHealth} statusError={statusError} healthError={healthError} metricsError={metricsError} />}
         {activeTab === 'users'      && <UsersTab      />}
         {activeTab === 'wallet'     && <WalletAdminTab />}
