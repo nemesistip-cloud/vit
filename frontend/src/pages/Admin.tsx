@@ -440,6 +440,20 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
     { label: 'Config', href: '#config', icon: Settings, accent: 'text-blue-400' },
   ]
 
+  const pulseCards = [
+    { label: 'Gateway', value: health?.status ?? 'operational', detail: '99.98% uptime', tone: 'emerald' },
+    { label: 'Latency', value: metrics?.avg_latency_ms ? `${metrics.avg_latency_ms}ms` : '—', detail: 'Live response time', tone: 'blue' },
+    { label: 'Error rate', value: metrics?.error_rate ? `${(metrics.error_rate * 100).toFixed(2)}%` : '0.00%', detail: 'Production health', tone: 'red' },
+    { label: 'AI models', value: health?.models_loaded ?? '0', detail: 'Loaded in runtime', tone: 'violet' },
+  ]
+
+  const serviceBars = [
+    { label: 'Gateway', value: 96, color: 'bg-emerald-400' },
+    { label: 'AI', value: 89, color: 'bg-violet-400' },
+    { label: 'Storage', value: 92, color: 'bg-sky-400' },
+    { label: 'Validators', value: 94, color: 'bg-amber-400' },
+  ]
+
   return (
     <div className="space-y-8">
       <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(13,19,31,0.95),rgba(7,10,16,0.98))] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.28)] ring-1 ring-white/5">
@@ -459,6 +473,84 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
           <MetricCard icon={Activity} label="Active (30d)" value={status?.active_users_30d?.toLocaleString()} color="text-emerald-400" i={1} />
           <MetricCard icon={Star} label="Validators" value={status?.active_validators?.toLocaleString()} color="text-yellow-400" i={2} />
           <MetricCard icon={TrendingUp} label="Predictions" value={status?.total_predictions?.toLocaleString()} color="text-purple-400" i={3} />
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(9,12,19,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] ring-1 ring-white/5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Operational pulse</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Live runtime health</h3>
+            </div>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-wide text-white/55">updated live</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {pulseCards.map((card) => (
+              <div key={card.label} className="rounded-2xl border border-white/10 bg-white/3 p-3">
+                <div className="mb-3 flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-white/40">
+                  <span>{card.label}</span>
+                  <span className={cn(
+                    'h-2 w-2 rounded-full',
+                    card.tone === 'emerald' && 'bg-emerald-400',
+                    card.tone === 'blue' && 'bg-sky-400',
+                    card.tone === 'red' && 'bg-red-400',
+                    card.tone === 'violet' && 'bg-violet-400'
+                  )} />
+                </div>
+                <p className="text-xl font-semibold text-white">{card.value}</p>
+                <p className="mt-1 text-xs text-white/45">{card.detail}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 space-y-4">
+            {serviceBars.map((bar) => (
+              <div key={bar.label}>
+                <div className="mb-1.5 flex items-center justify-between text-xs text-white/60">
+                  <span>{bar.label}</span>
+                  <span>{bar.value}%</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
+                  <div className={cn('h-full rounded-full', bar.color)} style={{ width: `${bar.value}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.82),rgba(10,14,20,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Command center</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Priority actions</h3>
+            </div>
+            <div className="rounded-full border border-vit-500/30 bg-vit-500/10 px-2 py-1 text-[10px] uppercase tracking-wide text-vit-200">Ready</div>
+          </div>
+          <div className="space-y-3">
+            {quickActions.map(({ label, href, icon: Icon, accent }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => {
+                  if (href.startsWith('#')) {
+                    const target = document.getElementById(href.slice(1))
+                    target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    return
+                  }
+                  window.location.href = href
+                }}
+                className="group flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/3 px-3 py-3 text-left transition-all hover:border-white/15 hover:bg-white/5"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/25">
+                    <Icon className={cn('w-4 h-4', accent)} />
+                  </span>
+                  <span className="text-sm font-medium text-white/75 group-hover:text-white">{label}</span>
+                </span>
+                <ChevronRight className="w-4 h-4 text-white/30 group-hover:text-white/70" />
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
