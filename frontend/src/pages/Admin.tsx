@@ -491,6 +491,18 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
     { name: 'Validators', value: 82, color: 'bg-amber-400' },
   ]
 
+  const runbookSteps = [
+    { label: 'Failover check', state: 'Complete', tone: 'success' },
+    { label: 'Wallet reserve review', state: 'In progress', tone: 'info' },
+    { label: 'KYC escalation sweep', state: 'Queued', tone: 'warning' },
+  ]
+
+  const riskWatchlist = [
+    { title: 'API burst spike', severity: 'Medium', detail: 'Tolerance threshold exceeded for 3 minutes', tone: 'amber' },
+    { title: 'Validator drift', severity: 'High', detail: 'Two nodes under quorum target in region-2', tone: 'red' },
+    { title: 'Model drift', severity: 'Low', detail: 'Prediction variance remains within forecast band', tone: 'sky' },
+  ]
+
   return (
     <div className="space-y-8">
       <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(13,19,31,0.95),rgba(7,10,16,0.98))] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.28)] ring-1 ring-white/5">
@@ -690,6 +702,67 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
                 <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
                   <div className={cn('h-full rounded-full', item.color)} style={{ width: `${item.value}%` }} />
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(9,12,19,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] ring-1 ring-white/5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Operations</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Live runbook</h3>
+            </div>
+            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] uppercase tracking-wide text-emerald-300">3 checks</span>
+          </div>
+          <div className="space-y-3">
+            {runbookSteps.map((step) => (
+              <div key={step.label} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/3 p-3">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    'flex h-8 w-8 items-center justify-center rounded-xl border text-[10px] font-bold uppercase',
+                    step.tone === 'success' && 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300',
+                    step.tone === 'info' && 'border-sky-500/25 bg-sky-500/10 text-sky-300',
+                    step.tone === 'warning' && 'border-amber-500/25 bg-amber-500/10 text-amber-300',
+                  )}>
+                    {step.state.slice(0, 1)}
+                  </div>
+                  <span className="text-sm text-white/80">{step.label}</span>
+                </div>
+                <span className={cn(
+                  'text-[10px] uppercase tracking-[0.14em]',
+                  step.tone === 'success' && 'text-emerald-300',
+                  step.tone === 'info' && 'text-sky-300',
+                  step.tone === 'warning' && 'text-amber-300',
+                )}>{step.state}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(9,12,19,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] ring-1 ring-white/5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Monitoring</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Risk watchlist</h3>
+            </div>
+            <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] uppercase tracking-wide text-amber-300">3 alerts</span>
+          </div>
+          <div className="space-y-3">
+            {riskWatchlist.map((item) => (
+              <div key={item.title} className="rounded-2xl border border-white/10 bg-white/3 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-white/85">{item.title}</p>
+                  <span className={cn(
+                    'rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]',
+                    item.tone === 'amber' && 'border-amber-500/25 bg-amber-500/10 text-amber-300',
+                    item.tone === 'red' && 'border-red-500/25 bg-red-500/10 text-red-300',
+                    item.tone === 'sky' && 'border-sky-500/25 bg-sky-500/10 text-sky-300',
+                  )}>{item.severity}</span>
+                </div>
+                <p className="mt-2 text-xs text-white/55">{item.detail}</p>
               </div>
             ))}
           </div>
