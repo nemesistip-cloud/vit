@@ -3,6 +3,9 @@ import { motion } from 'framer-motion'
 import { useNavigate, Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  AreaChart, Area, BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from '@/lib/recharts'
+import {
   Shield, Users, Activity, Database, Server,
   TrendingUp, AlertTriangle, RefreshCw, ChevronRight,
   Cpu, Zap, Star, BarChart2, Settings, ClipboardList,
@@ -454,6 +457,26 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
     { label: 'Validators', value: 94, color: 'bg-amber-400' },
   ]
 
+  const performanceSeries = [
+    { name: 'Mon', users: 62, accuracy: 72 },
+    { name: 'Tue', users: 65, accuracy: 76 },
+    { name: 'Wed', users: 69, accuracy: 79 },
+    { name: 'Thu', users: 74, accuracy: 82 },
+    { name: 'Fri', users: 82, accuracy: 86 },
+    { name: 'Sat', users: 88, accuracy: 88 },
+    { name: 'Sun', users: 94, accuracy: 91 },
+  ]
+
+  const validatorSeries = [
+    { name: 'Eth', value: 62 },
+    { name: 'BSC', value: 49 },
+    { name: 'Base', value: 75 },
+    { name: 'Sol', value: 58 },
+    { name: 'Pol', value: 72 },
+  ]
+
+  const chartTooltipStyle = { border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(15,23,42,0.94)', borderRadius: 12 }
+
   return (
     <div className="space-y-8">
       <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(13,19,31,0.95),rgba(7,10,16,0.98))] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.28)] ring-1 ring-white/5">
@@ -550,6 +573,57 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
                 <ChevronRight className="w-4 h-4 text-white/30 group-hover:text-white/70" />
               </button>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
+        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(9,12,19,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] ring-1 ring-white/5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Performance</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Live engagement & accuracy</h3>
+            </div>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-emerald-300">+18.4%</span>
+          </div>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={performanceSeries} margin={{ top: 16, right: 8, left: -24, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="adminArea" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.45} />
+                    <stop offset="100%" stopColor="#7c3aed" stopOpacity={0.03} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: '#fff' }} />
+                <Area type="monotone" dataKey="users" stroke="#8b5cf6" fill="url(#adminArea)" strokeWidth={2.5} />
+                <Area type="monotone" dataKey="accuracy" stroke="#34d399" fill="transparent" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.82),rgba(10,14,20,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Validator split</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Network mix</h3>
+            </div>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-sky-300">72% online</span>
+          </div>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={validatorSeries} margin={{ top: 8, right: 0, left: -24, bottom: 0 }}>
+                <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: '#fff' }} />
+                <Bar dataKey="value" radius={[6,6,0,0]} fill="#38bdf8" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </section>
