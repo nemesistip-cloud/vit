@@ -477,6 +477,20 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
 
   const chartTooltipStyle = { border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(15,23,42,0.94)', borderRadius: 12 }
 
+  const activityFeed = [
+    { title: 'Gateway health stabilized', time: '2 mins ago', state: 'success', detail: 'API latency recovered below target threshold.' },
+    { title: 'Validator quorum updated', time: '14 mins ago', state: 'info', detail: 'Participation threshold refreshed for active validator set.' },
+    { title: 'Model retraining queued', time: '31 mins ago', state: 'warning', detail: 'Risk modeling job scheduled to resume after checkpoint.' },
+    { title: 'Audit alert reviewed', time: '1 hr ago', state: 'success', detail: 'Two admin changes were confirmed and logged.' },
+  ]
+
+  const resourceAllocation = [
+    { name: 'Gateway', value: 86, color: 'bg-emerald-400' },
+    { name: 'AI compute', value: 74, color: 'bg-violet-400' },
+    { name: 'Storage', value: 66, color: 'bg-sky-400' },
+    { name: 'Validators', value: 82, color: 'bg-amber-400' },
+  ]
+
   return (
     <div className="space-y-8">
       <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(13,19,31,0.95),rgba(7,10,16,0.98))] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.28)] ring-1 ring-white/5">
@@ -624,6 +638,60 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
                 <Bar dataKey="value" radius={[6,6,0,0]} fill="#38bdf8" />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(9,12,19,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] ring-1 ring-white/5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Activity stream</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Recent operations</h3>
+            </div>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-wide text-white/55">Last 24h</span>
+          </div>
+          <div className="space-y-3">
+            {activityFeed.map((item) => (
+              <div key={item.title} className="flex gap-3 rounded-2xl border border-white/10 bg-white/3 p-3">
+                <div className={cn(
+                  'mt-1 h-2.5 w-2.5 rounded-full',
+                  item.state === 'success' && 'bg-emerald-400',
+                  item.state === 'info' && 'bg-sky-400',
+                  item.state === 'warning' && 'bg-amber-400',
+                )} />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-white/85">{item.title}</p>
+                    <span className="text-[10px] uppercase tracking-[0.14em] text-white/40">{item.time}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-white/55">{item.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(10,14,20,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] ring-1 ring-white/5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Capacity</p>
+              <h3 className="mt-1 text-lg font-semibold text-white">Resource allocation</h3>
+            </div>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-vit-200">balanced</span>
+          </div>
+          <div className="space-y-4">
+            {resourceAllocation.map((item) => (
+              <div key={item.name}>
+                <div className="mb-1.5 flex items-center justify-between text-xs text-white/60">
+                  <span>{item.name}</span>
+                  <span>{item.value}%</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
+                  <div className={cn('h-full rounded-full', item.color)} style={{ width: `${item.value}%` }} />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
