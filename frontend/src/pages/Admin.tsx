@@ -1211,6 +1211,24 @@ function ValidatorsTab() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-validators'] }); toast.success('Validator state updated') },
     onError: (error: Error) => toast.error(error.message),
   })
+  const decision = useMutation({
+    mutationFn: async ({ id, action }: { id: string | number; action: 'approve' | 'reject' }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/blockchain/admin/validators/${id}/${action}`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(getRequestErrorMessage(payload, `Validator ${action} failed (${response.status})`))
+      }
+      return response.json()
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-validators'] })
+      toast.success(`Validator ${variables.action}d`)
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1233,7 +1251,34 @@ function ValidatorsTab() {
                   <td className="px-4 py-3 text-white/60 text-sm">{v.accuracy_score != null ? `${(v.accuracy_score*100).toFixed(1)}%` : '—'}</td>
                   <td className="px-4 py-3"><span className={cn('text-xs px-2 py-0.5 rounded-full border', v.status==='active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : v.status==='slashed' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-white/5 text-white/30 border-white/10')}>{v.status ?? 'unknown'}</span></td>
                   <td className="px-4 py-3 text-white/30 text-xs">{v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}</td>
-                  <td className="px-4 py-3"><div className="flex gap-2">{v.status === 'suspended' && <button type="button" onClick={() => { if (window.confirm('Reactivate this validator?')) lifecycle.mutate({ id: v.id, action: 'reinstate' }) }} className="text-xs text-vit-400">Reactivate</button>}</div></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {v.status === 'pending' && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={decision.isPending}
+                            title="Approve validator application"
+                            onClick={() => { if (window.confirm('Approve this validator application?')) decision.mutate({ id: v.id, action: 'approve' }) }}
+                            className="inline-flex items-center gap-1 text-xs text-emerald-300 disabled:opacity-40"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                          </button>
+                          <button
+                            type="button"
+                            disabled={decision.isPending}
+                            title="Reject validator application"
+                            onClick={() => { if (window.confirm('Reject this validator application?')) decision.mutate({ id: v.id, action: 'reject' }) }}
+                            className="inline-flex items-center gap-1 text-xs text-red-300 disabled:opacity-40"
+                          >
+                            <XCircle className="w-3.5 h-3.5" /> Reject
+                          </button>
+                        </>
+                      )}
+                      {v.status === 'suspended' && <button type="button" disabled={lifecycle.isPending} onClick={() => { if (window.confirm('Reactivate this validator?')) lifecycle.mutate({ id: v.id, action: 'reinstate' }) }} className="text-xs text-vit-400 disabled:opacity-40">Reactivate</button>}
+                      {v.status !== 'pending' && v.status !== 'suspended' && <span className="text-xs text-white/25">—</span>}
+                    </div>
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
