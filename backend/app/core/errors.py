@@ -71,6 +71,15 @@ class AppError(Exception):
         super().__init__(message)
 
 
+class StartupError(RuntimeError):
+    """Raised when the runtime environment violates the production bootstrap contract."""
+
+    def __init__(self, message: str, *, details: Any | None = None) -> None:
+        super().__init__(message)
+        self.message = message
+        self.details = details
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def get_request_id(request: Request) -> str:

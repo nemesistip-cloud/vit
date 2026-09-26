@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 
 def test_load_runtime_env_reads_dotenv(tmp_path, monkeypatch):
     env_file = tmp_path / ".env"
@@ -23,3 +25,15 @@ def test_resolve_chain_mode_defaults_to_external_when_url_is_present(monkeypatch
     from app.config import resolve_chain_mode
 
     assert resolve_chain_mode() == "external"
+
+
+def test_production_environment_rejects_default_dev_secrets(monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("SECRET_KEY", "dev-secret-key")
+    monkeypatch.setenv("JWT_SECRET_KEY", "dev-jwt-secret")
+
+    from app.config import validate_runtime_security
+    from app.core.errors import StartupError
+
+    with pytest.raises(StartupError, match="JWT_SECRET_KEY|SECRET_KEY"):
+        validate_runtime_security()

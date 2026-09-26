@@ -14,7 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from fastapi.exceptions import RequestValidationError
 from app.core.errors import AppError, error_response
 
-from app.config import APP_NAME, APP_VERSION, get_env, get_int_env, CORS_ALLOWED_ORIGINS, ENVIRONMENT
+from app.config import APP_NAME, APP_VERSION, get_env, get_int_env, CORS_ALLOWED_ORIGINS, ENVIRONMENT, validate_runtime_security
 from app.core.kernel import kernel, setup_signal_handlers
 from app.core.subsystems import register_core_subsystems
 from app.db.database import engine, get_db
@@ -29,6 +29,8 @@ from app.api.middleware.security import SecurityHeadersMiddleware
 from app.api.middleware.rate_limit import RateLimitMiddleware
 from app.modules.platform.routes import router as platform_events_router
 from app.modules.platform.search_routes import router as platform_search_router
+
+validate_runtime_security()
 
 # --- VIT Runtime Kernel ---
 # Wrapped in try/except: even a total import-chain failure must not cause

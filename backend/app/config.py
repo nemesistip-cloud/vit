@@ -224,6 +224,35 @@ RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "t
 # the middleware will log a warning if "*" is used in production.
 CORS_ALLOWED_ORIGINS: str = os.getenv("CORS_ALLOWED_ORIGINS", "")
 
+def validate_runtime_security() -> None:
+    """Fail fast in production when any secure secret still uses an insecure dev fallback.
+
+    This guards the exact issue documented in the product and security review: if
+    ``ENVIRONMENT=production`` and the runtime still contains the default dev secrets,
+    the application must stop before binding any port and serving traffic.
+    """
+    environment_name = (os.getenv("ENVIRONMENT") or ENVIRONMENT or "development").strip().lower()
+    if environment_name != "production":
+        return
+
+    insecure_default_values = {
+        "SECRET_KEY": "dev-secret-key",
+        "JWT_SECRET_KEY": "dev-jwt-secret",
+    }
+    violations: list[str] = []
+    for env_key, default_value in insecure_default_values.items():
+        current_value = (os.getenv(env_key) or "").strip()
+        if not current_value or current_value == default_value:
+            violations.append(f"{env_key} is missing or still uses the insecure default '{default_value}'")
+
+    if violations:
+        from app.core.errors import StartupError
+        raise StartupError(
+            "Production bootstrap denied: " + "; ".join(violations),
+            details={"environment": environment_name, "violations": violations},
+        )
+
+
 def print_config_status() -> None:
     try:
         from app.core.config.manager import config_manager
