@@ -4,10 +4,12 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 
 from main import app
-from app.api.dependencies.admin import require_admin
+from app.api.dependencies.admin import require_admin, require_super_admin
 from app.api.deps import get_current_admin
 from app.db.models import User
+from app.modules.blockchain.models import ValidatorProfile, ValidatorStatus
 from app.modules.kyc.models import KYCSubmission, KYCStatus
+from app.modules.notifications.service import NotificationService
 from app.modules.wallet.models import Wallet, WalletTransaction
 
 
@@ -89,3 +91,33 @@ async def test_admin_kyc_compatibility_alias_lists_pending_requests(client, db_s
         assert response.json() == {"total": 0, "kyc_requests": []}
     finally:
         app.dependency_overrides.pop(get_current_admin, None)
+
+
+@pytest.mark.asyncio
+async def test_validator_approval_preserves_super_admin_role(client, db_session, monkeypatch):
+    admin = User(email="admin.validator@example.com", username="admin_validator", role="super_admin", is_active=True)
+    db_session.add(admin)
+    await db_session.flush()
+
+    validator = ValidatorProfile(
+        user_id=admin.id,
+        stake_amount=Decimal("5"),
+        trust_score=Decimal("0.5"),
+        influence_score=Decimal("2.5"),
+        status=ValidatorStatus.PENDING.value,
+    )
+    db_session.add(validator)
+    await db_session.commit()
+
+    async def no_notification(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(NotificationService, "notify_validator_status", no_notification)
+    app.dependency_overrides[require_super_admin] = lambda: admin
+    try:
+        response = await client.post(f"/api/blockchain/admin/validators/{validator.id}/approve")
+        assert response.status_code == 200, response.text
+        assert response.json()["validator"]["status"] == ValidatorStatus.ACTIVE.value
+        assert response.json()["validator"]["role"] == "super_admin"
+    finally:
+        app.dependency_overrides.pop(require_super_admin, None)

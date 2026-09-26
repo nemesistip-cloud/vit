@@ -337,7 +337,7 @@ async def admin_approve_validator(
     if vp.status == ValidatorStatus.SLASHED.value:
         raise HTTPException(409, "Cannot approve a slashed validator")
     vp.status = ValidatorStatus.ACTIVE.value
-    if user.role not in ("admin", "validator"):
+    if str(user.role or "").strip().lower() not in {"admin", "super_admin", "superadmin", "validator"}:
         user.role = "validator"
     await db.commit()
     await db.refresh(vp)
