@@ -19,6 +19,8 @@ services:
             type: redis
             name: vitnetwork-redis
             property: connectionString
+        - key: SECRET_KEY
+          sync: false
         - key: JWT_SECRET_KEY
           sync: false
         - key: VIT_TREASURY_PRIVATE_KEY

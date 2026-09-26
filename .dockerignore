@@ -7,6 +7,9 @@
 replit.nix
 .local/
 .cache/
+.venv/
+.tox/
+.nox/
 .agents/
 attached_assets/
 __pycache__/
@@ -21,6 +24,7 @@ __pycache__/
 node_modules/
 frontend/node_modules/
 frontend/dist/
+.pnpm-store/
 vit.db
 *.db-shm
 *.db-wal
