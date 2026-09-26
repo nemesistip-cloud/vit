@@ -74,3 +74,18 @@ async def test_admin_kyc_queue_accepts_all_status_filter(client, db_session):
         assert any(item["user_id"] == admin.id for item in data["items"])
     finally:
         app.dependency_overrides.pop(get_current_admin, None)
+
+
+@pytest.mark.asyncio
+async def test_admin_kyc_compatibility_alias_lists_pending_requests(client, db_session):
+    admin = User(email="admin.kyc.alias@example.com", username="admin_kyc_alias", role="admin", is_active=True)
+    db_session.add(admin)
+    await db_session.commit()
+
+    app.dependency_overrides[get_current_admin] = lambda: admin
+    try:
+        response = await client.get("/api/admin/kyc")
+        assert response.status_code == 200, response.text
+        assert response.json() == {"total": 0, "kyc_requests": []}
+    finally:
+        app.dependency_overrides.pop(get_current_admin, None)

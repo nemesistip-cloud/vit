@@ -955,6 +955,7 @@ try:
     app.include_router(wallet_router)
     try:
         from app.modules.wallet.routes import admin_list_pending_kyc as admin_kyc_pending_compat
+        app.add_api_route("/api/admin/kyc", admin_kyc_pending_compat, methods=["GET"], include_in_schema=False)
         app.add_api_route("/api/admin/kyc/pending", admin_kyc_pending_compat, methods=["GET"], include_in_schema=False)
     except Exception as _e:
         logging.warning("wallet admin KYC compatibility alias not mounted: %s", _e)
