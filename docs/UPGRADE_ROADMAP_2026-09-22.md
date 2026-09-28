@@ -20,7 +20,7 @@ Status: in progress
 - [x] Fail closed when emergency-control state cannot be read for controlled operations.
 - [x] Register static and SPA routes before direct-script Uvicorn startup.
 - [ ] Add lifespan tests for startup cancellation and worker shutdown.
-- [ ] Add a structured readiness reason when the database or Redis is unavailable.
+- [x] Add structured readiness diagnostics when the database or Redis is unavailable.
 - [ ] Ensure production CORS has an explicit non-wildcard allowlist when credentials are enabled.
 
 Acceptance: startup and shutdown leave no background tasks behind; controlled financial and prediction operations return `503` when safety state is unavailable; `/ready` explains the failing dependency.

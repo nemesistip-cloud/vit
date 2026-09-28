@@ -4,6 +4,9 @@ Smoke tests for health / system endpoints.
 These test the running FastAPI app via ASGI transport (no real DB needed
 since these endpoints don't touch the database).
 """
+import json
+from types import SimpleNamespace
+
 import pytest
 
 
@@ -76,6 +79,36 @@ async def test_readiness_uses_shared_redis_client(client, monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["redis"] is True
+    assert response.json()["dependencies"]["redis"] == {
+        "status": "available",
+        "required": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_readiness_reports_dependency_failure_reasons(monkeypatch):
+    import main
+
+    class FailedDatabase:
+        async def execute(self, *_args, **_kwargs):
+            raise RuntimeError("database unavailable")
+
+    class FailedRedis:
+        async def ping(self):
+            raise RuntimeError("redis unavailable")
+
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(redis=FailedRedis()))
+    )
+    response = await main.readiness(request, FailedDatabase())
+    payload = json.loads(response.body)
+
+    assert response.status_code == 503
+    assert payload["status"] == "not_ready"
+    assert payload["dependencies"] == {
+        "database": {"status": "unavailable", "required": True, "reason": "connection_failed"},
+        "redis": {"status": "unavailable", "required": False, "reason": "connection_failed"},
+    }
 
 
 @pytest.mark.asyncio

@@ -453,11 +453,13 @@ async def readiness(request: Request, db: AsyncSession = Depends(get_db)):
     from fastapi.responses import JSONResponse
     db_ok = False
     redis_ok = False
+    db_reason = None
+    redis_reason = "not_configured"
     try:
         await db.execute(text("SELECT 1"))
         db_ok = True
     except Exception:
-        pass
+        db_reason = "connection_failed"
     try:
         # The startup path may expose Redis through the shared client without
         # attaching it to app.state. Use that client before declaring Redis
@@ -469,12 +471,26 @@ async def readiness(request: Request, db: AsyncSession = Depends(get_db)):
         if redis_client:
             await redis_client.ping()
             redis_ok = True
+            redis_reason = None
     except Exception:
-        pass
+        redis_reason = "connection_failed"
     ready = db_ok  # DB is the hard requirement; Redis degraded is non-fatal
+    dependencies = {
+        "database": {"status": "available" if db_ok else "unavailable", "required": True},
+        "redis": {"status": "available" if redis_ok else "unavailable", "required": False},
+    }
+    if db_reason:
+        dependencies["database"]["reason"] = db_reason
+    if redis_reason:
+        dependencies["redis"]["reason"] = redis_reason
     return JSONResponse(
         status_code=200 if ready else 503,
-        content={"status": "ready" if ready else "not_ready", "db": db_ok, "redis": redis_ok},
+        content={
+            "status": "ready" if ready else "not_ready",
+            "db": db_ok,
+            "redis": redis_ok,
+            "dependencies": dependencies,
+        },
     )
 
 
