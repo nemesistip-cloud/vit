@@ -44,6 +44,19 @@ class VitChainClient:
             raise VitChainClientError("standalone chain returned an invalid blocks payload")
         return payload
 
+    async def transactions(self, limit: int = 20, offset: int = 0) -> dict[str, Any]:
+        payload = await self._get("/api/txs", limit=limit, offset=offset)
+        if not isinstance(payload, dict) or not isinstance(payload.get("transactions"), list):
+            raise VitChainClientError("standalone chain returned an invalid transactions payload")
+        return payload
+
+    async def metrics(self) -> dict[str, Any]:
+        payload = await self._get("/api/metrics")
+        required = {"tps", "total_transactions", "active_validators"}
+        if not isinstance(payload, dict) or not required.issubset(payload):
+            raise VitChainClientError("standalone chain returned an invalid metrics payload")
+        return payload
+
     async def account(self, address: str) -> dict[str, Any]:
         payload = await self._get(f"/api/accounts/{address}")
         if not isinstance(payload, dict) or "balance" not in payload:

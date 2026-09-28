@@ -137,7 +137,7 @@ export default function App() {
         <Route path="/platform"        element={wrap(<Platform />)}       />
         <Route path="/ai"              element={wrap(<AI />)}             />
         <Route path="/storage"         element={wrap(<Storage />)}        />
-        <Route path="/status"          element={wrap(<Status />)}         />
+        <Route path="/status-page"    element={wrap(<Status />)}         />
         <Route path="/developers"      element={wrap(<Developers />)}     />
         <Route path="/docs"            element={wrap(<Documentation />)}  />
         <Route path="/roadmap"         element={wrap(<Roadmap />)}        />

@@ -287,7 +287,7 @@ export default function Home() {
               <Link to="/developers" className="inline-flex items-center gap-2 rounded-xl bg-white/8 border border-white/10 px-4 py-2.5 text-sm text-white hover:bg-white/12 transition-colors">
                 Developer access <ArrowRight className="w-4 h-4" />
               </Link>
-              <Link to="/status" className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm text-white/65 hover:text-white transition-colors">
+              <Link to="/status-page" className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm text-white/65 hover:text-white transition-colors">
                 Check status
               </Link>
             </div>

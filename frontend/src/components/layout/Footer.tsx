@@ -12,7 +12,7 @@ const COLUMNS = [
       { label: 'AI Oracle',      path: '/ai' },
       { label: 'Storage',        path: '/storage' },
       { label: 'Chain Explorer', path: '/chain' },
-      { label: 'System Status',  path: '/status' },
+      { label: 'System Status',  path: '/status-page' },
     ],
   },
   {
@@ -83,7 +83,7 @@ export function Footer() {
             <div className="flex items-center gap-1.5 text-xs shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className={`${healthClass} font-medium`}>{healthLabel}</span>
-              <Link to="/status" className="text-white/25 hover:text-white/50 transition-colors ml-1">
+              <Link to="/status-page" className="text-white/25 hover:text-white/50 transition-colors ml-1">
                 <ExternalLink className="w-3 h-3" />
               </Link>
             </div>
@@ -130,7 +130,7 @@ export function Footer() {
             </div>
 
             <Link
-              to="/status"
+              to="/status-page"
               className="inline-flex items-center gap-1.5 text-xs text-white/25 hover:text-white/50 transition-colors"
             >
               <ExternalLink className="w-3 h-3" /> Status page
@@ -169,7 +169,7 @@ export function Footer() {
               { label: 'Privacy',  path: '/docs#privacy' },
               { label: 'Terms',    path: '/docs#terms' },
               { label: 'Security', path: '/docs#security' },
-              { label: 'Status',   path: '/status' },
+              { label: 'Status',   path: '/status-page' },
             ].map(({ label, path }) => (
               <Link key={label} to={path} className="text-xs text-white/30 hover:text-white/60 transition-colors">
                 {label}

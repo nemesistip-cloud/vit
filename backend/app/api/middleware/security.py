@@ -55,13 +55,14 @@ class SecurityHeadersMiddleware:
                 headers.append((b"cross-origin-resource-policy", b"same-site"))
 
                 # --- CSP (Phase 3: removed 'unsafe-eval' from script-src) ---
+                swagger_assets = " https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/" if path == "/docs" else ""
                 csp = (
                     "default-src 'self'; "
-                    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                    f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com{swagger_assets}; "
                     "img-src 'self' data: https:; "
                     "connect-src 'self' wss: https:; "
                     "font-src 'self' data: https://fonts.gstatic.com; "
-                    "script-src 'self' 'unsafe-inline'; "   # removed 'unsafe-eval'
+                    f"script-src 'self' 'unsafe-inline'{swagger_assets}; "
                     "frame-ancestors 'none'; "              # Phase3: 'self'→'none' (DENY equivalent)
                     "base-uri 'self'; "
                     "form-action 'self';"

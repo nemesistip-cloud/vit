@@ -35,6 +35,11 @@ const QUICK_STARTS = [
     code: `curl ${ENDPOINTS.ai}/health`,
   },
   {
+    title: 'VIT Chain Status',
+    description: 'Read the live VIT Chain node status',
+    code: `curl ${ENDPOINTS.chain}/api/status`,
+  },
+  {
     title: 'Storage Health',
     description: 'Check vit-storage availability',
     code: `curl ${ENDPOINTS.storage}/health`,
@@ -73,6 +78,7 @@ export default function Developers() {
             {[
               { label: 'Gateway',     url: ENDPOINTS.gateway },
               { label: 'vit-ai',      url: ENDPOINTS.ai },
+              { label: 'vit-chain',   url: ENDPOINTS.chain },
               { label: 'vit-storage', url: ENDPOINTS.storage },
             ].map(e => (
               <div key={e.label} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
@@ -112,10 +118,11 @@ export default function Developers() {
         >
           <h2 className="text-xl font-bold text-white mb-4">Health Response Shape</h2>
           <CodeBlock lang="json" code={`{
-  "name": "VIT Platform",
-  "status": "healthy",
-  "version": "<gateway-version>",
-  "environment": "production"
+  "status": "ok",
+  "version": "1.2.0",
+  "models_loaded": 13,
+  "db_connected": true,
+  "clv_tracking_enabled": true
 }`} />
         </motion.div>
 
@@ -132,8 +139,8 @@ export default function Developers() {
           <div className="grid sm:grid-cols-2 gap-3 font-mono text-xs">
             {[
               { from: 'AI inference',   to: 'vit-ai' },
+              { from: 'Blockchain',     to: 'vit-chain (Chain ID 7764)' },
               { from: 'File storage',   to: 'vit-storage' },
-              { from: 'Blockchain',     to: 'blockchain service (future)' },
               { from: 'Identity',       to: 'identity service (future)' },
             ].map(r => (
               <div key={r.from} className="flex items-center gap-2 text-white/50">

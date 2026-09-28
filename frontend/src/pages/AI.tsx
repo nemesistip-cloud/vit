@@ -39,9 +39,27 @@ function useAiFeed() {
         signal,
         headers: authHeaders(),
       })
-      return r.ok ? r.json() : null
+      if (!r.ok) throw new Error(`AI feed health unavailable (${r.status})`)
+      return r.json()
     },
+    retry: false,
     staleTime: 15_000, refetchInterval: 30_000,
+  })
+}
+
+function useAiModels() {
+  return useQuery({
+    queryKey: ['ai-model-registry'],
+    queryFn: async ({ signal }) => {
+      const r = await fetch(`${ENDPOINTS.gateway}/api/ai-feed/models`, {
+        signal,
+        headers: authHeaders(),
+      })
+      if (!r.ok) throw new Error(`AI model registry unavailable (${r.status})`)
+      return r.json() as Promise<{ models?: Model[]; registered_count?: number }>
+    },
+    retry: false,
+    staleTime: 60_000,
   })
 }
 
@@ -94,18 +112,18 @@ function StatBlock({ icon: Icon, label, value, color }: {
 export default function AI() {
   const [tab, setTab] = useState<'overview' | 'models' | 'inference'>('overview')
   const { data: service, isLoading: svcLoading, refetch } = useAiService()
-  const { data: feed,    isLoading: feedLoading }          = useAiFeed()
+  const { data: feed, isLoading: feedLoading, error: feedError } = useAiFeed()
+  const { data: modelRegistry, isLoading: modelsLoading, error: modelsError } = useAiModels()
   const { data: sources }                                  = useAiFeedSources()
   const { data: modelConf }                                = useModelContribution()
 
-  const modelsLoaded = feed?.models_count ?? service?.models_loaded ?? null
+  const modelsLoaded = service?.models_loaded ?? feed?.models_loaded ?? null
   const version      = feed?.version ?? service?.version ?? null
   const latency      = feed?.latency_ms ?? service?.latency_ms ?? null
-  const models        = (service?.models ?? []) as Model[]
+  const models       = Array.isArray(modelRegistry?.models) ? modelRegistry.models : []
   const dbConnected   = feed?.db_connected ?? service?.db_connected
   const clvEnabled    = feed?.clv_tracking_enabled ?? service?.clv_tracking_enabled
-  const feedStatus   = feed?.status ?? (feedLoading ? 'loading' : 'ready')
-  const svcStatus    = service?.status ?? (svcLoading ? undefined : 'healthy')
+  const feedStatus   = feed?.status ?? (feedLoading ? 'loading' : feedError ? 'unavailable' : 'unknown')
 
   return (
     <div className="pt-16 min-h-screen">
@@ -136,7 +154,7 @@ export default function AI() {
           <StatBlock icon={Activity} label="Service Status" value={svcLoading ? 'Loading' : (service?.status ?? 'Unavailable')} color="bg-emerald-500/20" />
           <StatBlock icon={Cpu}      label="Version"        value={version ?? 'Unavailable'}       color="bg-vit-500/20" />
           <StatBlock icon={Zap}      label="Latency"        value={latency != null ? `${latency}ms` : '—'} color="bg-amber-500/20" />
-          <StatBlock icon={Brain}    label="Models"         value={modelsLoaded}  color="bg-purple-500/20" />
+          <StatBlock icon={Brain}    label="Loaded Models"  value={modelsLoaded}  color="bg-purple-500/20" />
         </div>
 
         {/* Tabs */}
@@ -174,6 +192,7 @@ export default function AI() {
                     <span className="text-sm text-white font-medium capitalize">{String(value)}</span>
                   </div>
                 ) : null)}
+                {feedError && <p className="pt-2 text-xs text-amber-300">AI feed health is unavailable; runtime details may be stale.</p>}
               </div>
             </div>
 
@@ -181,27 +200,21 @@ export default function AI() {
             <div className="bg-surface-800/60 border border-white/8 rounded-xl p-6">
               <div className="flex items-center gap-2 mb-5">
                 <BarChart3 className="w-4 h-4 text-vit-400" />
-                <h2 className="font-semibold text-white">Model Confidence Breakdown</h2>
+                <h2 className="font-semibold text-white">Historical Model Accuracy</h2>
               </div>
               {(() => {
                 const modelEntries = Array.isArray(modelConf?.models)
-                  ? modelConf.models.map((m: any) => ({
+                  ? modelConf.models.filter((m: any) => typeof m.accuracy === 'number' && Number.isFinite(m.accuracy)).map((m: any) => ({
                       name: m.name || m.key || 'Model',
-                      value: typeof m.accuracy === 'number' && m.accuracy > 0
-                        ? m.accuracy
-                        : (typeof m.weight === 'number' && m.weight > 0 ? (m.weight <= 1 ? m.weight * 100 : m.weight) : 75)
+                      value: m.accuracy,
                     }))
-                  : modelConf && typeof modelConf === 'object'
-                  ? Object.entries(modelConf)
-                      .filter(([k]) => k !== 'ensemble_accuracy' && k !== 'active_count' && k !== 'models')
-                      .map(([k, v]: [string, any]) => ({ name: k, value: typeof v === 'number' ? (v <= 1 ? v * 100 : v) : 75 }))
                   : []
 
                 if (modelEntries.length === 0) {
                   return (
                     <div className="flex flex-col items-center justify-center py-10 text-center">
                       <Target className="w-10 h-10 text-white/10 mb-3" />
-                      <p className="text-white/40 text-sm">Sign in or load models to view confidence</p>
+                      <p className="text-white/40 text-sm">No measured model accuracy is available yet</p>
                     </div>
                   )
                 }
@@ -253,10 +266,16 @@ export default function AI() {
           <div className="bg-surface-800/60 border border-white/8 rounded-xl overflow-hidden">
             <div className="px-6 py-5 border-b border-white/8">
               <h2 className="font-semibold text-white">Model Registry</h2>
-              <p className="text-xs text-white/40 mt-1">{modelsLoaded} models loaded across the inference ensemble</p>
+              <p className="text-xs text-white/40 mt-1">{models.length} registered · {modelsLoaded ?? '—'} loaded in runtime</p>
             </div>
-            {svcLoading ? (
+            {modelsLoading || svcLoading ? (
               <div className="flex items-center justify-center py-16"><Spinner className="w-6 h-6 text-vit-400" /></div>
+            ) : modelsError ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Brain className="w-12 h-12 text-white/10 mb-3" />
+                <p className="text-white/40">Model metadata is unavailable</p>
+                <p className="text-white/25 text-sm mt-1">The AI service may be temporarily unreachable.</p>
+              </div>
             ) : !service ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Brain className="w-12 h-12 text-white/10 mb-3" />
@@ -266,8 +285,7 @@ export default function AI() {
             ) : models.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Brain className="w-12 h-12 text-white/10 mb-3" />
-                <p className="text-white/40">No model registry details returned</p>
-                <p className="text-white/25 text-sm mt-1">The service is reachable, but model metadata is unavailable.</p>
+                <p className="text-white/40">No model definitions are registered</p>
               </div>
             ) : (
               <div className="divide-y divide-white/5">
@@ -283,7 +301,7 @@ export default function AI() {
                     </div>
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-emerald-400" />
-                      <span className="text-xs text-emerald-400">Loaded</span>
+                      <span className="text-xs text-emerald-400">Registered</span>
                     </div>
                   </motion.div>
                 ))}

@@ -28,7 +28,7 @@ const WORKSPACES: Workspace[] = [
   { id: 'governance',  label: 'Governance',       icon: Vote,            path: '/governance',        color: 'text-indigo-400', description: 'DAO proposals & voting' },
   { id: 'marketplace', label: 'Marketplace',      icon: Store,           path: '/marketplace',       color: 'text-orange-400', description: 'Prediction marketplace' },
   { id: 'storage',     label: 'Storage',          icon: Database,        path: '/storage',           color: 'text-cyan-400',   description: 'Tachyon decentralised storage' },
-  { id: 'cloud',       label: 'Cloud',            icon: Cloud,           path: '/status',            color: 'text-sky-400',    description: 'Infrastructure status' },
+  { id: 'cloud',       label: 'Cloud',            icon: Cloud,           path: '/status-page',       color: 'text-sky-400',    description: 'Infrastructure status' },
   { id: 'validators',  label: 'Validators',       icon: Shield,          path: '/validators',        color: 'text-teal-400',   description: 'Network validators' },
   { id: 'enterprise',  label: 'Enterprise',       icon: Building2,       path: '/enterprise',        color: 'text-slate-300',  description: 'API & data licensing' },
 ]

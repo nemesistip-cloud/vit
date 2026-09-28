@@ -74,6 +74,63 @@ test('admin console shows a production summary and editable feature flags', asyn
   await page.screenshot({ path: 'admin-console-ux.png' });
 });
 
+test('admin Users and System tabs render authorized read data', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'admin-read-only-test-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 42, username: 'operator', role: 'super_admin' }));
+  });
+
+  const authorizedReads: string[] = [];
+  await page.route('**/api/admin/users?limit=50', async route => {
+    authorizedReads.push(route.request().headers().authorization ?? '');
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        total: 1,
+        users: [{ id: 42, username: 'operator', email: 'operator@example.test', role: 'super_admin', is_active: true }],
+      }),
+    });
+  });
+  await page.route('**/api/admin/system/health', async route => {
+    authorizedReads.push(route.request().headers().authorization ?? '');
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'ok',
+        version: '1.2.0',
+        database: { status: 'connected' },
+        redis: { status: 'connected' },
+        models_ready: 13,
+      }),
+    });
+  });
+  await page.route('**/api/admin/system/metrics', async route => {
+    authorizedReads.push(route.request().headers().authorization ?? '');
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ requests_24h: 10, errors_24h: 0, error_rate_pct: 0, avg_response_ms: 24 }),
+    });
+  });
+  await page.route('**/api/system/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ total_users: 42, active_users_30d: 10, active_validators: 0, total_predictions: 100 }),
+  }));
+
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Users', exact: true }).click();
+  await expect(page.getByText('operator@example.test')).toBeVisible();
+
+  await page.getByRole('button', { name: 'System', exact: true }).click();
+  await expect(page.getByText('Connected', { exact: true })).toBeVisible();
+  await expect(page.getByText('42', { exact: true })).toBeVisible();
+  expect(authorizedReads.length).toBeGreaterThanOrEqual(3);
+  expect(authorizedReads.every(value => value.startsWith('Bearer '))).toBe(true);
+});
+
 test('authenticated shell exposes product layers and mobile More navigation', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('vit_token', 'ui-shell-smoke-token');
@@ -111,4 +168,98 @@ test('authenticated mobile navigation starts with workspace actions', async ({ p
   await expect(menu).toBeVisible();
   await expect(page.locator('header').getByText('Explore', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible();
+});
+
+test('chain explorer interprets Unix-second block timestamps correctly', async ({ page }) => {
+  const timestamp = Math.floor(Date.now() / 1000) - 5;
+  await page.route('**/api/chain/height', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ height: 24981, chain_id: 7764 }),
+  }));
+  await page.route('**/api/chain/recent-blocks**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ blocks: [{ height: 24981, block_hash: 'hash', timestamp, tx_count: 0 }] }),
+  }));
+  await page.route('**/api/chain/metrics', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ tps: 0, total_transactions: 0, active_validators: 0 }),
+  }));
+  await page.route('**/api/chain/transactions**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ transactions: [] }),
+  }));
+
+  await page.goto('/chain');
+
+  await expect(page.getByText(/Block #24,981/).first()).toBeVisible();
+  await expect(page.getByText(/\d+s ago/).first()).toBeVisible();
+});
+
+test('AI overview does not invent accuracy for models without measurements', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'ai-accuracy-test-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'tester', role: 'user' }));
+  });
+  await page.route('**/api/registry', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ services: { ai: { status: 'healthy', version: '1.0', models_loaded: 1 } } }),
+  }));
+  await page.route('**/api/dashboard/model-confidence', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ models: [{ name: 'Measured Model', accuracy: 63.5 }, { name: 'Unmeasured Model', accuracy: null }] }),
+  }));
+  await page.route('**/api/ai-feed/health', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ status: 'healthy', models_loaded: 1 }),
+  }));
+  await page.route('**/api/ai-feed/models', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      registered_count: 2,
+      models: [
+        { id: 'model-a', name: 'Model A', provider: 'native' },
+        { id: 'model-b', name: 'Model B', provider: 'native' },
+      ],
+    }),
+  }));
+  await page.route('**/api/ai-feed/sources', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([]),
+  }));
+
+  await page.goto('/ai');
+
+  await expect(page.getByRole('heading', { name: 'Historical Model Accuracy' })).toBeVisible();
+  await expect(page.getByText('Measured Model')).toBeVisible();
+  await expect(page.getByText('63.5%')).toBeVisible();
+  await expect(page.getByText('Unmeasured Model')).toHaveCount(0);
+  await expect(page.getByText('75.0%')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'models', exact: true }).click();
+  await expect(page.getByText('2 registered · 1 loaded in runtime')).toBeVisible();
+  await expect(page.getByText('Model A')).toBeVisible();
+  await expect(page.getByText('Registered', { exact: true }).first()).toBeVisible();
+});
+
+test('human status page is separate from the legacy machine status route', async ({ page }) => {
+  await page.goto('/status-page');
+
+  await expect(page.getByRole('heading', { name: 'Platform Health' })).toBeVisible();
+});
+
+test('Developer Hub documents the deployed Chain service and gateway health schema', async ({ page }) => {
+  await page.goto('/developers');
+
+  await expect(page.getByText('vit-chain', { exact: true })).toBeVisible();
+  await expect(page.getByText(/models_loaded/)).toBeVisible();
+  await expect(page.getByText(/blockchain service \(future\)/i)).toHaveCount(0);
 });

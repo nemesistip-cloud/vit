@@ -138,7 +138,7 @@ export default function Platform() {
 
         {/* CTA */}
         <div className="flex gap-4 flex-wrap">
-          <Link to="/status" className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vit-600 hover:bg-vit-500 text-white font-medium transition-colors">
+          <Link to="/status-page" className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vit-600 hover:bg-vit-500 text-white font-medium transition-colors">
             Live Status <ArrowRight className="w-4 h-4" />
           </Link>
           <Link to="/docs" className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 text-white font-medium transition-colors">

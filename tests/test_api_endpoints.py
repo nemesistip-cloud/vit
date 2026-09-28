@@ -139,6 +139,67 @@ async def test_ai_models_list():
     assert resp.status_code in (200, 401, 403, 404)
 
 
+@pytest.mark.asyncio
+async def test_ai_feed_models_proxy_uses_vit_ai_client(monkeypatch):
+    async def live_models():
+        return [{"id": "model-a", "name": "Model A"}, {"id": "model-b", "name": "Model B"}]
+
+    monkeypatch.setattr("app.api.routes.ai_feed.vit_ai_client.get_models", live_models)
+    async with _client() as client:
+        response = await client.get("/api/ai-feed/models")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "models": [{"id": "model-a", "name": "Model A"}, {"id": "model-b", "name": "Model B"}],
+        "registered_count": 2,
+    }
+
+
+@pytest.mark.asyncio
+async def test_ai_feed_models_proxy_fails_closed_when_vit_ai_unavailable(monkeypatch):
+    async def unavailable():
+        raise RuntimeError("upstream unavailable")
+
+    monkeypatch.setattr("app.api.routes.ai_feed.vit_ai_client.get_models", unavailable)
+    async with _client() as client:
+        response = await client.get("/api/ai-feed/models")
+
+    assert response.status_code == 503
+    assert response.json()["error"]["message"] == "AI model registry unavailable"
+
+
+@pytest.mark.asyncio
+async def test_ai_feed_health_uses_live_service_values(monkeypatch):
+    async def live_health():
+        return {"status": "degraded", "version": "0.1.0", "models_loaded": 12}
+
+    monkeypatch.setattr("app.api.routes.ai_feed.vit_ai_client.get_health", live_health)
+    async with _client() as client:
+        response = await client.get("/api/ai-feed/health")
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["status"] == "degraded"
+    assert data["version"] == "0.1.0"
+    assert data["models_loaded"] == 12
+    assert data["latency_ms"] >= 0
+    assert "clv_tracking_enabled" not in data
+    assert "db_connected" not in data
+
+
+@pytest.mark.asyncio
+async def test_ai_feed_health_fails_when_vit_ai_is_unavailable(monkeypatch):
+    async def unavailable():
+        raise RuntimeError("upstream unavailable")
+
+    monkeypatch.setattr("app.api.routes.ai_feed.vit_ai_client.get_health", unavailable)
+    async with _client() as client:
+        response = await client.get("/api/ai-feed/health")
+
+    assert response.status_code == 503
+    assert response.json()["error"]["message"] == "AI service health unavailable"
+
+
 # ── Blockchain / governance ───────────────────────────────────────────────────
 
 @pytest.mark.asyncio
