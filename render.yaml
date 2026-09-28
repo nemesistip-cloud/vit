@@ -10,6 +10,8 @@ services:
       envVars:
         - key: ENVIRONMENT
           value: production
+        - key: CORS_ALLOWED_ORIGINS
+          value: https://vitnetwork-nls4.onrender.com
         - key: DATABASE_URL
           fromDatabase:
             name: vitnetwork

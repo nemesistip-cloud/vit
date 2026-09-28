@@ -271,15 +271,18 @@ async def emergency_control_guard(request: Request, call_next):
 # (comma-separated, e.g. "https://vit.network,https://www.vit.network").
 # Falls back to "*" only in non-production environments.
 _log = logging.getLogger(__name__)
-if CORS_ALLOWED_ORIGINS:
-    _cors_origins = [o.strip() for o in CORS_ALLOWED_ORIGINS.split(",") if o.strip()]
-else:
-    if ENVIRONMENT == "production":
-        _log.warning(
-            "CORS_ALLOWED_ORIGINS is not set in production — defaulting to '*'. "
-            "Set CORS_ALLOWED_ORIGINS in the Render dashboard to restrict origins."
-        )
-    _cors_origins = ["*"]
+
+
+def _resolve_cors_origins(configured_origins: str, environment: str) -> list[str]:
+    origins = [origin.strip() for origin in configured_origins.split(",") if origin.strip()]
+    if environment.strip().lower() == "production":
+        if not origins or "*" in origins:
+            raise RuntimeError("Production requires an explicit non-wildcard CORS_ALLOWED_ORIGINS allowlist")
+        return origins
+    return origins or ["*"]
+
+
+_cors_origins = _resolve_cors_origins(CORS_ALLOWED_ORIGINS, ENVIRONMENT)
 
 # --- Global Middleware Registration ---
 app.add_middleware(SecurityHeadersMiddleware)

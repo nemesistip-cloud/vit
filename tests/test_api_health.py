@@ -147,3 +147,17 @@ async def test_health_treats_optional_kernel_degradation_as_nonfatal(monkeypatch
     assert response.status == "ok"
     assert response.db_connected is True
     assert response.models_loaded == 13
+
+
+def test_production_cors_requires_explicit_non_wildcard_allowlist():
+    from main import _resolve_cors_origins
+
+    with pytest.raises(RuntimeError, match="explicit non-wildcard"):
+        _resolve_cors_origins("", "production")
+    with pytest.raises(RuntimeError, match="explicit non-wildcard"):
+        _resolve_cors_origins("https://vitnetwork-nls4.onrender.com,*", "production")
+
+    assert _resolve_cors_origins("https://vitnetwork-nls4.onrender.com", "production") == [
+        "https://vitnetwork-nls4.onrender.com"
+    ]
+    assert _resolve_cors_origins("", "testing") == ["*"]

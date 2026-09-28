@@ -1,5 +1,6 @@
 import asyncio
 import os
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import text
@@ -54,3 +55,37 @@ async def test_lifespan_starts_when_signal_handlers_are_unavailable(monkeypatch)
 
     async with main_module.lifespan(main_module.app):
         pass
+
+
+@pytest.mark.asyncio
+async def test_lifespan_cancels_background_boot_and_watchdog(monkeypatch):
+    import app.db.database as database_module
+    import main as main_module
+
+    monkeypatch.setattr(database_module, "initialize_schema", AsyncMock())
+    monkeypatch.setattr(main_module.kernel, "shutdown", AsyncMock())
+    boot_started = asyncio.Event()
+    watchdog_started = asyncio.Event()
+
+    async def blocked_boot():
+        boot_started.set()
+        await asyncio.Event().wait()
+
+    async def blocked_watchdog(_stop_event):
+        watchdog_started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(main_module.kernel, "boot", blocked_boot)
+    monkeypatch.setattr(main_module, "_watchdog_loop", blocked_watchdog)
+
+    async with main_module.lifespan(main_module.app):
+        await asyncio.wait_for(boot_started.wait(), timeout=2)
+        await asyncio.wait_for(watchdog_started.wait(), timeout=2)
+
+    background_tasks = {
+        task.get_name()
+        for task in asyncio.all_tasks()
+        if task is not asyncio.current_task()
+    }
+    assert "kernel-boot" not in background_tasks
+    assert "service-watchdog" not in background_tasks
