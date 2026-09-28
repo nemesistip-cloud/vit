@@ -41,6 +41,15 @@ async def test_root_does_not_expose_internals(client):
 async def test_docs_accessible(client):
     resp = await client.get("/docs")
     assert resp.status_code == 200
+    assert "swagger-ui-bundle.js" in resp.text
+    assert "/openapi.json" in resp.text
+
+    docs_csp = resp.headers["content-security-policy"]
+    assert "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/" in docs_csp
+
+    health = await client.get("/health")
+    health_csp = health.headers["content-security-policy"]
+    assert "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/" not in health_csp
 
 
 @pytest.mark.asyncio

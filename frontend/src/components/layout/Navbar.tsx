@@ -25,7 +25,7 @@ const PUBLIC_LINKS: NavLink[] = [
   { label: 'AI',          path: '/ai' },
   { label: 'Matches',     path: '/matches' },
   { label: 'Explorer',    path: '/chain' },
-  { label: 'Status',      path: '/status' },
+  { label: 'Status',      path: '/status-page' },
 ]
 
 const AUTH_PRIMARY: NavLink[] = [

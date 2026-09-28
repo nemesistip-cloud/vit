@@ -218,6 +218,21 @@ class VitAIClient:
             logger.error(f"[VitAIClient] Fetching models failed: {e}")
             raise
 
+    async def get_health(self) -> dict[str, Any]:
+        """Fetch the live service health payload without substituting defaults."""
+        try:
+            response = await self.client.get(f"{self.base_url}/health", timeout=3.0)
+            response.raise_for_status()
+            payload = response.json()
+            if not isinstance(payload, dict) or not isinstance(payload.get("status"), str):
+                raise ValueError("vit-ai returned an invalid health payload")
+            self._record_success()
+            return payload
+        except Exception as e:
+            self._record_failure()
+            logger.warning("[VitAIClient] Health read failed: %s", e)
+            raise
+
     async def check_health(self) -> bool:
         """Audit real-time availability of the external microservice."""
         try:

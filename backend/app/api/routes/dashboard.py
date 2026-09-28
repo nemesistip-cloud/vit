@@ -4,7 +4,7 @@ import logging
 from decimal import Decimal
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -231,56 +231,43 @@ async def get_top_opportunities(limit: int = Query(default=5, ge=1, le=20), db: 
 async def get_model_confidence(db: AsyncSession = Depends(get_db)):
     try:
         from app.modules.ai.models import ModelMetadata
-        from app.modules.ai.registry import MODEL_SPECS
         result = await db.execute(select(ModelMetadata).order_by(ModelMetadata.accuracy.desc()))
         models = result.scalars().all()
         model_list = []
-        if models:
-            for m in models:
-                spec_acc = 0.75
-                for s in MODEL_SPECS.values():
-                    if s.get("name") == m.name or s.get("model_type") == m.model_type:
-                        spec_acc = s.get("spec_accuracy", 0.75)
-                        break
-                acc_val = float(m.accuracy) if (m.accuracy is not None and float(m.accuracy) > 0) else spec_acc
-                model_list.append({
-                    "name": m.name or m.key,
-                    "key": m.key,
-                    "accuracy": round(acc_val * 100, 1),
-                    "weight": round(float(m.weight or 1.0), 3),
-                    "predictions": m.predictions_total or 0,
-                    "status": "active" if m.is_active else "inactive",
-                })
-        else:
-            for k, spec in MODEL_SPECS.items():
-                acc_val = spec.get("spec_accuracy", 0.75)
-                model_list.append({
-                    "name": spec["name"],
-                    "key": k,
-                    "accuracy": round(acc_val * 100, 1),
-                    "weight": round(spec.get("spec_weight", 0.08), 3),
-                    "predictions": 0,
-                    "status": "active",
-                })
+        for model in models:
+            measured_accuracy = (
+                round(float(model.accuracy) * 100, 1)
+                if model.accuracy is not None
+                else None
+            )
+            model_list.append({
+                "name": model.name or model.key,
+                "key": model.key,
+                "accuracy": measured_accuracy,
+                "weight": round(float(model.weight or 0), 3),
+                "predictions": model.predictions_total or 0,
+                "status": "active" if model.is_active else "inactive",
+            })
 
-        total_weight = sum(m["weight"] for m in model_list if m["status"] == "active")
-        ensemble_accuracy = sum(m["accuracy"] * m["weight"] for m in model_list if m["status"] == "active") / total_weight if total_weight > 0 else 78.5
-        return {"models": model_list, "ensemble_accuracy": round(ensemble_accuracy, 1), "active_count": sum(1 for m in model_list if m["status"] == "active")}
-    except Exception as e:
-        logger.debug(f"model-confidence registry fallback: {e}")
-        from app.modules.ai.registry import MODEL_SPECS
-        model_list = [
-            {
-                "name": spec["name"],
-                "key": k,
-                "accuracy": round(spec.get("spec_accuracy", 0.75) * 100, 1),
-                "weight": round(spec.get("spec_weight", 0.08), 3),
-                "predictions": 0,
-                "status": "active",
-            }
-            for k, spec in MODEL_SPECS.items()
+        measured_models = [
+            model for model in model_list
+            if model["status"] == "active" and model["accuracy"] is not None
         ]
-        return {"models": model_list, "ensemble_accuracy": 78.5, "active_count": len(model_list)}
+        total_weight = sum(model["weight"] for model in measured_models)
+        ensemble_accuracy = (
+            sum(model["accuracy"] * model["weight"] for model in measured_models) / total_weight
+            if total_weight > 0
+            else None
+        )
+        return {
+            "models": model_list,
+            "ensemble_accuracy": round(ensemble_accuracy, 1) if ensemble_accuracy is not None else None,
+            "active_count": sum(1 for model in model_list if model["status"] == "active"),
+            "measured_count": len(measured_models),
+        }
+    except Exception as e:
+        logger.warning("model-confidence query failed: %s", e)
+        raise HTTPException(status_code=503, detail="Model accuracy data unavailable") from e
 
 @router.get("/leaderboard")
 async def get_leaderboard(limit: int = Query(default=10, ge=1, le=50), db: AsyncSession = Depends(get_db)):

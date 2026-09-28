@@ -1,4 +1,5 @@
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from httpx import AsyncClient, ASGITransport
@@ -7,6 +8,9 @@ from main import app
 from app.api.dependencies.admin import require_admin, require_super_admin
 from app.api.deps import get_current_admin
 from app.db.models import User
+from app.api.routes.dashboard import get_model_confidence
+from app.modules.ai.models import ModelMetadata
+from app.modules.ai.registry import bootstrap_registry
 from app.modules.blockchain.models import ValidatorProfile, ValidatorStatus
 from app.modules.kyc.models import KYCSubmission, KYCStatus
 from app.modules.notifications.service import NotificationService
@@ -121,3 +125,51 @@ async def test_validator_approval_preserves_super_admin_role(client, db_session,
         assert response.json()["validator"]["role"] == "super_admin"
     finally:
         app.dependency_overrides.pop(require_super_admin, None)
+
+
+@pytest.mark.asyncio
+async def test_model_confidence_does_not_invent_accuracy_for_unmeasured_models(db_session):
+    db_session.add_all([
+        ModelMetadata(key="measured", name="Measured", model_type="test", accuracy=0.63, weight=2, is_active=True),
+        ModelMetadata(key="unmeasured", name="Unmeasured", model_type="test", accuracy=None, weight=1, is_active=True),
+        ModelMetadata(key="inactive", name="Inactive", model_type="test", accuracy=0.99, weight=5, is_active=False),
+    ])
+    await db_session.commit()
+
+    result = await get_model_confidence(db_session)
+    models = {model["key"]: model for model in result["models"]}
+
+    assert models["measured"]["accuracy"] == 63.0
+    assert models["unmeasured"]["accuracy"] is None
+    assert result["active_count"] == 2
+    assert result["measured_count"] == 1
+    assert result["ensemble_accuracy"] == 63.0
+
+
+@pytest.mark.asyncio
+async def test_model_confidence_reports_no_accuracy_for_empty_registry(db_session):
+    result = await get_model_confidence(db_session)
+
+    assert result["models"] == []
+    assert result["active_count"] == 0
+    assert result["measured_count"] == 0
+    assert result["ensemble_accuracy"] is None
+
+
+@pytest.mark.asyncio
+async def test_model_registry_bootstrap_preserves_missing_accuracy(db_session):
+    model = ModelMetadata(
+        key="xgb_v2",
+        name="XGBoost",
+        model_type="XGBoost",
+        accuracy=None,
+        weight=0.12,
+        is_active=True,
+    )
+    db_session.add(model)
+    await db_session.commit()
+
+    await bootstrap_registry(db_session, SimpleNamespace(model_meta={}))
+    await db_session.refresh(model)
+
+    assert model.accuracy is None

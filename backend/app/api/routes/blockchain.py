@@ -223,34 +223,46 @@ async def get_transaction(tx_hash: str, db: AsyncSession = Depends(get_db)):
 async def get_recent_transactions(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession | None = Depends(_chain_db),
 ):
-    """Retrieves recent chain transactions via the Query Engine."""
+    """Retrieve recent transactions from the authoritative chain store."""
+    if resolve_chain_mode() == "external":
+        try:
+            return await _external_chain.transactions(limit=limit, offset=offset)
+        except VitChainClientError as exc:
+            logger.warning("External chain transactions read failed: %s", exc)
+            raise HTTPException(status_code=503, detail="Standalone blockchain unavailable") from exc
+
     subsystem = kernel.get_subsystem("blockchain")
     if not subsystem or not subsystem.query_engine:
         raise HTTPException(status_code=503, detail="Blockchain query engine unavailable")
+    if db is None:
+        raise HTTPException(status_code=503, detail="Blockchain database unavailable")
 
-    # Fetch recent transactions across blocks
-    from sqlalchemy import select, desc
+    from sqlalchemy import desc, func, select
     from vit_chain.models import ChainTransaction
+    total_result = await db.execute(select(func.count()).select_from(ChainTransaction))
     result = await db.execute(
-        select(ChainTransaction).order_by(desc(ChainTransaction.block_height)).offset(offset).limit(limit)
+        select(ChainTransaction)
+        .order_by(desc(ChainTransaction.block_height), desc(ChainTransaction.timestamp))
+        .offset(offset)
+        .limit(limit)
     )
     txs = result.scalars().all()
     tx_list = [
         {
             "tx_hash": tx.tx_hash,
-            "sender": tx.sender,
-            "recipient": tx.recipient,
+            "sender": tx.from_address,
+            "recipient": tx.to_address,
             "amount": str(tx.amount),
-            "fee": str(tx.fee),
-            "payload": tx.payload,
+            "fee": str(tx.gas_fee),
+            "payload": tx.data,
             "timestamp": tx.timestamp,
             "block_height": tx.block_height,
         }
         for tx in txs
     ]
-    return {"transactions": tx_list, "total": len(tx_list)}
+    return {"transactions": tx_list, "total": int(total_result.scalar_one() or 0)}
 
 @router.get("/recent-blocks")
 async def get_recent_blocks(
@@ -287,10 +299,19 @@ async def get_address_history(
     return await subsystem.query_engine.get_address_history(db, address, limit, offset)
 
 @router.get("/metrics")
-async def get_chain_metrics(db: AsyncSession = Depends(get_db)):
+async def get_chain_metrics(db: AsyncSession | None = Depends(_chain_db)):
     """Retrieves high-level blockchain metrics."""
+    if resolve_chain_mode() == "external":
+        try:
+            return await _external_chain.metrics()
+        except VitChainClientError as exc:
+            logger.warning("External chain metrics read failed: %s", exc)
+            raise HTTPException(status_code=503, detail="Standalone blockchain unavailable") from exc
+
     subsystem = kernel.get_subsystem("blockchain")
     if not subsystem or not subsystem.query_engine:
         raise HTTPException(status_code=503, detail="Blockchain query engine unavailable")
+    if db is None:
+        raise HTTPException(status_code=503, detail="Blockchain database unavailable")
 
     return await subsystem.query_engine.get_chain_metrics(db)

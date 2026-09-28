@@ -2,14 +2,13 @@
 """API endpoints for live AI feed"""
 
 import logging
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from time import perf_counter
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.deps import get_optional_user, get_db
-from app.config import APP_VERSION
+from app.api.deps import get_optional_user
 from app.schemas.schemas import MatchRequest
-from app.services.live_ai_feed import LiveAIFeedService, AISource
+from app.services.live_ai_feed import LiveAIFeedService
+from app.services.vit_ai_client import vit_ai_client
 
 logger = logging.getLogger(__name__)
 
@@ -87,45 +86,42 @@ async def get_available_sources():
     }
 
 
+@router.get("/models")
+async def get_live_models():
+    """Proxy public model metadata through the authenticated vit-ai client."""
+    try:
+        models = await vit_ai_client.get_models()
+    except Exception as exc:
+        logger.warning("Live vit-ai model registry unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail="AI model registry unavailable") from exc
+    if not isinstance(models, list):
+        raise HTTPException(status_code=502, detail="AI model registry returned an invalid response")
+    return {"models": models, "registered_count": len(models)}
+
+
 @router.get("/health")
-async def ai_feed_health(db: AsyncSession = Depends(get_db)):
-    """Check health of all AI feed sources and return system status."""
-    sources_status = {}
-    for source in ai_feed_service.sources:
-        sources_status[source["name"].value] = {
+async def ai_feed_health():
+    """Proxy live vit-ai health and report the actual gateway round-trip time."""
+    started_at = perf_counter()
+    try:
+        health = await vit_ai_client.get_health()
+    except Exception as exc:
+        logger.warning("Live vit-ai health unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail="AI service health unavailable") from exc
+
+    service_status = health["status"]
+    sources_status = {
+        source["name"].value: {
             "enabled": source["enabled"],
-            "status": "ready" if source["enabled"] else "disabled",
+            "status": service_status if source["enabled"] else "disabled",
         }
-
-    models_count = 13
-    try:
-        from app.modules.ai.registry import MODEL_SPECS
-        models_count = len(MODEL_SPECS)
-        from app.modules.ai.models import ModelMetadata
-        res = await db.execute(select(func.count(ModelMetadata.id)).where(ModelMetadata.is_active == True))
-        cnt = res.scalar()
-        if cnt and cnt > 0:
-            models_count = cnt
-    except Exception:
-        pass
-
-    db_ok = True
-    try:
-        from sqlalchemy import text
-        await db.execute(text("SELECT 1"))
-    except Exception:
-        db_ok = False
-
-    res = {
-        "status": "ready",
-        "version": APP_VERSION,
+        for source in ai_feed_service.sources
+    }
+    return {
+        "status": service_status,
+        "version": health.get("version"),
         "provider_count": sum(1 for s in ai_feed_service.sources if s.get("enabled")),
-        "models_count": models_count,
-        "latency_ms": 12,
-        "db_connected": db_ok,
-        "clv_tracking_enabled": True,
+        "models_loaded": health.get("models_loaded"),
+        "latency_ms": round((perf_counter() - started_at) * 1000, 1),
         "sources": sources_status,
     }
-    # Preserve top-level mapping for source lookups
-    res.update(sources_status)
-    return res

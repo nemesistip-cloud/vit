@@ -34,7 +34,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'AI Intelligence', path: '/ai', icon: Brain },
       { label: 'Matches', path: '/matches', icon: Trophy },
       { label: 'Explorer', path: '/chain', icon: Layers },
-      { label: 'Status', path: '/status', icon: Activity },
+      { label: 'Status', path: '/status-page', icon: Activity },
     ],
   },
   {

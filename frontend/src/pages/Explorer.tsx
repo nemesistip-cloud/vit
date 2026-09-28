@@ -67,6 +67,13 @@ function useRecentTxns() {
   })
 }
 
+function chainTimeAgo(timestamp: unknown): string {
+  if (typeof timestamp === 'number') {
+    return timeAgo(new Date(timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp))
+  }
+  return timeAgo(String(timestamp))
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function MetricCard({
@@ -113,7 +120,7 @@ function BlockRow({ block, i }: { block: Record<string, unknown>; i: number }) {
         </div>
         <div className="text-xs text-white/35 mt-0.5">
           {typeof txns === 'number' ? `${txns} transaction${txns !== 1 ? 's' : ''}` : '— txns'} 
-          {ts && <span className="ml-2">&middot; {timeAgo(ts as string)}</span>}
+          {ts && <span className="ml-2">&middot; {chainTimeAgo(ts)}</span>}
         </div>
       </div>
       <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-cyan-400 transition-colors flex-shrink-0" />
@@ -152,7 +159,7 @@ function TxnRow({ txn, i }: { txn: Record<string, unknown>; i: number }) {
         </div>
         <div className="text-xs text-white/35 mt-0.5">
           {value != null ? `${value} VIT` : ''}
-          {ts && <span className="ml-2">&middot; {timeAgo(ts as string)}</span>}
+          {ts && <span className="ml-2">&middot; {chainTimeAgo(ts)}</span>}
         </div>
       </div>
       <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-vit-400 transition-colors flex-shrink-0" />
