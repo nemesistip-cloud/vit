@@ -44,10 +44,27 @@ class VitChainClient:
             raise VitChainClientError("standalone chain returned an invalid blocks payload")
         return payload
 
+    async def block(self, height_or_hash: str) -> dict[str, Any]:
+        path = (
+            f"/api/blocks/{height_or_hash}"
+            if height_or_hash.isdecimal()
+            else f"/api/blocks/hash/{height_or_hash}"
+        )
+        payload = await self._get(path)
+        if not isinstance(payload, dict) or "height" not in payload:
+            raise VitChainClientError("standalone chain returned an invalid block payload")
+        return payload
+
     async def transactions(self, limit: int = 20, offset: int = 0) -> dict[str, Any]:
         payload = await self._get("/api/txs", limit=limit, offset=offset)
         if not isinstance(payload, dict) or not isinstance(payload.get("transactions"), list):
             raise VitChainClientError("standalone chain returned an invalid transactions payload")
+        return payload
+
+    async def transaction(self, tx_hash: str) -> dict[str, Any]:
+        payload = await self._get(f"/api/txs/{tx_hash}")
+        if not isinstance(payload, dict) or not (payload.get("hash") or payload.get("tx_hash")):
+            raise VitChainClientError("standalone chain returned an invalid transaction payload")
         return payload
 
     async def metrics(self) -> dict[str, Any]:

@@ -1,16 +1,16 @@
 # VIT Network System Upgrade Roadmap
 
-_Last updated: 2026-09-22_
+_Last updated: 2026-09-28_
 
 ## Verified Baseline
 
-- VIT Network `/health`: HTTP 200, database connected, 13 models loaded.
-- VIT Network `/ping`: HTTP 200.
-- VIT AI `/health`: HTTP 200, 16 models loaded.
-- Tachyon `/health`: HTTP 200, database and Redis connected, 4 providers active.
-- VIT Chain `/health`: HTTP 200 but degraded: database disconnected, block height `0`, active validators `0`.
-- Frontend typecheck, production build, and 5 Playwright smoke tests pass.
-- Deployed admin login using the repository `.env` credential pair returned HTTP 401; credentials must be reconciled with the deployed environment before authenticated production verification can continue.
+_Live checks performed 2026-09-28; health of services not listed below was not rechecked._
+
+- VIT Chain `/health`: HTTP 200, `db_connected=true`, block height `26322`, active validators `1`.
+- VIT Chain `/api/status` and `/api/blocks?limit=1`: HTTP 200 with persisted chain data.
+- VIT Chain GET `/api/txs?limit=1` and `/api/metrics`: HTTP 200 after deployment `70df489`; chain health is healthy with persisted block height `26388` and one active validator.
+- VIT Network gateway: Render metadata reports deployment `7b45be8` as live, but `/ping` timed out from the verification environment. Admin login and authenticated checks could not be completed because the gateway did not respond.
+- VIT AI, Tachyon, and frontend checks passed in the 2026-09-22 baseline; they were not rechecked on 2026-09-28.
 
 ## Sprint 1: Runtime Safety and Observability
 
@@ -27,12 +27,14 @@ Acceptance: startup and shutdown leave no background tasks behind; controlled fi
 
 ## Sprint 2: VIT Chain Recovery
 
-Status: blocked by deployed database connectivity
+Status: partially unblocked; chain database connectivity and persisted state are currently healthy, but API and recovery gates remain open
 
-- [ ] Verify production `DATABASE_URL`, network access, migrations, and connection limits.
+- [ ] Verify production migration state, backup coverage, and connection limits.
 - [ ] Run `alembic upgrade heads` against the VIT Chain production database.
 - [ ] Confirm genesis initialization is idempotent and produces block height `0` only before first block creation.
-- [ ] Restore chain-state persistence and verify `/health`, recent blocks, transactions, and validator status.
+- [x] Confirm live chain database connectivity, nonzero persisted height, and recent block reads.
+- [x] Deploy and verify GET `/api/txs` and `/api/metrics` on VIT Chain.
+- [ ] Deploy and verify the gateway's external transaction, block, and metrics reads against the standalone chain.
 - [ ] Add automated chain database backup and restore verification.
 - [ ] Add a deployment smoke test that fails when `db_connected=false` or block height unexpectedly resets.
 
@@ -40,9 +42,9 @@ Acceptance: chain health reports database connected, a nonzero persisted chain s
 
 ## Sprint 3: Authenticated Ecosystem Verification
 
-Status: blocked by credential mismatch
+Status: blocked by gateway reachability; deployed admin credentials remain unverified
 
-- [ ] Reconcile the admin account and credential source between `.env`, deployment secrets, and production database.
+- [ ] Restore gateway reachability, then verify the deployed admin account and credential source.
 - [ ] Verify browser login, `/api/auth/me`, admin health, metrics, feature flags, and audit views.
 - [ ] Verify developer API-key creation, authentication, billing/quota behavior, and revoked-key rejection.
 - [ ] Verify VIT Chain, Tachyon, AI, wallet, predictions, and notifications from an authenticated browser session.

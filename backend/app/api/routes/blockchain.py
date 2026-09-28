@@ -98,8 +98,15 @@ async def submit_transaction(tx_data: TxSubmitRequest):
     return {"hash": tx.tx_hash, "status": "accepted"}
 
 @router.get("/block/{height_or_hash}")
-async def get_block(height_or_hash: str, db: AsyncSession = Depends(get_db)):
+async def get_block(height_or_hash: str, db: AsyncSession | None = Depends(_chain_db)):
     """Retrieve block details by height or hash using the SDK/Manager."""
+    if resolve_chain_mode() == "external":
+        try:
+            return await _external_chain.block(height_or_hash)
+        except VitChainClientError as exc:
+            logger.warning("External chain block read failed: %s", exc)
+            raise HTTPException(status_code=503, detail="Standalone blockchain unavailable") from exc
+
     subsystem = kernel.get_subsystem("blockchain")
     if not subsystem or not subsystem.manager:
         raise HTTPException(status_code=503, detail="Blockchain subsystem unavailable")
@@ -205,8 +212,15 @@ async def get_protocol_supply():
     return await _external_read("supply")
 
 @router.get("/tx/{tx_hash}")
-async def get_transaction(tx_hash: str, db: AsyncSession = Depends(get_db)):
+async def get_transaction(tx_hash: str, db: AsyncSession | None = Depends(_chain_db)):
     """Get transaction details and status using the SDK."""
+    if resolve_chain_mode() == "external":
+        try:
+            return await _external_chain.transaction(tx_hash)
+        except VitChainClientError as exc:
+            logger.warning("External chain transaction read failed: %s", exc)
+            raise HTTPException(status_code=503, detail="Standalone blockchain unavailable") from exc
+
     subsystem = kernel.get_subsystem("blockchain")
     if not subsystem or not subsystem.manager:
         raise HTTPException(status_code=503, detail="Blockchain subsystem unavailable")

@@ -19,7 +19,10 @@ class VitChainClientContractTests(unittest.IsolatedAsyncioTestCase):
                 {"block_height": 20747, "chain_id": 7764},
                 {"height": 20747, "block_hash": "abc"},
                 {"total": 1, "blocks": []},
+                {"height": 20747, "block_hash": "abc"},
+                {"height": 20747, "block_hash": "abc"},
                 {"total": 1, "limit": 3, "offset": 0, "transactions": []},
+                {"tx_hash": "tx-abc"},
                 {"height": 20747, "tps": 0, "total_transactions": 1, "active_validators": 1},
                 {"address": "0xabc", "balance": "10"},
                 {"count": 1, "validators": []},
@@ -30,12 +33,15 @@ class VitChainClientContractTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await client.status())["block_height"], 20747)
             self.assertEqual((await client.latest_block())["height"], 20747)
             self.assertIn("blocks", await client.blocks(limit=3))
+            self.assertEqual((await client.block("20747"))["height"], 20747)
+            self.assertEqual((await client.block("abc"))["height"], 20747)
             self.assertIn("transactions", await client.transactions(limit=3))
+            self.assertEqual((await client.transaction("tx-abc"))["tx_hash"], "tx-abc")
             self.assertEqual((await client.metrics())["height"], 20747)
             self.assertEqual((await client.account("0xabc"))["balance"], "10")
             self.assertIn("validators", await client.validators())
             self.assertEqual((await client.supply())["total_supply"], "100")
-            self.assertEqual(http.get.await_count, 8)
+            self.assertEqual(http.get.await_count, 11)
 
     async def test_rejects_malformed_transactions_and_metrics_payloads(self):
         client = VitChainClient("https://chain.test")
@@ -72,6 +78,23 @@ class VitChainClientContractTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertEqual(await get_chain_metrics(db=None), metrics_payload)
 
+    async def test_external_block_and_transaction_detail_routes_use_chain_client(self):
+        from backend.app.api.routes.blockchain import (
+            _external_chain,
+            get_block,
+            get_transaction,
+        )
+
+        block_payload = {"height": 20747, "block_hash": "abc"}
+        transaction_payload = {"hash": "tx-abc"}
+        with (
+            patch("backend.app.api.routes.blockchain.resolve_chain_mode", return_value="external"),
+            patch.object(_external_chain, "block", new=AsyncMock(return_value=block_payload)),
+            patch.object(_external_chain, "transaction", new=AsyncMock(return_value=transaction_payload)),
+        ):
+            self.assertEqual(await get_block("20747", db=None), block_payload)
+            self.assertEqual(await get_transaction("tx-abc", db=None), transaction_payload)
+
     async def test_rejects_malformed_status_payload(self):
         client = VitChainClient("https://chain.test")
         with patch("app.services.vit_chain_client.httpx.AsyncClient") as factory:
@@ -96,7 +119,6 @@ class VitChainClientContractTests(unittest.IsolatedAsyncioTestCase):
         routes = {getattr(route, "path", None): set(getattr(route, "methods", set())) for route in chain_router.routes}
         assert "/api/chain/status" in routes
         assert "GET" in routes["/api/chain/status"]
-
 
 if __name__ == "__main__":
     unittest.main()
