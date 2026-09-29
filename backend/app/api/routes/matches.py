@@ -8,6 +8,7 @@ import os
 import asyncio
 import math
 import re
+import time
 import unicodedata
 
 from app.db.database import get_db, AsyncSessionLocal
@@ -1157,7 +1158,7 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     is_seed = getattr(latest_pred, 'is_seed', False) if latest_pred else False
     prediction_source = getattr(latest_pred, 'source', "live_generated") if latest_pred else None
 
-    latest = _fmt_match(match, latest_pred if prediction_status in ("ready", "stale") else None, markets)
+    latest = _fmt_match(match, latest_pred, markets)
     h = latest.get("home_prob")
     d = latest.get("draw_prob")
     a = latest.get("away_prob")
@@ -1167,7 +1168,18 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     )
     elo_diff = features.get("elo_diff")
 
-    has_primary_probabilities = (prediction_status in ("ready", "stale")) and h is not None and d is not None and a is not None
+    has_primary_probabilities = (
+        latest_pred is not None
+        and h is not None
+        and d is not None
+        and a is not None
+        and (
+            prediction_status in ("ready", "stale")
+            or getattr(latest_pred, "model_insights", None) is not None
+            or getattr(latest_pred, "bet_side", None) is not None
+            or latest_audit is not None
+        )
+    )
     prediction_provenance = _prediction_provenance(latest_pred)
 
     if not has_primary_probabilities:

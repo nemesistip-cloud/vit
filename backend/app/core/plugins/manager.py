@@ -35,9 +35,9 @@ class PluginManager:
         self._lock = asyncio.Lock()
 
         # Components
-        self.discovery = PluginDiscovery(["app/plugins", "plugins"])
+        self.discovery = PluginDiscovery(["backend/app/plugins", "app/plugins", "plugins"])
         self.validator = PluginValidator("1.0.0") # Use platform version
-        self.loader = PluginLoader("app/plugins")
+        self.loader = PluginLoader("backend/app/plugins")
 
     async def bootstrap(self):
         """Initial discovery and loading sequence."""

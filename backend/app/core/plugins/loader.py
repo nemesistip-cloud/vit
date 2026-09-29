@@ -23,26 +23,64 @@ class PluginLoader:
     """Handles dynamic loading of plugin modules."""
 
     def __init__(self, plugin_root: str):
-        self.plugin_root = Path(plugin_root)
+        self.plugin_root = self._resolve_plugin_root(plugin_root)
+
+    def _resolve_plugin_root(self, plugin_root: str) -> Path:
+        raw = Path(plugin_root)
+        candidates = []
+        if raw.is_absolute():
+            candidates.append(raw)
+        else:
+            candidates.extend([
+                Path.cwd() / raw,
+                Path(__file__).resolve().parents[3] / raw,
+                Path(__file__).resolve().parents[3] / "backend" / raw,
+            ])
+
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return raw if not raw.is_absolute() else raw
+
+    def _candidate_roots(self):
+        roots = []
+        for candidate in [self.plugin_root, Path.cwd() / self.plugin_root, Path(__file__).resolve().parents[3] / self.plugin_root, Path(__file__).resolve().parents[3] / "backend" / self.plugin_root]:
+            if candidate not in roots and candidate.exists():
+                roots.append(candidate)
+        return roots
 
     def load(self, manifest: PluginManifest) -> Optional[PluginContract]:
         """Dynamically load and instantiate the plugin."""
         plugin_id = manifest.plugin_id
         # Expecting plugin entry point in plugin_dir/plugin.py
-        plugin_dir = self.plugin_root / plugin_id.split('.')[-1] # Simple mapping
+        plugin_dir = None
+        for root in self._candidate_roots():
+            candidate_dir = root / plugin_id.split('.')[-1]
+            if candidate_dir.exists():
+                plugin_dir = candidate_dir
+                break
 
         # Fallback to search by ID if simple mapping fails
-        if not plugin_dir.exists():
-            # Try to find a directory that contains a manifest with this ID
-            for d in self.plugin_root.iterdir():
-                if d.is_dir() and (d / "manifest.json").exists():
-                    try:
-                        with open(d / "manifest.json", 'r') as f:
-                            import json
-                            if json.load(f).get("plugin_id") == plugin_id:
-                                plugin_dir = d
-                                break
-                    except: continue
+        if plugin_dir is None:
+            for root in self._candidate_roots():
+                for d in root.iterdir():
+                    if d.is_dir() and (d / "manifest.json").exists():
+                        try:
+                            with open(d / "manifest.json", 'r') as f:
+                                import json
+                                if json.load(f).get("plugin_id") == plugin_id:
+                                    plugin_dir = d
+                                    break
+                        except Exception:
+                            continue
+                    if plugin_dir is not None:
+                        break
+                if plugin_dir is not None:
+                    break
+
+        if plugin_dir is None:
+            logger.error(f"[loader] Entry point not found for {plugin_id} under any known plugin roots")
+            return None
 
         plugin_file = plugin_dir / "plugin.py"
         if not plugin_file.exists():

@@ -19,9 +19,10 @@ Status: in progress
 - [x] Retain and cancel the Tachyon verification task during lifespan shutdown.
 - [x] Fail closed when emergency-control state cannot be read for controlled operations.
 - [x] Register static and SPA routes before direct-script Uvicorn startup.
-- [ ] Add lifespan tests for startup cancellation and worker shutdown.
+- [x] Test kernel-boot and watchdog cancellation during lifespan shutdown.
+- [ ] Add shutdown coverage for the Tachyon worker and schedulers.
 - [x] Add structured readiness diagnostics when the database or Redis is unavailable; deployed in `ddae50d` and verified live.
-- [ ] Ensure production CORS has an explicit non-wildcard allowlist when credentials are enabled.
+- [x] Require an explicit non-wildcard production CORS allowlist; deployed in `0ef609e` and verified with allowed/untrusted preflight origins.
 
 Acceptance: startup and shutdown leave no background tasks behind; controlled financial and prediction operations return `503` when safety state is unavailable; `/ready` explains the failing dependency.
 
