@@ -3,7 +3,7 @@ from httpx import AsyncClient, ASGITransport
 from main import app
 from app.db.database import AsyncSessionLocal
 from app.db.models import Match
-from app.modules.sports.models import MarketMapping, AffiliateClick
+from app.modules.sports.models import AffiliateClick
 from sqlalchemy import select
 
 # These tests insert rows via the module-level AsyncSessionLocal (real DB),
@@ -11,7 +11,7 @@ from sqlalchemy import select
 pytestmark = pytest.mark.integration
 
 @pytest.mark.asyncio
-async def test_sports_endpoints():
+async def test_sports_endpoints(db_engine):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         # Test /api/sports/competitions
         response = await ac.get("/api/sports/competitions")
@@ -23,23 +23,22 @@ async def test_sports_endpoints():
         assert response.status_code == 404
 
 @pytest.mark.asyncio
-async def test_generate_slip_with_match():
-    async with AsyncSessionLocal() as db:
-        # Create a dummy match with a unique external_id to avoid UNIQUE constraint collisions
-        from datetime import datetime
-        import uuid
-        match = Match(
-            home_team="Team A",
-            away_team="Team B",
-            league="Test League",
-            kickoff_time=datetime.utcnow(),
-            external_id=f"ext_{uuid.uuid4().hex}"
-        )
-        db.add(match)
-        await db.commit()
-        await db.refresh(match)
-        match_id = match.id
-        ext_id = match.external_id
+async def test_generate_slip_with_match(db_session):
+    # Create a dummy match with a unique external_id to avoid UNIQUE constraint collisions
+    from datetime import datetime
+    import uuid
+    match = Match(
+        home_team="Team A",
+        away_team="Team B",
+        league="Test League",
+        kickoff_time=datetime.utcnow(),
+        external_id=f"ext_{uuid.uuid4().hex}"
+    )
+    db_session.add(match)
+    await db_session.commit()
+    await db_session.refresh(match)
+    match_id = match.id
+    ext_id = match.external_id
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         response = await ac.get(f"/api/predictions/generate-slip?match_id={match_id}&provider=betway")
@@ -50,11 +49,10 @@ async def test_generate_slip_with_match():
         assert ext_id in data["redirect_url"]
 
         # Verify analytics click was recorded
-        async with AsyncSessionLocal() as db_check:
-            stmt = select(AffiliateClick).where(AffiliateClick.match_id == match_id)
-            click = (await db_check.execute(stmt)).scalar_one_or_none()
-            assert click is not None
-            assert click.provider_name == "betway"
+        stmt = select(AffiliateClick).where(AffiliateClick.match_id == match_id)
+        click = (await db_session.execute(stmt)).scalar_one_or_none()
+        assert click is not None
+        assert click.provider_name == "betway"
 
 @pytest.mark.asyncio
 async def test_sports_webhooks():
