@@ -1,34 +1,80 @@
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { Activity, ArrowRight, CheckCircle2, Clock3, ShieldCheck, Sparkles } from 'lucide-react'
+import { ENDPOINTS } from '@/lib/api'
+import { Spinner } from '@/components/ui/Spinner'
 
-const records = [
-  {
-    match: 'Arsenal vs Chelsea',
-    sealed: '18:30 UK',
-    pick: 'Home win',
-    prob: '58%',
-    status: 'Sealed',
-    result: 'Final score: 2-1',
-  },
-  {
-    match: 'Bayern vs Dortmund',
-    sealed: '19:00 CET',
-    pick: 'Draw',
-    prob: '41%',
-    status: 'Verified',
-    result: 'Final score: 1-1',
-  },
-  {
-    match: 'Inter vs Milan',
-    sealed: '20:45 CET',
-    pick: 'Away win',
-    prob: '46%',
-    status: 'Live',
-    result: 'Awaiting result',
-  },
-]
+function formatDate(value?: string | null) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function getTopPick(match: any) {
+  const candidates = [
+    { label: 'Home win', prob: typeof match?.home_prob === 'number' ? match.home_prob : null },
+    { label: 'Draw', prob: typeof match?.draw_prob === 'number' ? match.draw_prob : null },
+    { label: 'Away win', prob: typeof match?.away_prob === 'number' ? match.away_prob : null },
+  ]
+
+  const best = candidates
+    .filter((entry) => entry.prob != null)
+    .sort((a, b) => (b.prob ?? 0) - (a.prob ?? 0))[0]
+
+  if (best) {
+    return { label: best.label, probability: `${Math.round((best.prob ?? 0) * 100)}%` }
+  }
+
+  if (match?.bet_side) {
+    return { label: match.bet_side, probability: match.confidence != null ? `${Math.round(match.confidence * 100)}%` : '—' }
+  }
+
+  return { label: 'See details', probability: '—' }
+}
+
+function useVerificationRecords() {
+  return useQuery({
+    queryKey: ['verification-records'],
+    queryFn: async () => {
+      const [upcomingRes, recentRes] = await Promise.all([
+        fetch(`${ENDPOINTS.gateway}/api/matches/upcoming?limit=4`),
+        fetch(`${ENDPOINTS.gateway}/api/matches/recent?limit=4`),
+      ])
+
+      const upcoming = upcomingRes.ok ? await upcomingRes.json() : []
+      const recent = recentRes.ok ? await recentRes.json() : []
+      const collection = [...Array.isArray(upcoming) ? upcoming : [], ...Array.isArray(recent) ? recent : []]
+
+      return collection.slice(0, 6).map((match: any) => {
+        const pick = getTopPick(match)
+        const hasScore = match?.home_score != null && match?.away_score != null
+        const status = hasScore ? 'Verified' : (match?.status === 'live' || match?.status === 'in_play') ? 'Live' : 'Sealed'
+
+        return {
+          id: match?.id ?? match?.match_id,
+          match: `${match?.home_team ?? 'Home'} vs ${match?.away_team ?? 'Away'}`,
+          sealed: formatDate(match?.kickoff_time),
+          pick: pick.label,
+          prob: pick.probability,
+          status,
+          result: hasScore ? `Final score: ${match.home_score}-${match.away_score}` : 'Awaiting result',
+        }
+      })
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  })
+}
 
 export default function Verification() {
+  const { data: records = [], isLoading } = useVerificationRecords()
+
   return (
     <div className="pt-16 min-h-screen">
       <section className="border-b border-white/8">
@@ -54,49 +100,57 @@ export default function Verification() {
       </section>
 
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
-        <div className="grid lg:grid-cols-3 gap-5">
-          {records.map((entry) => (
-            <div key={entry.match} className="rounded-2xl border border-white/8 bg-surface-800/60 p-6">
-              <div className="flex items-center justify-between gap-3 mb-5">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">Match</p>
-                  <h2 className="mt-2 text-xl font-medium text-white">{entry.match}</h2>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16"><Spinner className="h-8 w-8 text-vit-400" /></div>
+        ) : records.length === 0 ? (
+          <div className="rounded-2xl border border-white/8 bg-surface-800/60 p-6 text-center text-sm text-white/60">
+            No public record entries are available yet.
+          </div>
+        ) : (
+          <div className="grid lg:grid-cols-3 gap-5">
+            {records.map((entry: any) => (
+              <div key={entry.id ?? entry.match} className="rounded-2xl border border-white/8 bg-surface-800/60 p-6">
+                <div className="flex items-center justify-between gap-3 mb-5">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">Match</p>
+                    <h2 className="mt-2 text-xl font-medium text-white">{entry.match}</h2>
+                  </div>
+                  <span className={
+                    entry.status === 'Verified'
+                      ? 'rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-300'
+                      : entry.status === 'Live'
+                        ? 'rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[10px] font-medium text-amber-300'
+                        : 'rounded-full border border-vit-500/25 bg-vit-500/10 px-2 py-1 text-[10px] font-medium text-vit-300'
+                  }>
+                    {entry.status}
+                  </span>
                 </div>
-                <span className={
-                  entry.status === 'Verified'
-                    ? 'rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-300'
-                    : entry.status === 'Live'
-                      ? 'rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[10px] font-medium text-amber-300'
-                      : 'rounded-full border border-vit-500/25 bg-vit-500/10 px-2 py-1 text-[10px] font-medium text-vit-300'
-                }>
-                  {entry.status}
-                </span>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3 mb-5">
-                <div className="rounded-xl border border-white/8 bg-black/15 p-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Pick</p>
-                  <p className="mt-2 text-sm font-medium text-white">{entry.pick}</p>
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                  <div className="rounded-xl border border-white/8 bg-black/15 p-3">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Pick</p>
+                    <p className="mt-2 text-sm font-medium text-white">{entry.pick}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/8 bg-black/15 p-3">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Prob.</p>
+                    <p className="mt-2 text-sm font-medium text-vit-300">{entry.prob}</p>
+                  </div>
                 </div>
-                <div className="rounded-xl border border-white/8 bg-black/15 p-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Prob.</p>
-                  <p className="mt-2 text-sm font-medium text-vit-300">{entry.prob}</p>
-                </div>
-              </div>
 
-              <div className="space-y-2 text-sm text-white/60">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="inline-flex items-center gap-2"><Clock3 className="w-3.5 h-3.5 text-white/35" /> Sealed</span>
-                  <span className="text-white/75">{entry.sealed}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="inline-flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Outcome</span>
-                  <span className="text-white/75">{entry.result}</span>
+                <div className="space-y-2 text-sm text-white/60">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2"><Clock3 className="w-3.5 h-3.5 text-white/35" /> Sealed</span>
+                    <span className="text-white/75">{entry.sealed}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Outcome</span>
+                    <span className="text-white/75">{entry.result}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-20">

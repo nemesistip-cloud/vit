@@ -204,42 +204,57 @@ export default function Home() {
             </Link>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-            className="mx-auto max-w-xl rounded-2xl border border-white/10 bg-surface-900/75 p-4 shadow-[0_24px_80px_-42px_rgba(59,101,255,0.65)] backdrop-blur-xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">Sealed pick</p>
-                <h3 className="mt-2 text-xl font-medium tracking-[-0.04em] text-white">Arsenal vs Chelsea</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-500/10">
-                  <div className="absolute inset-1 rounded-full border border-emerald-300/40" />
-                  <span className="text-[9px] font-semibold text-emerald-300">Seal</span>
+          {matches && matches[0] ? (() => {
+            const match = matches[0]
+            const candidates = [
+              { label: 'Home win', value: match.home_prob },
+              { label: 'Draw', value: match.draw_prob },
+              { label: 'Away win', value: match.away_prob },
+            ]
+            const best = candidates.filter(item => typeof item.value === 'number').sort((a, b) => (b.value ?? 0) - (a.value ?? 0))[0]
+            const pick = best?.label ?? (match.bet_side ? match.bet_side : 'See details')
+            const pickProbability = best ? `${Math.round((best.value ?? 0) * 100)}%` : (match.confidence != null ? `${Math.round(match.confidence * 100)}%` : '—')
+            const kickoff = match.kickoff_time ? new Date(match.kickoff_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'
+
+            return (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+                className="mx-auto max-w-xl rounded-2xl border border-white/10 bg-surface-900/75 p-4 shadow-[0_24px_80px_-42px_rgba(59,101,255,0.65)] backdrop-blur-xl">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">Sealed pick</p>
+                    <h3 className="mt-2 text-xl font-medium tracking-[-0.04em] text-white">{match.home_team} vs {match.away_team}</h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-500/10">
+                      <div className="absolute inset-1 rounded-full border border-emerald-300/40" />
+                      <span className="text-[9px] font-semibold text-emerald-300">Seal</span>
+                    </div>
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(74,222,128,0.8)]" />
+                  </div>
                 </div>
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(74,222,128,0.8)]" />
-              </div>
-            </div>
 
-            <div className="mt-4 grid grid-cols-3 gap-2 text-left">
-              <div className="rounded-xl border border-white/8 bg-white/3 p-3">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Pick</div>
-                <div className="mt-2 text-sm font-medium text-white">Home win</div>
-              </div>
-              <div className="rounded-xl border border-white/8 bg-white/3 p-3">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Prob.</div>
-                <div className="mt-2 text-sm font-medium text-vit-300">58%</div>
-              </div>
-              <div className="rounded-xl border border-white/8 bg-white/3 p-3">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Kickoff</div>
-                <div className="mt-2 text-sm font-medium text-white">19:45</div>
-              </div>
-            </div>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-left">
+                  <div className="rounded-xl border border-white/8 bg-white/3 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Pick</div>
+                    <div className="mt-2 text-sm font-medium text-white">{pick}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/8 bg-white/3 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Prob.</div>
+                    <div className="mt-2 text-sm font-medium text-vit-300">{pickProbability}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/8 bg-white/3 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Kickoff</div>
+                    <div className="mt-2 text-sm font-medium text-white">{kickoff}</div>
+                  </div>
+                </div>
 
-            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-xs text-white/60">
-              <span>seal id</span>
-              <span className="font-mono text-[11px] tracking-[0.18em] text-white/80">a7f3…c91b</span>
-            </div>
-          </motion.div>
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-xs text-white/60">
+                  <span>seal id</span>
+                  <span className="font-mono text-[11px] tracking-[0.18em] text-white/80">#{match.id ?? match.match_id ?? 'live'}</span>
+                </div>
+              </motion.div>
+            )
+          })() : null}
 
           {/* Live service pills — driven by /api/system/health/summary */}
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
