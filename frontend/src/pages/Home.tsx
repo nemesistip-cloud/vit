@@ -75,7 +75,7 @@ const FEATURES = [
     color: 'from-vit-500 to-vit-700',
     glow: 'shadow-vit-500/20',
     title: 'AI Predictions',
-    desc: '13+ ML models analyze fixtures across 50+ leagues — real-time probability scores and EV-optimized picks.',
+    desc: 'Model outputs are ranked in context, paired with record-backed reasoning, and made easier to inspect after kickoff.',
     href: '/ai',
     tag: 'Available',
   },
@@ -84,7 +84,7 @@ const FEATURES = [
     color: 'from-amber-500 to-orange-600',
     glow: 'shadow-amber-500/20',
     title: 'Matches & Odds',
-    desc: 'Upcoming, live, and completed fixtures with AI confidence chips, odds movement, and H2H form guides.',
+    desc: 'Review upcoming fixtures, live market context, and the confidence view behind each recommendation.',
     href: '/matches',
     tag: 'Available',
   },
@@ -93,7 +93,7 @@ const FEATURES = [
     color: 'from-cyan-500 to-blue-600',
     glow: 'shadow-cyan-500/20',
     title: 'VIT Chain',
-    desc: 'A native PoS blockchain (Chain ID 7764) for transparent prediction records, staking, and governance.',
+    desc: 'A public chain view for verification, recordkeeping, governance, and service discovery around the network.',
     href: '/chain',
     tag: 'Beta',
   },
@@ -101,8 +101,8 @@ const FEATURES = [
     icon: Wallet,
     color: 'from-emerald-500 to-teal-600',
     glow: 'shadow-emerald-500/20',
-    title: 'VITCoin Wallet',
-    desc: 'Send, receive, and stake VIT with live balance and network details. Cross-chain bridge access is on the roadmap.',
+    title: 'Wallet',
+    desc: 'Track balances and account activity with a clear view of status, limits, and platform interactions.',
     href: '/wallet',
     tag: 'Beta',
   },
@@ -110,8 +110,8 @@ const FEATURES = [
     icon: HardDrive,
     color: 'from-purple-500 to-violet-600',
     glow: 'shadow-purple-500/20',
-    title: 'Decentralised Storage',
-    desc: 'Erasure-coded file storage across Dropbox, OneDrive, and S3 with on-chain proof verification.',
+    title: 'Storage',
+    desc: 'Evidence, records, and platform artifacts can be anchored in a verifiable storage layer with proof checks.',
     href: '/storage',
     tag: 'Beta',
   },
@@ -119,17 +119,17 @@ const FEATURES = [
     icon: Shield,
     color: 'from-pink-500 to-rose-600',
     glow: 'shadow-pink-500/20',
-    title: 'Governance',
-    desc: 'Validator-gated proposals, on-chain voting with VIT weight, and automated execution of passed proposals.',
-    href: '/platform',
-    tag: 'Roadmap',
+    title: 'Responsible Use',
+    desc: 'Operational guardrails, transparency expectations, and clear limits for how predictions should be interpreted.',
+    href: '/responsible-use',
+    tag: 'Live',
   },
 ]
 
 const HOW_IT_WORKS = [
-  { step: 1, title: 'Sign Up', desc: 'Create your account in seconds — no crypto experience needed.' },
-  { step: 2, title: 'Browse Matches', desc: 'Explore AI-ranked fixtures with confidence scores and EV estimates.' },
-  { step: 3, title: 'Predict & Earn', desc: 'Place predictions, climb the leaderboard, and earn VITCoin rewards.' },
+  { step: 1, title: 'Review the record', desc: 'Check the live platform status and the sealed pick before the event starts.' },
+  { step: 2, title: 'Inspect the signal', desc: 'Compare the fixture, confidence view, and market context in one place.' },
+  { step: 3, title: 'Verify the outcome', desc: 'Match the published record against the result after kickoff to confirm what was stated.' },
 ]
 
 export default function Home() {
@@ -170,36 +170,75 @@ export default function Home() {
           {/* Status pill */}
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm mb-8">
-            <Link to="/platform" className="flex items-center gap-2">
-              <Activity className="w-3.5 h-3.5" />
-              <span className="text-xs text-white/60">Platform</span>
+            <Link to="/status-page" className="flex items-center gap-2">
+              <Activity className="w-3.5 h-3.5 text-vit-300" />
+              <span className="text-xs text-white/60">Status</span>
               <StatusBadge status={overallStatus === 'loading' ? undefined : isHealthy ? 'healthy' : overallStatus} size="sm" pulse />
               <span className="text-xs text-white/30">·</span>
-              <span className="text-xs text-vit-400 font-medium">{stats?.version ? `v${String(stats.version).replace(/^v/, '')}` : 'v1.1'}</span>
+              <span className="text-xs text-vit-400 font-medium">{stats?.version ? `v${String(stats.version).replace(/^v/, '')}` : 'Live'}</span>
             </Link>
           </motion.div>
 
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-            className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight">
-            Value · Intelligence · Transparency
-            <br />
-            for sports predictions, market signals, and chain trust.
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.24em] text-white/55 mb-6 backdrop-blur-sm">
+            Predictions with a public record
+          </motion.div>
+
+          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+            className="text-4xl sm:text-5xl lg:text-[4.3rem] font-medium tracking-[-0.07em] text-white/95 mb-5 leading-[0.94] max-w-4xl mx-auto">
+            AI-ranked picks. Sealed before kickoff.
           </motion.h1>
 
           <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-            className="text-xl text-white/60 mb-10 max-w-2xl mx-auto leading-relaxed">
-            AI sports intelligence, verifiable data, and VIT Chain infrastructure in one
-            open network — helping people predict smarter, build faster, and participate with confidence.
+            className="text-base sm:text-lg text-white/65 mb-8 max-w-2xl mx-auto leading-relaxed">
+            Every prediction is recorded before kickoff so the signal can be checked afterwards — no silent edits, no hidden assumptions.
           </motion.p>
 
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
+            <Link to="/verification" className="flex items-center gap-2 px-7 py-3 rounded-2xl bg-vit-500 hover:bg-vit-400 text-white font-medium transition-all shadow-lg shadow-vit-500/20 hover:shadow-vit-500/30 text-sm">
+              See live picks <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link to="/verification" className="flex items-center gap-2 px-7 py-3 rounded-2xl border border-white/12 bg-white/5 hover:bg-white/8 text-white/80 hover:text-white font-medium transition-colors text-sm">
+              How verification works <ChevronRight className="w-4 h-4" />
+            </Link>
+          </motion.div>
+
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link to={isAuthenticated ? '/dashboard' : '/register'} className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-vit-500 hover:bg-vit-400 text-white font-medium transition-all shadow-xl shadow-vit-500/25 hover:shadow-vit-500/40 text-sm">
-              {isAuthenticated ? 'Open dashboard' : 'Enter the network'} <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link to={isAuthenticated ? '/workspace' : '/matches'} className="flex items-center gap-2 px-8 py-3.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-white font-medium transition-colors text-sm">
-              {isAuthenticated ? 'Open workspace' : 'Browse Matches'} <ChevronRight className="w-4 h-4" />
-            </Link>
+            className="mx-auto max-w-xl rounded-2xl border border-white/10 bg-surface-900/75 p-4 shadow-[0_24px_80px_-42px_rgba(59,101,255,0.65)] backdrop-blur-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">Sealed pick</p>
+                <h3 className="mt-2 text-xl font-medium tracking-[-0.04em] text-white">Arsenal vs Chelsea</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-500/10">
+                  <div className="absolute inset-1 rounded-full border border-emerald-300/40" />
+                  <span className="text-[9px] font-semibold text-emerald-300">Seal</span>
+                </div>
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(74,222,128,0.8)]" />
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2 text-left">
+              <div className="rounded-xl border border-white/8 bg-white/3 p-3">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Pick</div>
+                <div className="mt-2 text-sm font-medium text-white">Home win</div>
+              </div>
+              <div className="rounded-xl border border-white/8 bg-white/3 p-3">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Prob.</div>
+                <div className="mt-2 text-sm font-medium text-vit-300">58%</div>
+              </div>
+              <div className="rounded-xl border border-white/8 bg-white/3 p-3">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-white/40">Kickoff</div>
+                <div className="mt-2 text-sm font-medium text-white">19:45</div>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-xs text-white/60">
+              <span>seal id</span>
+              <span className="font-mono text-[11px] tracking-[0.18em] text-white/80">a7f3…c91b</span>
+            </div>
           </motion.div>
 
           {/* Live service pills — driven by /api/system/health/summary */}
@@ -251,6 +290,9 @@ export default function Home() {
               </motion.div>
             ))}
           </div>
+          <div className="mt-5 flex items-center justify-center text-[11px] text-white/45">
+            Last status check: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </div>
         </div>
       </section>
 
@@ -261,8 +303,8 @@ export default function Home() {
             <div className="flex items-center gap-2 text-vit-300 text-sm font-medium mb-4">
               <Activity className="w-4 h-4" /> Live intelligence
             </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Signals you can verify.</h2>
-            <p className="text-white/55 leading-relaxed mb-6">
+            <h2 className="text-2xl sm:text-3xl font-medium tracking-[-0.04em] text-white/95 mb-3">Signals you can verify.</h2>
+            <p className="text-white/60 leading-relaxed mb-6">
               Follow live service health, upcoming fixtures, and model confidence from the same
               network that powers VIT applications.
             </p>
@@ -279,8 +321,8 @@ export default function Home() {
           </div>
           <div className="rounded-2xl border border-white/8 bg-surface-800/50 p-7">
             <p className="text-xs text-vit-400 uppercase tracking-[0.2em] mb-3">Built for builders</p>
-            <h2 className="text-2xl font-bold text-white mb-3">One network. Many surfaces.</h2>
-            <p className="text-white/50 leading-relaxed mb-6">
+            <h2 className="text-2xl font-medium tracking-[-0.04em] text-white/95 mb-3">One network. Many surfaces.</h2>
+            <p className="text-white/60 leading-relaxed mb-6">
               Explore the platform, connect to developer APIs, or inspect the chain as the ecosystem evolves.
             </p>
             <div className="flex flex-wrap gap-3">
@@ -344,8 +386,8 @@ export default function Home() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
         <div className="text-center mb-12">
           <p className="text-xs text-vit-400 uppercase tracking-[0.2em] mb-3">The ecosystem</p>
-          <h2 className="text-3xl font-bold text-white mb-3">Intelligence, settlement, and access.</h2>
-          <p className="text-white/50 max-w-xl mx-auto">Move from signal to action across AI Engine, Matches, VIT Chain, Wallet, Storage, and the developer platform.</p>
+          <h2 className="text-3xl font-medium tracking-[-0.05em] text-white/95 mb-3">Intelligence, settlement, and access.</h2>
+          <p className="text-white/60 max-w-xl mx-auto">Move from signal to action across AI Engine, Matches, VIT Chain, Wallet, Storage, and the developer platform.</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {FEATURES.map((f, i) => (
@@ -362,8 +404,8 @@ export default function Home() {
                     {f.tag}
                   </span>
                 </div>
-                <h3 className="font-semibold text-white mb-2">{f.title}</h3>
-                <p className="text-sm text-white/50 flex-1 leading-relaxed">{f.desc}</p>
+                <h3 className="font-medium text-white/95 mb-2">{f.title}</h3>
+                <p className="text-sm text-white/60 flex-1 leading-relaxed">{f.desc}</p>
                 <div className="flex items-center gap-1 mt-4 text-xs text-vit-400 group-hover:text-vit-300 transition-colors">
                   Explore <ChevronRight className="w-3.5 h-3.5" />
                 </div>
@@ -377,8 +419,8 @@ export default function Home() {
       <section className="border-t border-white/8 bg-surface-800/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-white mb-3">How It Works</h2>
-            <p className="text-white/50">Start earning in three simple steps</p>
+            <h2 className="text-3xl font-medium tracking-[-0.05em] text-white/95 mb-3">How it works</h2>
+            <p className="text-white/60">A clear three-step verification flow</p>
           </div>
           <div className="grid sm:grid-cols-3 gap-8 relative">
             <div className="hidden sm:block absolute top-8 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-vit-500/30 to-transparent" />
@@ -388,8 +430,8 @@ export default function Home() {
                 <div className="w-16 h-16 rounded-2xl bg-vit-500/10 border border-vit-500/20 flex items-center justify-center mb-4 relative z-10">
                   <span className="text-2xl font-bold text-vit-400">{step.step}</span>
                 </div>
-                <h3 className="font-semibold text-white mb-2">{step.title}</h3>
-                <p className="text-sm text-white/50 leading-relaxed">{step.desc}</p>
+                <h3 className="font-medium text-white/95 mb-2">{step.title}</h3>
+                <p className="text-sm text-white/60 leading-relaxed">{step.desc}</p>
               </motion.div>
             ))}
           </div>
@@ -437,11 +479,11 @@ export default function Home() {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full bg-vit-500/8 blur-3xl" />
           <div className="relative">
             <Zap className="w-10 h-10 text-vit-400 mx-auto mb-4" />
-             <p className="text-xs text-vit-300 uppercase tracking-[0.2em] mb-3">Open network access</p>
-             <h2 className="text-3xl font-bold text-white mb-3">Make your next move with VIT.</h2>
-             <p className="text-white/50 max-w-md mx-auto mb-8">Start with live intelligence, inspect the network, and build on the VIT platform.</p>
-            <Link to="/register" className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-vit-500 hover:bg-vit-400 text-white font-medium transition-all shadow-xl shadow-vit-500/25">
-              Create Free Account <ArrowRight className="w-4 h-4" />
+             <p className="text-xs text-vit-300 uppercase tracking-[0.2em] mb-3">Public record</p>
+             <h2 className="text-3xl font-medium tracking-[-0.05em] text-white/95 mb-3">See the signal. Check the record. Verify the outcome.</h2>
+             <p className="text-white/60 max-w-md mx-auto mb-8">The platform is best used as a transparent prediction and monitoring layer, with clear status and evidence at every step.</p>
+            <Link to="/status-page" className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-vit-500 hover:bg-vit-400 text-white font-medium transition-all shadow-xl shadow-vit-500/25">
+              View live status <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>

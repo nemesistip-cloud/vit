@@ -54,8 +54,8 @@ const SOCIALS = [
 
 const CHAIN_STATS = [
   { icon: Zap,    label: 'Chain ID',   value: '7764' },
-  { icon: Shield, label: 'Network',    value: 'PoS' },
-  { icon: Globe,  label: 'Network',     value: 'Mainnet' },
+  { icon: Shield, label: 'Consensus',  value: 'Proof of Storage' },
+  { icon: Globe,  label: 'Environment', value: 'Live services' },
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ export function Footer() {
             </Link>
 
             <p className="text-sm text-white/40 leading-relaxed mb-5">
-              The open intelligence layer for sports predictions, on-chain verifiability, and decentralised asset services.
+              A proof-first intelligence layer for sports modeling, public recordkeeping, and transparent platform monitoring.
             </p>
 
             <div className="flex items-center gap-2 mb-5">
@@ -166,10 +166,11 @@ export function Footer() {
           </p>
           <div className="flex items-center gap-4 order-1 sm:order-2 flex-wrap">
             {[
-              { label: 'Privacy',  path: '/docs#privacy' },
-              { label: 'Terms',    path: '/docs#terms' },
-              { label: 'Security', path: '/docs#security' },
-              { label: 'Status',   path: '/status-page' },
+              { label: 'Responsible use', path: '/responsible-use' },
+              { label: 'Privacy',         path: '/docs#privacy' },
+              { label: 'Terms',           path: '/docs#terms' },
+              { label: 'Security',        path: '/docs#security' },
+              { label: 'Status',          path: '/status-page' },
             ].map(({ label, path }) => (
               <Link key={label} to={path} className="text-xs text-white/30 hover:text-white/60 transition-colors">
                 {label}

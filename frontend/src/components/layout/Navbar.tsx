@@ -24,6 +24,7 @@ const PUBLIC_LINKS: NavLink[] = [
   { label: 'Platform',    path: '/platform' },
   { label: 'AI',          path: '/ai' },
   { label: 'Matches',     path: '/matches' },
+  { label: 'Verification', path: '/verification' },
   { label: 'Explorer',    path: '/chain' },
   { label: 'Status',      path: '/status-page' },
 ]
@@ -136,27 +137,35 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
         className={cn(
           'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
           scrolled
-            ? 'bg-surface-900/96 backdrop-blur-2xl border-b border-white/10 shadow-[0_25px_80px_-45px_rgba(0,0,0,0.45)]'
+            ? 'bg-surface-900/80 backdrop-blur-2xl border-b border-white/10 shadow-[0_18px_65px_-38px_rgba(0,0,0,0.65)]'
             : 'bg-transparent',
         )}
       >
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
 
           {/* ── Logo ────────────────────────────────────────────────────── */}
-          <Link to="/" className="flex items-center gap-2.5 group shrink-0">
+          <Link to="/" className="flex items-center gap-2.5 group shrink-0 rounded-full border border-white/8 bg-white/4 px-2 py-1.5 transition-all hover:bg-white/6 hover:border-white/12">
             <div className="relative">
               <img
                 src="/logo.png"
                 alt="VIT Network"
-                className="w-8 h-8 rounded-lg object-cover shadow-lg shadow-vit-500/20 group-hover:shadow-vit-500/40 transition-shadow"
+                className="w-8 h-8 rounded-lg object-cover shadow-md shadow-vit-500/20 group-hover:shadow-vit-500/30 transition-shadow"
               />
               {isOnline && (
                 <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2 border-surface-900" />
               )}
             </div>
-            <span className="font-bold text-white text-sm tracking-tight hidden sm:block">
-              VIT <span className="text-vit-400">Network</span>
+            <span className="font-medium text-white text-sm tracking-[-0.04em] hidden sm:block">
+              VIT <span className="text-white/70">Network</span>
             </span>
+          </Link>
+
+          <Link
+            to="/status-page"
+            className="hidden sm:inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/8 px-2.5 py-1 text-[10px] font-medium text-emerald-300/90 hover:bg-emerald-500/12 transition-colors"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            {isOnline ? 'All systems operational' : 'Status check'}
           </Link>
 
           {/* ── Workspace Switcher (authenticated) ──────────────────────── */}
@@ -175,10 +184,10 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
                   key={link.path}
                   to={link.path}
                   className={cn(
-                    'relative px-4 py-2 rounded-2xl text-sm font-semibold transition-all',
+                    'relative px-4 py-2 rounded-2xl text-sm font-medium tracking-[-0.01em] transition-all',
                     active
-                      ? 'bg-white/10 text-white shadow-[0_12px_40px_-28px_rgba(255,255,255,0.6)]'
-                      : 'text-white/60 hover:text-white hover:bg-white/10',
+                      ? 'bg-white/8 text-white shadow-[0_12px_40px_-28px_rgba(255,255,255,0.4)]'
+                      : 'text-white/60 hover:text-white hover:bg-white/6',
                   )}
                 >
                   {link.label}
@@ -200,7 +209,7 @@ export function Navbar({ onOpenSearch }: { onOpenSearch?: () => void }) {
             {/* Search */}
             <button
               onClick={onOpenSearch}
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10 text-xs transition-all"
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/4 border border-white/8 text-white/55 hover:text-white hover:bg-white/8 text-xs transition-all"
             >
               <Search className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Search</span>

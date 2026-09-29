@@ -66,10 +66,12 @@ const Platform      = lazy(() => import('@/pages/Platform'))
 const AI            = lazy(() => import('@/pages/AI'))
 const Storage       = lazy(() => import('@/pages/Storage'))
 const Status        = lazy(() => import('@/pages/Status'))
+const Verification  = lazy(() => import('@/pages/Verification'))
 const Developers    = lazy(() => import('@/pages/Developers'))
 const Documentation = lazy(() => import('@/pages/Documentation'))
 const Roadmap       = lazy(() => import('@/pages/Roadmap'))
 const About         = lazy(() => import('@/pages/About'))
+const ResponsibleUse = lazy(() => import('@/pages/ResponsibleUse'))
 
 // ── Auth (lazy) ───────────────────────────────────────────────────────────────
 const Login          = lazy(() => import('@/pages/Login'))
@@ -138,8 +140,10 @@ export default function App() {
         <Route path="/ai"              element={wrap(<AI />)}             />
         <Route path="/storage"         element={wrap(<Storage />)}        />
         <Route path="/status-page"    element={wrap(<Status />)}         />
+        <Route path="/verification"    element={wrap(<Verification />)}    />
         <Route path="/developers"      element={wrap(<Developers />)}     />
         <Route path="/docs"            element={wrap(<Documentation />)}  />
+        <Route path="/responsible-use" element={wrap(<ResponsibleUse />)} />
         <Route path="/roadmap"         element={wrap(<Roadmap />)}        />
         <Route path="/about"           element={wrap(<About />)}          />
         {/* Read-only discovery pages linked from the public navbar. */}

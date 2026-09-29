@@ -14,8 +14,10 @@
 
   body {
     @apply min-h-screen bg-surface-900 text-white antialiased font-sans;
-    background-image: radial-gradient(circle at top left, rgba(59, 101, 255, 0.16), transparent 24%),
-      radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.12), transparent 28%);
+    background:
+      radial-gradient(circle at 12% 0%, rgba(88, 123, 255, 0.18), transparent 26%),
+      radial-gradient(circle at 80% 15%, rgba(16, 185, 129, 0.08), transparent 24%),
+      linear-gradient(180deg, rgba(9, 13, 22, 0.98) 0%, rgba(9, 13, 22, 1) 100%);
   }
 
   ::-webkit-scrollbar {
