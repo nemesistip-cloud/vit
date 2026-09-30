@@ -137,10 +137,11 @@ async def _validate_stage(db: AsyncSession, stage: int) -> Dict[str, Any]:
             passed = count > 0
             summary = {"stage": 6, "passed": passed, "reason": "Treasury pools have not been bootstrapped" if not passed else "Genesis treasury is initialized"}
         elif stage == 7:
-            from app.modules.ai.models import ModelMetadata
-            count = await db.scalar(select(func.count()).select_from(ModelMetadata)) or 0
-            passed = count >= 3
-            summary = {"stage": 7, "passed": passed, "reason": "Model registry has insufficient metadata" if not passed else "Model registry metadata is initialized"}
+            summary = {
+                "stage": 7,
+                "passed": False,
+                "reason": "Genesis mint ceremony is not implemented; Stage 7 cannot be marked complete",
+            }
         elif stage == 8:
             from app.modules.ai.models import ModelMetadata
             active_count = await db.scalar(
@@ -258,7 +259,21 @@ async def advance_genesis_stage(
     _: Any = Depends(require_admin),
 ) -> Dict[str, Any]:
     state = await _read_genesis_state(db)
-    target_stage = request.stage if request.stage is not None else state["current_stage"] + 1
+    if state["current_stage"] >= TOTAL_STAGES:
+        raise HTTPException(status_code=409, detail="Genesis is already at the final stage")
+
+    next_stage = state["current_stage"] + 1
+    if request.stage is not None and int(request.stage) != next_stage:
+        raise HTTPException(status_code=409, detail="Genesis stages must be advanced sequentially")
+
+    current_validation = await _validate_stage(db, state["current_stage"])
+    if not current_validation["passed"]:
+        raise HTTPException(
+            status_code=400,
+            detail={"stage": state["current_stage"], "validation": current_validation},
+        )
+
+    target_stage = request.stage if request.stage is not None else next_stage
     current_stage = max(1, min(int(target_stage), TOTAL_STAGES))
 
     validation = await _validate_stage(db, current_stage)

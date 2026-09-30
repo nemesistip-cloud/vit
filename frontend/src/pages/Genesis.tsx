@@ -87,8 +87,8 @@ const STAGES = [
   {
     id: 7,
     title: 'Genesis VIT Coin Mint',
-    description: 'Confirm that the model registry contains its required metadata.',
-    validation: 'At least three model metadata records must exist.',
+    description: 'Minting requires a reviewed supply plan, treasury destinations, and multi-party authorization.',
+    validation: 'A validated supply allocation, treasury addresses, 2-of-3 signer approval, and chain height 0 are required.',
   },
   {
     id: 8,
