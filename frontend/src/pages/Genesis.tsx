@@ -14,6 +14,8 @@ import {
 import { authHeaders } from '@/hooks/useAuth'
 import { ENDPOINTS } from '@/lib/api'
 
+const LEGACY_MINT_CONFIRMATION = 'ACCEPT EXISTING GENESIS MINT'
+
 interface GenesisValidationResult {
   stage: number
   passed: boolean
@@ -113,6 +115,8 @@ const STAGES = [
 export default function Genesis() {
   const queryClient = useQueryClient()
   const [activeStage, setActiveStage] = useState(1)
+  const [legacyMintConfirmation, setLegacyMintConfirmation] = useState('')
+  const [legacyMintReason, setLegacyMintReason] = useState('')
 
   const { data: genesisState, isLoading, error } = useQuery({
     queryKey: ['genesis-status'],
@@ -164,6 +168,25 @@ export default function Genesis() {
     onSuccess: (data) => {
       queryClient.setQueryData(['genesis-status'], data)
       setActiveStage(data.current_stage)
+    },
+  })
+
+  const acceptLegacyMintMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/genesis/accept-existing-mint`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: legacyMintConfirmation, reason: legacyMintReason }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(typeof payload.detail === 'string' ? payload.detail : `Legacy acceptance failed (${response.status})`)
+      }
+      return response.json()
+    },
+    onSuccess: async () => {
+      setLegacyMintConfirmation('')
+      await queryClient.invalidateQueries({ queryKey: ['genesis-status'] })
     },
   })
 
@@ -339,6 +362,42 @@ export default function Genesis() {
             </button>
           </div>
           {advanceMutation.error ? <p role="alert" className="mt-3 text-sm text-amber-200">{advanceMutation.error.message}</p> : null}
+
+          {activeStage === 7 && activeStage === genesisState?.current_stage && !activeValidation.passed ? (
+            <div className="mt-5 space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+              <h3 className="text-sm font-semibold text-amber-200">Accept existing genesis mint</h3>
+              <p className="text-xs leading-5 text-white/60">
+                Records a one-time legacy exception for the live block-0 mint. This does not verify 2-of-3 signer evidence and will not submit another mint.
+              </p>
+              <label htmlFor="legacy-mint-reason" className="block text-xs font-medium text-white/60">Decision reason</label>
+              <textarea
+                id="legacy-mint-reason"
+                value={legacyMintReason}
+                onChange={event => setLegacyMintReason(event.target.value)}
+                rows={3}
+                maxLength={500}
+                className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
+                placeholder="Document why the existing mint is accepted despite missing 2-of-3 proof."
+              />
+              <label htmlFor="legacy-mint-confirmation" className="block text-xs font-medium text-white/60">Type {LEGACY_MINT_CONFIRMATION}</label>
+              <input
+                id="legacy-mint-confirmation"
+                value={legacyMintConfirmation}
+                onChange={event => setLegacyMintConfirmation(event.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                onClick={() => acceptLegacyMintMutation.mutate()}
+                disabled={acceptLegacyMintMutation.isPending || legacyMintConfirmation !== LEGACY_MINT_CONFIRMATION || legacyMintReason.trim().length < 40}
+                className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-medium text-amber-100 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {acceptLegacyMintMutation.isPending ? 'Recording exception...' : 'Record legacy exception'}
+              </button>
+              {acceptLegacyMintMutation.error ? <p role="alert" className="text-sm text-amber-200">{acceptLegacyMintMutation.error.message}</p> : null}
+            </div>
+          ) : null}
         </div>
       </div>
 

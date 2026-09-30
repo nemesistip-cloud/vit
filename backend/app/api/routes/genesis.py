@@ -1,5 +1,7 @@
+import asyncio
 import os
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,18 +9,29 @@ from pydantic import BaseModel
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.admin import require_admin
+from app.api.dependencies.admin import require_admin, require_super_admin
 from app.db.database import get_db
+from app.db.models import AuditLog, User
 from app.modules.wallet.models import PlatformConfig
+from app.services.vit_chain_client import VitChainClient, VitChainClientError
 
 router = APIRouter(prefix="/genesis", tags=["Genesis"])
 
 GENESIS_STATE_KEY = "genesis_initialization_state"
+LEGACY_MINT_ACCEPTANCE_KEY = "genesis_legacy_mint_acceptance"
+LEGACY_MINT_CONFIRMATION = "ACCEPT EXISTING GENESIS MINT"
+GENESIS_MINT_AMOUNT = Decimal("1000000")
+MAX_VIT_SUPPLY = Decimal("10000000")
 TOTAL_STAGES = 10
 
 
 class GenesisAdvanceRequest(BaseModel):
     stage: Optional[int] = None
+
+
+class LegacyMintAcceptanceRequest(BaseModel):
+    confirmation: str
+    reason: str
 
 
 async def _read_genesis_state(db: AsyncSession) -> Dict[str, Any]:
@@ -104,6 +117,107 @@ async def _runtime_dependencies_ok(db: AsyncSession) -> Dict[str, bool]:
     return {"database": database_ok, "redis": redis_ok}
 
 
+async def _legacy_genesis_evidence() -> Dict[str, Any]:
+    chain = VitChainClient()
+    status, block, supply = await asyncio.gather(
+        chain.status(),
+        chain.block("0"),
+        chain.supply(),
+    )
+    transactions = block.get("transactions")
+    if not isinstance(transactions, list) or len(transactions) != 1:
+        raise ValueError("Block 0 does not contain exactly one genesis transaction")
+    transaction = transactions[0]
+
+    try:
+        chain_id = int(status.get("chain_id", 0))
+        chain_height = int(status.get("block_height", -1))
+        genesis_height = int(block.get("height", -1))
+        mint_amount = Decimal(str(transaction.get("amount")))
+        total_supply = Decimal(str(supply.get("total_supply")))
+    except (IndexError, TypeError, ValueError, InvalidOperation) as exc:
+        raise ValueError("The live chain returned invalid genesis evidence") from exc
+
+    transaction_data = transaction.get("data")
+    if not isinstance(transaction_data, dict) or transaction_data.get("type") != "genesis_mint":
+        raise ValueError("Block 0 does not contain a genesis_mint transaction")
+    if chain_id != 7764 or genesis_height != 0 or chain_height < 1:
+        raise ValueError("The live chain identity or height does not match the legacy genesis")
+    if mint_amount != GENESIS_MINT_AMOUNT or total_supply < mint_amount or total_supply > MAX_VIT_SUPPLY:
+        raise ValueError("The live genesis amount or total supply is outside the approved limits")
+
+    block_hash = str(block.get("block_hash") or block.get("hash") or "")
+    transaction_hash = str(transaction.get("tx_hash") or transaction.get("hash") or "")
+    recipient_address = str(transaction.get("to_address") or transaction.get("to") or "")
+    sender = str(transaction.get("from_address") or transaction.get("from") or "").lower()
+    zero_senders = {"0x" + "0" * 40, "vit" + "0" * 40}
+    if not block_hash or not transaction_hash or not recipient_address or sender not in zero_senders:
+        raise ValueError("The existing genesis transaction is missing required public evidence")
+
+    return {
+        "chain_id": chain_id,
+        "chain_height": chain_height,
+        "genesis_height": genesis_height,
+        "block_hash": block_hash,
+        "transaction_hash": transaction_hash,
+        "recipient_address": recipient_address,
+        "amount": format(mint_amount.normalize(), "f"),
+        "total_supply": format(total_supply.normalize(), "f"),
+        "transaction_signature_present": bool(transaction.get("signature")),
+        "validator_signature_present": bool(block.get("validator_signature")),
+    }
+
+
+def _legacy_mint_snapshot_matches(accepted: Dict[str, Any], current: Dict[str, Any]) -> bool:
+    immutable_fields = (
+        "chain_id",
+        "genesis_height",
+        "block_hash",
+        "transaction_hash",
+        "recipient_address",
+        "amount",
+        "transaction_signature_present",
+        "validator_signature_present",
+    )
+    return all(accepted.get(field) == current.get(field) for field in immutable_fields)
+
+
+async def _validate_legacy_genesis_acceptance(db: AsyncSession) -> Dict[str, Any]:
+    try:
+        evidence = await _legacy_genesis_evidence()
+    except (VitChainClientError, ValueError) as exc:
+        return {
+            "stage": 7,
+            "passed": False,
+            "reason": f"Existing genesis mint evidence could not be verified: {type(exc).__name__}",
+        }
+
+    row = await db.scalar(
+        select(PlatformConfig).where(PlatformConfig.key == LEGACY_MINT_ACCEPTANCE_KEY)
+    )
+    acceptance = row.value if row and isinstance(row.value, dict) else None
+    if not acceptance or acceptance.get("accepted") is not True:
+        return {
+            "stage": 7,
+            "passed": False,
+            "reason": "An existing 1,000,000 VIT genesis mint was found; explicit super-admin legacy acceptance is required",
+        }
+
+    accepted_evidence = acceptance.get("evidence")
+    if not isinstance(accepted_evidence, dict) or not _legacy_mint_snapshot_matches(accepted_evidence, evidence):
+        return {
+            "stage": 7,
+            "passed": False,
+            "reason": "The accepted legacy genesis snapshot no longer matches block 0",
+        }
+
+    return {
+        "stage": 7,
+        "passed": True,
+        "reason": "Existing genesis accepted under a super-admin legacy exception; 2-of-3 signer evidence is not claimed",
+    }
+
+
 async def _validate_stage(db: AsyncSession, stage: int) -> Dict[str, Any]:
     stage = max(1, min(int(stage), TOTAL_STAGES))
     summary: Dict[str, Any] = {"stage": stage, "passed": False, "reason": "Validation not run"}
@@ -140,11 +254,7 @@ async def _validate_stage(db: AsyncSession, stage: int) -> Dict[str, Any]:
             passed = count > 0
             summary = {"stage": 6, "passed": passed, "reason": "Treasury pools have not been bootstrapped" if not passed else "Genesis treasury is initialized"}
         elif stage == 7:
-            summary = {
-                "stage": 7,
-                "passed": False,
-                "reason": "Genesis mint ceremony is not implemented; Stage 7 cannot be marked complete",
-            }
+            summary = await _validate_legacy_genesis_acceptance(db)
         elif stage == 8:
             from app.modules.ai.models import ModelMetadata
             active_count = await db.scalar(
@@ -258,6 +368,76 @@ async def get_genesis_status(db: AsyncSession = Depends(get_db)) -> Dict[str, An
 @router.get("/validate/{stage}")
 async def validate_genesis_stage(stage: int, db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
     return await _validate_stage(db, stage)
+
+
+@router.post("/accept-existing-mint")
+async def accept_existing_genesis_mint(
+    request: LegacyMintAcceptanceRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+) -> Dict[str, Any]:
+    if request.confirmation != LEGACY_MINT_CONFIRMATION:
+        raise HTTPException(status_code=400, detail="Confirmation text does not match")
+
+    reason = request.reason.strip()
+    if len(reason) < 40:
+        raise HTTPException(status_code=400, detail="A reason of at least 40 characters is required")
+
+    state = await _read_genesis_state(db)
+    if state["current_stage"] != 7:
+        raise HTTPException(status_code=409, detail="Legacy mint acceptance is only available at Stage 7")
+
+    existing = await db.scalar(
+        select(PlatformConfig).where(PlatformConfig.key == LEGACY_MINT_ACCEPTANCE_KEY)
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="A legacy genesis acceptance is already recorded")
+
+    try:
+        evidence = await _legacy_genesis_evidence()
+    except (VitChainClientError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=f"Existing genesis evidence unavailable: {type(exc).__name__}") from exc
+
+    accepted_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    exception = {
+        "accepted": True,
+        "exception_type": "legacy_genesis_without_verified_multisig",
+        "accepted_by": admin.id,
+        "accepted_at": accepted_at,
+        "reason": reason,
+        "acknowledgements": {
+            "existing_mint_will_not_be_repeated": True,
+            "two_of_three_signer_evidence_verified": False,
+            "treasury_operations_split_verified": False,
+        },
+        "evidence": evidence,
+    }
+
+    db.add(PlatformConfig(
+        key=LEGACY_MINT_ACCEPTANCE_KEY,
+        value=exception,
+        description="Super-admin exception accepting the existing block-0 mint without verified 2-of-3 ceremony evidence",
+        updated_by=admin.id,
+    ))
+    db.add(AuditLog(
+        action="genesis.legacy_mint.accepted",
+        actor=str(admin.id),
+        resource="genesis",
+        resource_id="legacy-block-0-mint",
+        details=exception,
+        ip_address=None,
+        status="warning",
+    ))
+    await db.commit()
+
+    return {
+        "accepted": True,
+        "stage": 7,
+        "exception_type": exception["exception_type"],
+        "evidence": evidence,
+        "two_of_three_signer_evidence_verified": False,
+        "new_mint_submitted": False,
+    }
 
 
 @router.post("/advance")

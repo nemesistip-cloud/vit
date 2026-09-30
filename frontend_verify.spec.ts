@@ -250,6 +250,63 @@ test('genesis wizard shows the live validation result and reason for the active 
   await expect(page.getByRole('button', { name: /Mark stage complete/i })).toHaveCount(0);
 });
 
+test('genesis stage seven requires explicit confirmation for the legacy mint exception', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'genesis-legacy-admin-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'genesis-admin', role: 'super_admin' }));
+  });
+
+  let accepted = false;
+  let submittedBody: Record<string, string> | undefined;
+  await page.route('**/api/genesis/status', route => {
+    const validationResults = Object.fromEntries(Array.from({ length: 10 }, (_, index) => {
+      const stage = index + 1;
+      return [String(stage), {
+        stage,
+        passed: stage !== 7 || accepted,
+        reason: stage === 7
+          ? accepted ? 'Existing genesis accepted under a super-admin legacy exception; 2-of-3 signer evidence is not claimed' : 'An existing genesis mint was found; explicit super-admin legacy acceptance is required'
+          : 'Live check passed',
+      }];
+    }));
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        current_stage: 7,
+        completed_stages: accepted ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5, 6],
+        total_stages: 10,
+        status: 'bootstrapping',
+        verified: false,
+        dependency_status: { database: true, redis: true },
+        validation_results: validationResults,
+      }),
+    });
+  });
+  await page.route('**/api/genesis/accept-existing-mint', async route => {
+    submittedBody = route.request().postDataJSON();
+    accepted = true;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ accepted: true, new_mint_submitted: false }) });
+  });
+
+  await page.goto('/genesis');
+
+  const acceptButton = page.getByRole('button', { name: 'Record legacy exception' });
+  await expect(acceptButton).toBeVisible();
+  await expect(acceptButton).toBeDisabled();
+  await page.getByLabel('Decision reason').fill('Authorized acceptance of the existing block-zero mint without verified two-of-three evidence; do not mint again.');
+  await expect(acceptButton).toBeDisabled();
+  await page.getByLabel('Type ACCEPT EXISTING GENESIS MINT').fill('ACCEPT EXISTING GENESIS MINT');
+  await expect(acceptButton).toBeEnabled();
+  await acceptButton.click();
+
+  await expect.poll(() => submittedBody).toEqual({
+    confirmation: 'ACCEPT EXISTING GENESIS MINT',
+    reason: 'Authorized acceptance of the existing block-zero mint without verified two-of-three evidence; do not mint again.',
+  });
+  await expect(page.getByText('Passed', { exact: true }).first()).toBeVisible();
+});
+
 test('platform blocks authenticated access until genesis verification is complete', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('vit_token', 'boot-gate-token');
