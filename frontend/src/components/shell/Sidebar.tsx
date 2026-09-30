@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Wallet, Vote, Landmark, Store,
   Share2, Coins, Radio, BarChart3, Shield, Settings,
   ChevronLeft, ChevronRight, Activity, HardDrive,
-  Layers, Trophy, Star, Sparkles, Globe2, Brain, Users,
+  Layers, Trophy, Star, Sparkles, Globe2, Brain, Users, ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getAuthToken, getStoredUser } from '@/hooks/useAuth'
@@ -58,6 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Contributors', path: '/social', icon: Users },
       { label: 'Treasury', path: '/treasury', icon: Landmark },
       { label: 'DeFi', path: '/defi', icon: Coins },
+      { label: 'Genesis', path: '/genesis', icon: ShieldCheck },
       { label: 'Referral', path: '/referral', icon: Share2 },
       { label: 'Storage', path: '/storage', icon: HardDrive },
     ],

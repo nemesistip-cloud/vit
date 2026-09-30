@@ -170,6 +170,102 @@ test('authenticated mobile navigation starts with workspace actions', async ({ p
   await expect(page.getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible();
 });
 
+test('genesis initialization wizard exposes the bootstrap stages and readiness flow', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'genesis-wizard-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'genesis-admin', role: 'admin' }));
+  });
+
+  await page.goto('/genesis');
+
+  await expect(page.getByRole('heading', { name: /Genesis Initialization Wizard/i })).toBeVisible();
+  await expect(page.getByText(/Stage 1: Platform Configuration/i)).toBeVisible();
+  await expect(page.getByText(/Stage 7: Genesis VIT Coin Mint/i)).toBeVisible();
+  await expect(page.getByRole('button', { name: /Advance to next stage/i })).toBeVisible();
+});
+
+test('genesis wizard hydrates live bootstrap state from the backend', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'genesis-status-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'genesis-admin', role: 'admin' }));
+  });
+
+  await page.route('**/api/genesis/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      current_stage: 10,
+      completed_stages: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      total_stages: 10,
+      status: 'verified',
+      verified: true,
+      updated_at: '2026-09-30T00:00:00Z',
+    }),
+  }));
+
+  await page.goto('/genesis');
+
+  await expect(page.getByText(/Current stage/i)).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Mainnet Readiness Verification/i })).toBeVisible();
+  await expect(page.getByText(/verified/i).first()).toBeVisible();
+});
+
+test('genesis wizard shows the live validation result and reason for the active stage', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'genesis-validation-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'genesis-admin', role: 'admin' }));
+  });
+
+  await page.route('**/api/genesis/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      current_stage: 2,
+      completed_stages: [1],
+      total_stages: 10,
+      status: 'bootstrapping',
+      verified: false,
+      updated_at: '2026-09-30T00:00:00Z',
+      dependency_status: { database: true, redis: true },
+      validation_results: {
+        '1': { stage: 1, passed: true, reason: 'Platform runtime configuration is valid' },
+        '2': { stage: 2, passed: false, reason: 'DID resolver endpoint and validator schema must be configured' },
+      },
+    }),
+  }));
+
+  await page.goto('/genesis');
+
+  await expect(page.getByText(/Validation gate/i)).toBeVisible();
+  await expect(page.getByText(/DID resolver endpoint and validator schema must be configured/i)).toBeVisible();
+  await expect(page.getByText(/Stage 2: Identity Configuration/i)).toBeVisible();
+});
+
+test('platform blocks authenticated access until genesis verification is complete', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'boot-gate-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'boot-gate-admin', role: 'admin' }));
+  });
+
+  await page.route('**/api/genesis/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      current_stage: 9,
+      completed_stages: [1, 2, 3, 4, 5, 6, 7, 8],
+      total_stages: 10,
+      status: 'bootstrapping',
+      verified: false,
+      updated_at: '2026-09-30T00:00:00Z',
+    }),
+  }));
+
+  await page.goto('/dashboard');
+
+  await expect(page).toHaveURL(/\/genesis$/);
+  await expect(page.getByRole('heading', { name: /Genesis Initialization Wizard/i })).toBeVisible();
+});
+
 test('chain explorer interprets Unix-second block timestamps correctly', async ({ page }) => {
   const timestamp = Math.floor(Date.now() / 1000) - 5;
   await page.route('**/api/chain/height', route => route.fulfill({

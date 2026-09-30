@@ -1,9 +1,10 @@
 import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { AppShell, PublicShell } from '@/components/shell/AppShell'
-import { getAuthToken } from '@/hooks/useAuth'
+import { authHeaders, getAuthToken } from '@/hooks/useAuth'
 import { RouteErrorBoundary } from '@/components/ErrorBoundary'
 import { Spinner } from '@/components/ui/Spinner'
+import { ENDPOINTS } from '@/lib/api'
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 
@@ -56,6 +57,63 @@ function RequireGuest() {
   return <Outlet />
 }
 
+function RequireGenesisVerified() {
+  const location = useLocation()
+
+  if (location.pathname === '/genesis' || location.pathname.startsWith('/admin')) {
+    return <Outlet />
+  }
+
+  const [isReady, setIsReady] = React.useState(false)
+  const [isLoading, setIsLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    let isMounted = true
+
+    async function checkGenesisState() {
+      try {
+        const res = await fetch(`${ENDPOINTS.gateway}/api/genesis/status`, {
+          headers: authHeaders(),
+        })
+
+        if (!res.ok) {
+          if (isMounted) {
+            setIsReady(false)
+            setIsLoading(false)
+          }
+          return
+        }
+
+        const payload = await res.json().catch(() => ({ verified: false }))
+        if (isMounted) {
+          setIsReady(Boolean(payload.verified))
+          setIsLoading(false)
+        }
+      } catch {
+        if (isMounted) {
+          setIsReady(false)
+          setIsLoading(false)
+        }
+      }
+    }
+
+    checkGenesisState()
+    return () => {
+      isMounted = false
+    }
+  }, [location.pathname])
+
+  if (isLoading) {
+    return <PageLoader />
+  }
+
+  if (!isReady) {
+    return <Navigate to="/genesis" replace state={{ from: location.pathname }} />
+  }
+
+  return <Outlet />
+}
+
 function PublicHomeGate() {
   return getAuthToken() ? <Navigate to="/dashboard" replace /> : <Home />
 }
@@ -98,6 +156,7 @@ const Tasks           = lazy(() => import('@/pages/Tasks'))
 const Wallet      = lazy(() => import('@/pages/Wallet'))
 const DeFi        = lazy(() => import('@/pages/DeFi'))
 const InPlay      = lazy(() => import('@/pages/InPlay'))
+const Genesis     = lazy(() => import('@/pages/Genesis'))
 const Marketplace = lazy(() => import('@/pages/Marketplace'))
 const Referral    = lazy(() => import('@/pages/Referral'))
 
@@ -165,38 +224,41 @@ export default function App() {
 
       {/* ── Authenticated app ──────────────────────────────────────────────── */}
       <Route element={<RequireAuth />}>
-      <Route element={<AppShell />}>
-        <Route path="/dashboard"        element={wrap(<Dashboard />)}       />
-        <Route path="/workspace"        element={wrap(<Workspace />)}       />
-        <Route path="/settings"         element={wrap(<Settings />)}        />
-        <Route path="/subscription"     element={wrap(<Subscription />)}    />
-        <Route path="/predictions"      element={wrap(<Predictions />)}     />
-        <Route path="/odds"             element={wrap(<Odds />)}            />
-        <Route path="/analytics"        element={wrap(<Analytics />)}       />
-        <Route path="/analytics-studio" element={wrap(<AnalyticsStudio />)} />
-        <Route path="/assistant"        element={wrap(<Assistant />)}       />
-        <Route path="/tasks"            element={wrap(<Tasks />)}           />
-        <Route path="/wallet"           element={wrap(<Wallet />)}          />
-        <Route path="/defi"             element={wrap(<DeFi />)}            />
-        <Route path="/inplay"           element={wrap(<InPlay />)}          />
-        <Route path="/referral"         element={wrap(<Referral />)}        />
-        <Route path="/treasury"         element={wrap(<Treasury />)}        />
-        <Route path="/validators"       element={wrap(<Validators />)}      />
-        <Route path="/social"           element={wrap(<Social />)}          />
-        <Route path="/ecosystem"        element={wrap(<Ecosystem />)}       />
-        <Route path="/enterprise"       element={wrap(<Enterprise />)}      />
-        <Route path="/accumulator"      element={wrap(<Accumulator />)}     />
-        <Route path="/rollover"         element={wrap(<Rollover />)}        />
-        <Route path="/backtest"         element={wrap(<Backtest />)}        />
-        <Route path="/bankroll"         element={wrap(<Bankroll />)}        />
-        <Route path="/vitcoin"          element={wrap(<VITCoin />)}         />
-        <Route path="/exchange"         element={wrap(<Exchange />)}        />
-        <Route path="/vaults"           element={wrap(<Vaults />)}          />
-        <Route path="/bridge"           element={wrap(<Bridge />)}          />
-        <Route path="/admin"            element={wrap(<Admin />)}           />
-        <Route path="/admin/:tab"       element={wrap(<Admin />)}           />
-        <Route path="*"                 element={wrap(<NotFound />)}        />
-      </Route>
+        <Route element={<RequireGenesisVerified />}>
+          <Route element={<AppShell />}>
+            <Route path="/dashboard"        element={wrap(<Dashboard />)}       />
+            <Route path="/workspace"        element={wrap(<Workspace />)}       />
+            <Route path="/settings"         element={wrap(<Settings />)}        />
+            <Route path="/subscription"     element={wrap(<Subscription />)}    />
+            <Route path="/predictions"      element={wrap(<Predictions />)}     />
+            <Route path="/odds"             element={wrap(<Odds />)}            />
+            <Route path="/analytics"        element={wrap(<Analytics />)}       />
+            <Route path="/analytics-studio" element={wrap(<AnalyticsStudio />)} />
+            <Route path="/assistant"        element={wrap(<Assistant />)}       />
+            <Route path="/tasks"            element={wrap(<Tasks />)}           />
+            <Route path="/wallet"           element={wrap(<Wallet />)}          />
+            <Route path="/defi"             element={wrap(<DeFi />)}            />
+            <Route path="/inplay"           element={wrap(<InPlay />)}          />
+            <Route path="/genesis"          element={wrap(<Genesis />)}         />
+            <Route path="/referral"         element={wrap(<Referral />)}        />
+            <Route path="/treasury"         element={wrap(<Treasury />)}        />
+            <Route path="/validators"       element={wrap(<Validators />)}      />
+            <Route path="/social"           element={wrap(<Social />)}          />
+            <Route path="/ecosystem"        element={wrap(<Ecosystem />)}       />
+            <Route path="/enterprise"       element={wrap(<Enterprise />)}      />
+            <Route path="/accumulator"      element={wrap(<Accumulator />)}     />
+            <Route path="/rollover"         element={wrap(<Rollover />)}        />
+            <Route path="/backtest"         element={wrap(<Backtest />)}        />
+            <Route path="/bankroll"         element={wrap(<Bankroll />)}        />
+            <Route path="/vitcoin"          element={wrap(<VITCoin />)}         />
+            <Route path="/exchange"         element={wrap(<Exchange />)}        />
+            <Route path="/vaults"           element={wrap(<Vaults />)}          />
+            <Route path="/bridge"           element={wrap(<Bridge />)}          />
+            <Route path="/admin"            element={wrap(<Admin />)}           />
+            <Route path="/admin/:tab"       element={wrap(<Admin />)}           />
+            <Route path="*"                 element={wrap(<NotFound />)}        />
+          </Route>
+        </Route>
       </Route>
     </Routes>
   )

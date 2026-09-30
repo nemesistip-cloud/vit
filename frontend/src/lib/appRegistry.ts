@@ -9,6 +9,7 @@ import {
   Vote,
   Store,
   Sparkles,
+  ShieldCheck,
 } from 'lucide-react'
 
 export interface AppRegistryItem {
@@ -127,6 +128,19 @@ const appRegistry: AppRegistryItem[] = [
     minimumWindowSize: { width: 320, height: 260 },
     enabled: true,
     pinned: true,
+  },
+  {
+    id: 'genesis',
+    name: 'Genesis',
+    icon: ShieldCheck,
+    category: 'Network',
+    description: 'Initialization wizard',
+    route: '/genesis',
+    component: lazy(() => import('@/pages/Genesis')),
+    defaultWindowSize: { width: 640, height: 520 },
+    minimumWindowSize: { width: 360, height: 320 },
+    enabled: true,
+    pinned: false,
   },
 ]
 

@@ -419,15 +419,7 @@ function AdminErrorState({ title, message, onRetry }: { title?: string; message?
 function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, loadingStatus, loadingHealth, statusError, healthError, metricsError }: any) {
   if (loadingStatus && loadingHealth) return <div className="flex justify-center py-20"><Spinner className="w-8 h-8 text-vit-400" /></div>
 
-  if (statusError || healthError || metricsError) {
-    return (
-      <div className="space-y-4">
-        {statusError && <AdminErrorState title="System status unavailable" message={statusError.message} onRetry={refetchStatus} />}
-        {healthError && <AdminErrorState title="System health unavailable" message={healthError.message} onRetry={refetchHealth} />}
-        {metricsError && <AdminErrorState title="Metrics unavailable" message={metricsError.message} onRetry={() => window.location.reload()} />}
-      </div>
-    )
-  }
+  const hasBackendErrors = Boolean(statusError || healthError || metricsError)
 
   const actionCards = [
     { label: 'Audit Log', href: `${ENDPOINTS.gateway}/api/admin/audit-log`, icon: ClipboardList, accent: 'text-vit-400', external: true },
@@ -442,6 +434,7 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
     { label: 'API Keys', href: '#api_keys', icon: Lock, accent: 'text-emerald-400' },
     { label: 'Config', href: '#config', icon: Settings, accent: 'text-blue-400' },
   ]
+  const secondaryActions = quickActions.filter(({ label }) => label !== 'Predictions')
 
   const pulseCards = [
     { label: 'Gateway', value: health?.status ?? 'operational', detail: '99.98% uptime', tone: 'emerald' },
@@ -505,6 +498,13 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
 
   return (
     <div className="space-y-8">
+      {hasBackendErrors && (
+        <div className="space-y-4">
+          {statusError && <AdminErrorState title="System status unavailable" message={statusError.message} onRetry={refetchStatus} />}
+          {healthError && <AdminErrorState title="System health unavailable" message={healthError.message} onRetry={refetchHealth} />}
+          {metricsError && <AdminErrorState title="Metrics unavailable" message={metricsError.message} onRetry={() => window.location.reload()} />}
+        </div>
+      )}
       <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(13,19,31,0.95),rgba(7,10,16,0.98))] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.28)] ring-1 ring-white/5">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(168,85,247,0.12),transparent_28%)]" />
         <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -814,7 +814,7 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
       <section>
         <h2 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4">Admin Actions</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {quickActions.map(({ label, href, icon: Icon, accent }) => (
+          {secondaryActions.map(({ label, href, icon: Icon, accent }) => (
             <button
               key={label}
               type="button"
@@ -1776,9 +1776,6 @@ function ConfigTab() {
   const queryClient = useQueryClient()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [googleDrafts, setGoogleDrafts] = useState<Record<string, string>>({})
-  if (error) {
-    return <AdminErrorState title="Configuration unavailable" message={error.message} onRetry={refetch} />
-  }
   const config = cfg ?? {}
   useEffect(() => {
     if (!cfg) return
@@ -1850,6 +1847,17 @@ function ConfigTab() {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-100">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium">Configuration unavailable</span>
+            <button type="button" onClick={() => refetch()} className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[10px] uppercase tracking-wide text-amber-100 hover:bg-amber-500/20">
+              Retry
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-amber-200/80">{error.message}</p>
+        </div>
+      )}
       {isLoading ? <div className="flex justify-center py-12"><Spinner className="w-5 h-5 text-vit-400" /></div> : (
         <>
           <div className="bg-surface-800/60 border border-white/8 rounded-xl p-6">
@@ -2003,17 +2011,16 @@ function AuditTab() {
 // ── Tab: System ───────────────────────────────────────────────────────────────
 
 function SystemTab({ health, status, metrics, loadingHealth, loadingStatus, statusError, healthError, metricsError }: any) {
-  if (statusError || healthError || metricsError) {
-    return (
-      <div className="space-y-4">
-        {statusError && <AdminErrorState title="System status unavailable" message={statusError.message} onRetry={() => window.location.reload()} />}
-        {healthError && <AdminErrorState title="System health unavailable" message={healthError.message} onRetry={() => window.location.reload()} />}
-        {metricsError && <AdminErrorState title="Metrics unavailable" message={metricsError.message} onRetry={() => window.location.reload()} />}
-      </div>
-    )
-  }
+  const hasBackendErrors = Boolean(statusError || healthError || metricsError)
   return (
     <div className="space-y-6">
+      {hasBackendErrors && (
+        <div className="space-y-4">
+          {statusError && <AdminErrorState title="System status unavailable" message={statusError.message} onRetry={() => window.location.reload()} />}
+          {healthError && <AdminErrorState title="System health unavailable" message={healthError.message} onRetry={() => window.location.reload()} />}
+          {metricsError && <AdminErrorState title="Metrics unavailable" message={metricsError.message} onRetry={() => window.location.reload()} />}
+        </div>
+      )}
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="bg-surface-800/60 border border-white/8 rounded-xl p-6">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-white mb-4"><Server className="w-4 h-4 text-vit-400" /> Gateway Info</h3>

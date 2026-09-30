@@ -765,6 +765,12 @@ except Exception as _e:
     logging.warning("config_router not mounted — routes unavailable: %s", _e)
 
 try:
+    from app.api.routes.genesis import router as genesis_router
+    app.include_router(genesis_router, prefix="/api")
+except Exception as _e:
+    logging.warning("genesis_router not mounted — routes unavailable: %s", _e)
+
+try:
     from app.api.routes.training import router as training_router
     app.include_router(training_router, prefix="/api")
 except Exception as _e:
