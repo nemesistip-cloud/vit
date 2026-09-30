@@ -9,6 +9,7 @@ import {
   CircleDashed,
   ShieldCheck,
   Sparkles,
+  XCircle,
 } from 'lucide-react'
 import { authHeaders } from '@/hooks/useAuth'
 import { ENDPOINTS } from '@/lib/api'
@@ -51,13 +52,13 @@ const STAGES = [
     id: 1,
     title: 'Platform Configuration',
     description: 'Confirm the local node configuration and operating currency baseline.',
-    validation: 'SYSTEM_CURRENCY_BASE must be supported and request margins must fall within 100–100,000 req/hr.',
+    validation: 'The base currency must be configured and request margins must fall within 100–100,000 req/hr.',
   },
   {
     id: 2,
     title: 'Identity Configuration',
     description: 'Register the DID root of trust, resolver endpoint, and validator schema version.',
-    validation: 'DID resolver endpoint must stay healthy and the validator schema must conform to W3C DID Core 1.0.',
+    validation: 'A DID resolver endpoint and validator schema must be configured.',
   },
   {
     id: 3,
@@ -80,32 +81,32 @@ const STAGES = [
   {
     id: 6,
     title: 'Genesis Treasury Creation',
-    description: 'Create the multi-sig reserve wallet, threshold, and signer set.',
-    validation: 'Threshold must be less than or equal to the signer count, and every public key must be valid secp256k1.',
+    description: 'Confirm that at least one treasury pool is persisted.',
+    validation: 'At least one treasury pool record must exist.',
   },
   {
     id: 7,
     title: 'Genesis VIT Coin Mint',
-    description: 'Lock the initial supply and allocate treasury versus operational reserve.',
-    validation: 'Combined allocations must equal 100% and total minted supply must not exceed 10,000,000 VIT.',
+    description: 'Confirm that the model registry contains its required metadata.',
+    validation: 'At least three model metadata records must exist.',
   },
   {
     id: 8,
     title: 'AI Service Initialization',
-    description: 'Register the active model ensemble and route logic for the network.',
-    validation: 'Configured AI models must exist in metadata and the gateway response must remain under 100ms.',
+    description: 'Confirm active model metadata and an AI gateway URL are configured.',
+    validation: 'At least three active models and an AI gateway URL must be configured.',
   },
   {
     id: 9,
     title: 'Storage Initialization',
-    description: 'Initialize the Tachyon VESS storage fabric and provider set.',
-    validation: 'K + M must be <= 16 and at least one active provider or disk pool must be available.',
+    description: 'Confirm that the Tachyon provider pool is available.',
+    validation: 'At least one storage provider must be available.',
   },
   {
     id: 10,
     title: 'Mainnet Readiness Verification',
     description: 'Run the final integration sweep across database, Redis, and genesis state.',
-    validation: 'Database constraints, Redis health, and genesis height-0 validation must all succeed before activation.',
+    validation: 'Database and Redis must be reachable, and all stage validations must pass.',
   },
 ] as const
 
@@ -126,21 +127,22 @@ export default function Genesis() {
     }
   }, [genesisState?.current_stage])
 
-  const completed = useMemo(() => new Set(genesisState?.completed_stages ?? [1, 2, 3]), [genesisState?.completed_stages])
+  const completed = useMemo(() => new Set(genesisState?.completed_stages ?? []), [genesisState?.completed_stages])
   const progress = useMemo(() => {
     const total = genesisState?.total_stages ?? STAGES.length
-    const count = genesisState?.completed_stages?.length ?? Math.min(completed.size, total)
+    const count = Array.from(completed).filter(stage => genesisState?.validation_results?.[String(stage)]?.passed).length
     const percent = (count / total) * 100
     return Math.min(percent, 100)
-  }, [completed, genesisState?.completed_stages, genesisState?.total_stages])
+  }, [completed, genesisState?.total_stages, genesisState?.validation_results])
 
   const currentStage = STAGES.find(stage => stage.id === activeStage) ?? STAGES[0]
   const activeValidation = genesisState?.validation_results?.[String(activeStage)] ?? {
     stage: activeStage,
-    passed: Boolean(genesisState?.verified) || completed.has(activeStage),
-    reason: currentStage.validation,
+    passed: false,
+    reason: 'Live validation result is not available for this stage.',
   }
-  const currentCompleted = completed.has(activeStage) || Boolean(genesisState?.verified) || activeValidation.passed
+  const currentCompleted = genesisState?.verified === true || (completed.has(activeStage) && activeValidation.passed)
+  const hasFailedValidations = Object.values(genesisState?.validation_results ?? {}).some(result => !result.passed)
 
   const advanceMutation = useMutation({
     mutationFn: async () => {
@@ -152,7 +154,9 @@ export default function Genesis() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
-        throw new Error(payload.detail || `Stage advance failed (${response.status})`)
+        const detail = payload.detail
+        const message = typeof detail === 'string' ? detail : detail?.validation?.reason ?? detail?.message
+        throw new Error(message || `Stage advance failed (${response.status})`)
       }
 
       return response.json() as Promise<GenesisState>
@@ -164,34 +168,19 @@ export default function Genesis() {
   })
 
   const advanceStage = () => {
-    if (activeStage >= STAGES.length) return
+    if (activeStage >= STAGES.length || activeStage !== genesisState?.current_stage) return
     advanceMutation.mutate()
   }
 
-  const markStageComplete = () => {
-    const next = Math.max(activeStage, 1)
-    queryClient.setQueryData(['genesis-status'], (previous: GenesisState | undefined) => {
-      if (!previous) {
-        return {
-          current_stage: next,
-          completed_stages: [next],
-          total_stages: STAGES.length,
-          status: 'bootstrapping',
-          verified: false,
-        }
-      }
-      const updatedCompleted = Array.from(new Set([...previous.completed_stages, next])).sort((a, b) => a - b)
-      return {
-        ...previous,
-        current_stage: next,
-        completed_stages: updatedCompleted,
-        status: next >= STAGES.length ? 'verified' : 'bootstrapping',
-        verified: next >= STAGES.length,
-      }
-    })
-  }
-
-  const statusLabel = genesisState?.verified ? 'Verified' : genesisState?.status === 'bootstrapping' ? 'Pending' : 'Pending'
+  const statusLabel = genesisState?.verified ? 'Verified' : activeValidation.passed ? 'Passed' : 'Blocked'
+  const readinessChecks = [
+    { label: 'Database connection', passed: genesisState?.dependency_status?.database },
+    { label: 'Redis connection', passed: genesisState?.dependency_status?.redis },
+    { label: 'Treasury pool exists', passed: genesisState?.validation_results?.['6']?.passed },
+    { label: 'Model metadata is registered', passed: genesisState?.validation_results?.['7']?.passed },
+    { label: 'AI service is configured', passed: genesisState?.validation_results?.['8']?.passed },
+    { label: 'Storage provider is available', passed: genesisState?.validation_results?.['9']?.passed },
+  ]
 
   return (
     <div className="space-y-6 pb-8">
@@ -215,7 +204,7 @@ export default function Genesis() {
           <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-vit-400" />
-              {isLoading ? 'Loading bootstrap state...' : genesisState?.verified ? 'Production launch cleared' : 'Ready for production launch sequence'}
+              {isLoading ? 'Loading bootstrap state...' : genesisState?.verified ? 'Production launch cleared' : hasFailedValidations ? 'Readiness checks need attention' : 'Readiness verification incomplete'}
             </div>
           </div>
         </div>
@@ -250,7 +239,7 @@ export default function Genesis() {
           <div className="space-y-3">
             {STAGES.map(stage => {
               const isActive = stage.id === activeStage
-              const isDone = completed.has(stage.id)
+              const isDone = genesisState?.verified === true || (completed.has(stage.id) && genesisState?.validation_results?.[String(stage.id)]?.passed === true)
 
               return (
                 <button
@@ -330,11 +319,11 @@ export default function Genesis() {
           <div className="mt-5 space-y-3 rounded-2xl border border-white/8 bg-surface-800/60 p-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-white/55">Network lock</span>
-              <span className={activeStage === STAGES.length ? 'text-emerald-300' : 'text-amber-300'}>{activeStage === STAGES.length ? 'Ready to activate' : 'Bootstrap active'}</span>
+              <span className={genesisState?.verified ? 'text-emerald-300' : 'text-amber-300'}>{genesisState?.verified ? 'Verified' : 'Locked'}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-white/55">Policy enforcement</span>
-              <span className="text-white/75">No public traffic until verified</span>
+              <span className="text-white/75">Protected routes require verification</span>
             </div>
           </div>
 
@@ -342,21 +331,14 @@ export default function Genesis() {
             <button
               type="button"
               onClick={advanceStage}
-              disabled={advanceMutation.isPending || activeStage >= STAGES.length}
+              disabled={advanceMutation.isPending || activeStage >= STAGES.length || activeStage !== genesisState?.current_stage}
               className="inline-flex items-center gap-2 rounded-xl bg-vit-500/90 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-vit-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {advanceMutation.isPending ? 'Advancing...' : activeStage >= STAGES.length ? 'Genesis complete' : 'Advance to next stage'}
               <ArrowRight className="h-4 w-4" />
             </button>
-
-            <button
-              type="button"
-              onClick={markStageComplete}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/75 hover:border-white/20 hover:text-white"
-            >
-              {currentCompleted ? 'Stage verified' : 'Mark stage complete'}
-            </button>
           </div>
+          {advanceMutation.error ? <p role="alert" className="mt-3 text-sm text-amber-200">{advanceMutation.error.message}</p> : null}
         </div>
       </div>
 
@@ -366,24 +348,18 @@ export default function Genesis() {
             <p className="text-xs uppercase tracking-[0.22em] text-white/35">Readiness checklist</p>
             <h3 className="mt-1 text-lg font-semibold text-white">Production gates</h3>
           </div>
-          <div className="flex items-center gap-2 text-emerald-300">
-            <CircleDashed className="h-4 w-4" />
+          <div className={`flex items-center gap-2 ${genesisState?.verified ? 'text-emerald-300' : 'text-amber-300'}`}>
+            {genesisState?.verified ? <CheckCircle2 className="h-4 w-4" /> : <CircleDashed className="h-4 w-4" />}
             <span className="text-sm">{genesisState?.verified ? 'Verified' : 'System bootstrapping'}</span>
           </div>
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {[
-            'Database constraints are present',
-            'Redis connection latency is healthy',
-            'Genesis block is initialized',
-            'AI models are registered and online',
-            'Storage fabric is responsive',
-            'Mainnet activation is authorized',
-          ].map((item) => (
-            <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/3 p-3 text-sm text-white/70">
-              <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-              <span>{item}</span>
+          {readinessChecks.map((item) => (
+            <div key={item.label} className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/3 p-3 text-sm text-white/70">
+              {item.passed === true ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : item.passed === false ? <XCircle className="h-4 w-4 text-amber-300" /> : <CircleDashed className="h-4 w-4 text-white/30" />}
+              <span className="flex-1">{item.label}</span>
+              <span className="text-xs text-white/45">{item.passed === true ? 'Passed' : item.passed === false ? 'Blocked' : 'Unavailable'}</span>
             </div>
           ))}
         </div>

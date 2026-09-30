@@ -63,6 +63,9 @@ test('admin console shows a production summary and editable feature flags', asyn
 
   await page.goto('/admin');
   await expect(page.getByText('Operations overview', { exact: false })).toBeVisible();
+  await expect(page.getByText('Operational feeds')).toBeVisible();
+  await expect(page.getByText('99.98% uptime')).toHaveCount(0);
+  await expect(page.getByText('API burst spike')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Predictions$/i })).toBeVisible();
 
   await page.getByRole('button', { name: 'Config' }).nth(0).click();
@@ -200,6 +203,10 @@ test('genesis wizard hydrates live bootstrap state from the backend', async ({ p
       status: 'verified',
       verified: true,
       updated_at: '2026-09-30T00:00:00Z',
+      dependency_status: { database: true, redis: true },
+      validation_results: Object.fromEntries(Array.from({ length: 10 }, (_, index) => [
+        String(index + 1), { stage: index + 1, passed: true, reason: 'Live check passed' },
+      ])),
     }),
   }));
 
@@ -237,8 +244,10 @@ test('genesis wizard shows the live validation result and reason for the active 
   await page.goto('/genesis');
 
   await expect(page.getByText(/Validation gate/i)).toBeVisible();
-  await expect(page.getByText(/DID resolver endpoint and validator schema must be configured/i)).toBeVisible();
+  await expect(page.getByText('DID resolver endpoint and validator schema must be configured', { exact: true })).toBeVisible();
   await expect(page.getByText(/Stage 2: Identity Configuration/i)).toBeVisible();
+  await expect(page.getByText('Blocked', { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /Mark stage complete/i })).toHaveCount(0);
 });
 
 test('platform blocks authenticated access until genesis verification is complete', async ({ page }) => {

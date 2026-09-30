@@ -3,9 +3,6 @@ import { motion } from 'framer-motion'
 import { useNavigate, Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  AreaChart, Area, BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from '@/lib/recharts'
-import {
   Shield, Users, Activity, Database, Server,
   TrendingUp, AlertTriangle, RefreshCw, ChevronRight,
   Cpu, Zap, Star, BarChart2, Settings, ClipboardList,
@@ -420,6 +417,8 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
   if (loadingStatus && loadingHealth) return <div className="flex justify-center py-20"><Spinner className="w-8 h-8 text-vit-400" /></div>
 
   const hasBackendErrors = Boolean(statusError || healthError || metricsError)
+  const liveStatus = health?.status ?? status?.status
+  const statusIsHealthy = typeof liveStatus === 'string' && ['ok', 'healthy', 'operational'].includes(liveStatus.toLowerCase())
 
   const actionCards = [
     { label: 'Audit Log', href: `${ENDPOINTS.gateway}/api/admin/audit-log`, icon: ClipboardList, accent: 'text-vit-400', external: true },
@@ -437,63 +436,10 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
   const secondaryActions = quickActions.filter(({ label }) => label !== 'Predictions')
 
   const pulseCards = [
-    { label: 'Gateway', value: health?.status ?? 'operational', detail: '99.98% uptime', tone: 'emerald' },
-    { label: 'Latency', value: metrics?.avg_latency_ms ? `${metrics.avg_latency_ms}ms` : '—', detail: 'Live response time', tone: 'blue' },
-    { label: 'Error rate', value: metrics?.error_rate ? `${(metrics.error_rate * 100).toFixed(2)}%` : '0.00%', detail: 'Production health', tone: 'red' },
-    { label: 'AI models', value: health?.models_loaded ?? '0', detail: 'Loaded in runtime', tone: 'violet' },
-  ]
-
-  const serviceBars = [
-    { label: 'Gateway', value: 96, color: 'bg-emerald-400' },
-    { label: 'AI', value: 89, color: 'bg-violet-400' },
-    { label: 'Storage', value: 92, color: 'bg-sky-400' },
-    { label: 'Validators', value: 94, color: 'bg-amber-400' },
-  ]
-
-  const performanceSeries = [
-    { name: 'Mon', users: 62, accuracy: 72 },
-    { name: 'Tue', users: 65, accuracy: 76 },
-    { name: 'Wed', users: 69, accuracy: 79 },
-    { name: 'Thu', users: 74, accuracy: 82 },
-    { name: 'Fri', users: 82, accuracy: 86 },
-    { name: 'Sat', users: 88, accuracy: 88 },
-    { name: 'Sun', users: 94, accuracy: 91 },
-  ]
-
-  const validatorSeries = [
-    { name: 'Eth', value: 62 },
-    { name: 'BSC', value: 49 },
-    { name: 'Base', value: 75 },
-    { name: 'Sol', value: 58 },
-    { name: 'Pol', value: 72 },
-  ]
-
-  const chartTooltipStyle = { border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(15,23,42,0.94)', borderRadius: 12 }
-
-  const activityFeed = [
-    { title: 'Gateway health stabilized', time: '2 mins ago', state: 'success', detail: 'API latency recovered below target threshold.' },
-    { title: 'Validator quorum updated', time: '14 mins ago', state: 'info', detail: 'Participation threshold refreshed for active validator set.' },
-    { title: 'Model retraining queued', time: '31 mins ago', state: 'warning', detail: 'Risk modeling job scheduled to resume after checkpoint.' },
-    { title: 'Audit alert reviewed', time: '1 hr ago', state: 'success', detail: 'Two admin changes were confirmed and logged.' },
-  ]
-
-  const resourceAllocation = [
-    { name: 'Gateway', value: 86, color: 'bg-emerald-400' },
-    { name: 'AI compute', value: 74, color: 'bg-violet-400' },
-    { name: 'Storage', value: 66, color: 'bg-sky-400' },
-    { name: 'Validators', value: 82, color: 'bg-amber-400' },
-  ]
-
-  const runbookSteps = [
-    { label: 'Failover check', state: 'Complete', tone: 'success' },
-    { label: 'Wallet reserve review', state: 'In progress', tone: 'info' },
-    { label: 'KYC escalation sweep', state: 'Queued', tone: 'warning' },
-  ]
-
-  const riskWatchlist = [
-    { title: 'API burst spike', severity: 'Medium', detail: 'Tolerance threshold exceeded for 3 minutes', tone: 'amber' },
-    { title: 'Validator drift', severity: 'High', detail: 'Two nodes under quorum target in region-2', tone: 'red' },
-    { title: 'Model drift', severity: 'Low', detail: 'Prediction variance remains within forecast band', tone: 'sky' },
+    { label: 'Gateway', value: liveStatus ?? 'Unavailable', detail: health?.environment ?? 'Live status unavailable', tone: 'emerald' },
+    { label: 'Latency', value: metrics?.avg_latency_ms != null ? `${metrics.avg_latency_ms}ms` : '—', detail: metrics ? 'Measured average response time' : 'No live latency metric', tone: 'blue' },
+    { label: 'Error rate', value: metrics?.error_rate != null ? `${(metrics.error_rate * 100).toFixed(2)}%` : '—', detail: metrics ? 'Measured request error rate' : 'No live error-rate metric', tone: 'red' },
+    { label: 'AI models', value: health?.models_loaded ?? '—', detail: health ? 'Loaded in runtime' : 'Runtime model status unavailable', tone: 'violet' },
   ]
 
   return (
@@ -512,9 +458,9 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
             <p className="text-[10px] uppercase tracking-[0.24em] text-vit-200/80">Operations overview</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Platform health at a glance</h2>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-medium text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.15)]">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
-            System operational
+          <div className={cn('inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium', statusIsHealthy ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/20 bg-amber-500/10 text-amber-300')}>
+            <span className={cn('h-2 w-2 rounded-full', statusIsHealthy ? 'bg-emerald-400' : 'bg-amber-400')} />
+            {liveStatus ?? 'Status unavailable'}
           </div>
         </div>
         <div className="relative mt-5 grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -532,7 +478,7 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
               <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Operational pulse</p>
               <h3 className="mt-1 text-lg font-semibold text-white">Live runtime health</h3>
             </div>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-wide text-white/55">updated live</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-wide text-white/55">API-sourced</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {pulseCards.map((card) => (
@@ -541,7 +487,7 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
                   <span>{card.label}</span>
                   <span className={cn(
                     'h-2 w-2 rounded-full',
-                    card.tone === 'emerald' && 'bg-emerald-400',
+                    card.tone === 'emerald' && (statusIsHealthy ? 'bg-emerald-400' : 'bg-amber-400'),
                     card.tone === 'blue' && 'bg-sky-400',
                     card.tone === 'red' && 'bg-red-400',
                     card.tone === 'violet' && 'bg-violet-400'
@@ -552,28 +498,15 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
               </div>
             ))}
           </div>
-          <div className="mt-5 space-y-4">
-            {serviceBars.map((bar) => (
-              <div key={bar.label}>
-                <div className="mb-1.5 flex items-center justify-between text-xs text-white/60">
-                  <span>{bar.label}</span>
-                  <span>{bar.value}%</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
-                  <div className={cn('h-full rounded-full', bar.color)} style={{ width: `${bar.value}%` }} />
-                </div>
-              </div>
-            ))}
+          <div className="mt-5 rounded-xl border border-white/8 bg-white/3 p-4 text-sm text-white/50">
+            Service-level health scores are unavailable from the live status APIs.
           </div>
         </div>
 
         <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.82),rgba(10,14,20,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Command center</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Priority actions</h3>
-            </div>
-            <div className="rounded-full border border-vit-500/30 bg-vit-500/10 px-2 py-1 text-[10px] uppercase tracking-wide text-vit-200">Ready</div>
+          <div className="mb-4">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Command center</p>
+            <h3 className="mt-1 text-lg font-semibold text-white">Priority actions</h3>
           </div>
           <div className="space-y-3">
             {quickActions.map(({ label, href, icon: Icon, accent }) => (
@@ -603,170 +536,9 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.4fr_0.9fr]">
-        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(9,12,19,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] ring-1 ring-white/5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Performance</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Live engagement & accuracy</h3>
-            </div>
-            <span className="text-[10px] uppercase tracking-[0.18em] text-emerald-300">+18.4%</span>
-          </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={performanceSeries} margin={{ top: 16, right: 8, left: -24, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="adminArea" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.45} />
-                    <stop offset="100%" stopColor="#7c3aed" stopOpacity={0.03} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: '#fff' }} />
-                <Area type="monotone" dataKey="users" stroke="#8b5cf6" fill="url(#adminArea)" strokeWidth={2.5} />
-                <Area type="monotone" dataKey="accuracy" stroke="#34d399" fill="transparent" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.82),rgba(10,14,20,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Validator split</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Network mix</h3>
-            </div>
-            <span className="text-[10px] uppercase tracking-[0.18em] text-sky-300">72% online</span>
-          </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={validatorSeries} margin={{ top: 8, right: 0, left: -24, bottom: 0 }}>
-                <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: '#fff' }} />
-                <Bar dataKey="value" radius={[6,6,0,0]} fill="#38bdf8" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(9,12,19,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] ring-1 ring-white/5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Activity stream</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Recent operations</h3>
-            </div>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-wide text-white/55">Last 24h</span>
-          </div>
-          <div className="space-y-3">
-            {activityFeed.map((item) => (
-              <div key={item.title} className="flex gap-3 rounded-2xl border border-white/10 bg-white/3 p-3">
-                <div className={cn(
-                  'mt-1 h-2.5 w-2.5 rounded-full',
-                  item.state === 'success' && 'bg-emerald-400',
-                  item.state === 'info' && 'bg-sky-400',
-                  item.state === 'warning' && 'bg-amber-400',
-                )} />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium text-white/85">{item.title}</p>
-                    <span className="text-[10px] uppercase tracking-[0.14em] text-white/40">{item.time}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-white/55">{item.detail}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(10,14,20,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] ring-1 ring-white/5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Capacity</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Resource allocation</h3>
-            </div>
-            <span className="text-[10px] uppercase tracking-[0.18em] text-vit-200">balanced</span>
-          </div>
-          <div className="space-y-4">
-            {resourceAllocation.map((item) => (
-              <div key={item.name}>
-                <div className="mb-1.5 flex items-center justify-between text-xs text-white/60">
-                  <span>{item.name}</span>
-                  <span>{item.value}%</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
-                  <div className={cn('h-full rounded-full', item.color)} style={{ width: `${item.value}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(9,12,19,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] ring-1 ring-white/5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Operations</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Live runbook</h3>
-            </div>
-            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] uppercase tracking-wide text-emerald-300">3 checks</span>
-          </div>
-          <div className="space-y-3">
-            {runbookSteps.map((step) => (
-              <div key={step.label} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/3 p-3">
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    'flex h-8 w-8 items-center justify-center rounded-xl border text-[10px] font-bold uppercase',
-                    step.tone === 'success' && 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300',
-                    step.tone === 'info' && 'border-sky-500/25 bg-sky-500/10 text-sky-300',
-                    step.tone === 'warning' && 'border-amber-500/25 bg-amber-500/10 text-amber-300',
-                  )}>
-                    {step.state.slice(0, 1)}
-                  </div>
-                  <span className="text-sm text-white/80">{step.label}</span>
-                </div>
-                <span className={cn(
-                  'text-[10px] uppercase tracking-[0.14em]',
-                  step.tone === 'success' && 'text-emerald-300',
-                  step.tone === 'info' && 'text-sky-300',
-                  step.tone === 'warning' && 'text-amber-300',
-                )}>{step.state}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(9,12,19,0.96))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] ring-1 ring-white/5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.24em] text-white/40">Monitoring</p>
-              <h3 className="mt-1 text-lg font-semibold text-white">Risk watchlist</h3>
-            </div>
-            <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] uppercase tracking-wide text-amber-300">3 alerts</span>
-          </div>
-          <div className="space-y-3">
-            {riskWatchlist.map((item) => (
-              <div key={item.title} className="rounded-2xl border border-white/10 bg-white/3 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium text-white/85">{item.title}</p>
-                  <span className={cn(
-                    'rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]',
-                    item.tone === 'amber' && 'border-amber-500/25 bg-amber-500/10 text-amber-300',
-                    item.tone === 'red' && 'border-red-500/25 bg-red-500/10 text-red-300',
-                    item.tone === 'sky' && 'border-sky-500/25 bg-sky-500/10 text-sky-300',
-                  )}>{item.severity}</span>
-                </div>
-                <p className="mt-2 text-xs text-white/55">{item.detail}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+      <section className="rounded-2xl border border-white/10 bg-surface-900/70 p-5">
+        <h3 className="text-lg font-semibold text-white">Operational feeds</h3>
+        <p className="mt-2 text-sm text-white/55">Activity history, capacity, validator distribution, and risk alerts are not available from the live data services.</p>
       </section>
 
       <section>
@@ -775,11 +547,11 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
           <div className="bg-surface-800/60 border border-white/8 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2"><Server className="w-4 h-4 text-vit-400" /><span className="text-white font-medium text-sm">VIT Gateway</span></div>
-              <StatusBadge status={health?.status ?? (status ? 'operational' : 'unknown')} size="sm" pulse />
+              <StatusBadge status={health?.status ?? status?.status ?? 'unknown'} size="sm" pulse />
             </div>
             <Row label="Version" value={health?.version ?? status?.version} />
-            <Row label="Database" value={health?.db_connected !== false ? 'Connected' : 'Disconnected'} />
-            <Row label="Redis" value={health?.redis?.status ?? 'Not configured'} />
+            <Row label="Database" value={health?.db_connected == null ? null : health.db_connected ? 'Connected' : 'Disconnected'} />
+            <Row label="Redis" value={health?.redis?.status} />
             <Row label="Models" value={health?.models_loaded != null ? `${health.models_loaded} loaded` : null} />
           </div>
           <div className="bg-surface-800/60 border border-white/8 rounded-xl p-5">
@@ -805,7 +577,7 @@ function OverviewTab({ status, health, metrics, refetchStatus, refetchHealth, lo
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <MetricCard icon={Zap} label="Requests (24h)" value={metrics.requests_24h} color="text-vit-400" i={0} />
             <MetricCard icon={BarChart2} label="Avg Latency" value={metrics.avg_latency_ms ? `${metrics.avg_latency_ms}ms` : null} color="text-blue-400" i={1} />
-            <MetricCard icon={Activity} label="Error Rate" value={metrics.error_rate ? `${(metrics.error_rate * 100).toFixed(2)}%` : null} color="text-red-400" i={2} />
+            <MetricCard icon={Activity} label="Error Rate" value={metrics.error_rate != null ? `${(metrics.error_rate * 100).toFixed(2)}%` : null} color="text-red-400" i={2} />
             <MetricCard icon={Database} label="DB Pool" value={metrics.db_pool_size} color="text-emerald-400" i={3} />
           </div>
         </section>
@@ -2027,7 +1799,7 @@ function SystemTab({ health, status, metrics, loadingHealth, loadingStatus, stat
           {loadingHealth ? <Spinner className="w-4 h-4 text-vit-400" /> : <>
             <Row label="Version"     value={health?.version ?? status?.version ?? '—'} />
             <Row label="Environment" value={health?.environment ?? '—'} />
-            <Row label="DB"          value={health?.db_connected !== false ? 'Connected' : 'Disconnected'} />
+            <Row label="DB"          value={health?.db_connected == null ? null : health.db_connected ? 'Connected' : 'Disconnected'} />
             <Row label="Redis"       value={health?.redis?.status ?? '—'} />
             <Row label="Models"      value={health?.models_loaded != null ? `${health.models_loaded} loaded` : '—'} />
             <Row label="Uptime"      value={health?.uptime_seconds ? `${Math.floor(health.uptime_seconds/3600)}h ${Math.floor((health.uptime_seconds%3600)/60)}m` : '—'} />
@@ -2049,7 +1821,7 @@ function SystemTab({ health, status, metrics, loadingHealth, loadingStatus, stat
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <MetricCard icon={Zap}           label="Requests (24h)" value={metrics.requests_24h}                                               color="text-vit-400"     />
             <MetricCard icon={Clock}         label="Avg Latency" value={metrics.avg_latency_ms ? `${metrics.avg_latency_ms}ms` : null}           color="text-blue-400"   />
-            <MetricCard icon={AlertTriangle} label="Error Rate"  value={metrics.error_rate ? `${(metrics.error_rate*100).toFixed(2)}%` : null}   color="text-red-400"    />
+            <MetricCard icon={AlertTriangle} label="Error Rate"  value={metrics.error_rate != null ? `${(metrics.error_rate*100).toFixed(2)}%` : null}   color="text-red-400"    />
             <MetricCard icon={Database}      label="DB Pool"     value={metrics.db_pool_size}                                                    color="text-emerald-400" />
           </div>
         </div>

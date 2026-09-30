@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.admin import require_admin
@@ -49,9 +49,6 @@ async def _read_genesis_state(db: AsyncSession) -> Dict[str, Any]:
             seen.add(stage_id)
     normalized_completed = sorted(normalized_completed)
 
-    status = payload.get("status") or (
-        "verified" if current_stage >= TOTAL_STAGES else "bootstrapping"
-    )
     dependency_status = payload.get("dependency_status") or {"database": False, "redis": False}
     validation_results = payload.get("validation_results") or {}
     validation_results = {
@@ -61,7 +58,7 @@ async def _read_genesis_state(db: AsyncSession) -> Dict[str, Any]:
     for stage in validation_results:
         validation_results[str(stage)] = validation_results[str(stage)]
 
-    verified = bool(payload.get("verified")) or (
+    verified = (
         current_stage >= TOTAL_STAGES
         and bool(dependency_status.get("database"))
         and bool(dependency_status.get("redis"))
@@ -72,7 +69,7 @@ async def _read_genesis_state(db: AsyncSession) -> Dict[str, Any]:
         "current_stage": max(1, min(current_stage, TOTAL_STAGES)),
         "completed_stages": normalized_completed,
         "total_stages": TOTAL_STAGES,
-        "status": status if status in {"bootstrapping", "verified"} else "bootstrapping",
+        "status": "verified" if verified else "bootstrapping",
         "verified": verified,
         "updated_at": payload.get("updated_at"),
         "dependency_status": {
@@ -136,17 +133,19 @@ async def _validate_stage(db: AsyncSession, stage: int) -> Dict[str, Any]:
             summary = {"stage": 5, "passed": passed, "reason": "Fee shares must sum to exactly 100%" if not passed else "Wallet fee routing is valid"}
         elif stage == 6:
             from app.modules.treasury.models import TreasuryPool
-            count = (await db.execute(select(TreasuryPool.id))).rowcount or 0
+            count = await db.scalar(select(func.count()).select_from(TreasuryPool)) or 0
             passed = count > 0
             summary = {"stage": 6, "passed": passed, "reason": "Treasury pools have not been bootstrapped" if not passed else "Genesis treasury is initialized"}
         elif stage == 7:
             from app.modules.ai.models import ModelMetadata
-            count = (await db.execute(select(ModelMetadata.id))).rowcount or 0
+            count = await db.scalar(select(func.count()).select_from(ModelMetadata)) or 0
             passed = count >= 3
-            summary = {"stage": 7, "passed": passed, "reason": "Model registry has insufficient active metadata" if not passed else "Genesis mint parameters are ready"}
+            summary = {"stage": 7, "passed": passed, "reason": "Model registry has insufficient metadata" if not passed else "Model registry metadata is initialized"}
         elif stage == 8:
             from app.modules.ai.models import ModelMetadata
-            active_count = (await db.execute(select(ModelMetadata.id).where(ModelMetadata.is_active == True))).rowcount or 0
+            active_count = await db.scalar(
+                select(func.count()).select_from(ModelMetadata).where(ModelMetadata.is_active.is_(True))
+            ) or 0
             ai_base = (os.getenv("VIT_AI_URL") or "").strip()
             passed = active_count >= 3 and bool(ai_base)
             summary = {"stage": 8, "passed": passed, "reason": "AI registry or gateway URL is not ready" if not passed else "AI services are initialized"}
@@ -193,7 +192,7 @@ async def _persist_genesis_state(db: AsyncSession, state: Dict[str, Any]) -> Dic
     validation_results = state.get("validation_results") or {}
     for stage in range(1, TOTAL_STAGES + 1):
         validation_results.setdefault(str(stage), await _validate_stage(db, stage))
-    verified = bool(state.get("verified")) or (
+    verified = (
         current >= TOTAL_STAGES
         and deps["database"]
         and deps["redis"]
@@ -238,7 +237,7 @@ async def get_genesis_status(db: AsyncSession = Depends(get_db)) -> Dict[str, An
         for stage in range(1, TOTAL_STAGES + 1)
     }
     live_verified = bool(state.get("current_stage") >= TOTAL_STAGES and deps.get("database") and deps.get("redis") and all(item.get("passed", False) for item in validation_results.values()))
-    state["verified"] = live_verified or bool(state.get("verified"))
+    state["verified"] = live_verified
     state["status"] = "verified" if state["verified"] else "bootstrapping"
     state["dependency_status"] = deps
     state["validation_results"] = validation_results
