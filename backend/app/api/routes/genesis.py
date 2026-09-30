@@ -52,7 +52,10 @@ async def _read_genesis_state(db: AsyncSession) -> Dict[str, Any]:
     dependency_status = payload.get("dependency_status") or {"database": False, "redis": False}
     validation_results = payload.get("validation_results") or {}
     validation_results = {
-        str(stage): validation_results.get(str(stage), {"stage": int(stage), "passed": False, "reason": "Validation not run"})
+        str(stage): validation_results.get(
+            str(stage),
+            {"stage": stage, "passed": False, "reason": "Validation not run"},
+        )
         for stage in range(1, TOTAL_STAGES + 1)
     }
     for stage in validation_results:
@@ -184,15 +187,20 @@ async def _persist_genesis_state(db: AsyncSession, state: Dict[str, Any]) -> Dic
         if 1 <= stage_id <= TOTAL_STAGES and stage_id not in seen:
             normalized_completed.append(stage_id)
             seen.add(stage_id)
-    normalized_completed = sorted(normalized_completed)
-    if current not in normalized_completed:
-        normalized_completed.append(current)
-    normalized_completed = sorted(set(normalized_completed))
-
     deps = await _runtime_dependencies_ok(db)
     validation_results = state.get("validation_results") or {}
     for stage in range(1, TOTAL_STAGES + 1):
-        validation_results.setdefault(str(stage), await _validate_stage(db, stage))
+        key = str(stage)
+        result = validation_results.get(key)
+        if not isinstance(result, dict) or "passed" not in result:
+            validation_results[key] = await _validate_stage(db, stage)
+    completed_set = set(normalized_completed)
+    completed_set.add(current)
+    normalized_completed = []
+    for stage in range(1, current + 1):
+        if stage not in completed_set or not validation_results[str(stage)]["passed"]:
+            break
+        normalized_completed.append(stage)
     verified = (
         current >= TOTAL_STAGES
         and deps["database"]

@@ -5,6 +5,7 @@ from app.api.routes.genesis import (
     GENESIS_STATE_KEY,
     TOTAL_STAGES,
     GenesisAdvanceRequest,
+    _persist_genesis_state,
     _read_genesis_state,
     _validate_stage,
     advance_genesis_stage,
@@ -129,3 +130,20 @@ async def test_genesis_advance_cannot_leave_a_failed_current_stage(db_session, m
 
     assert error.value.status_code == 400
     assert error.value.detail["stage"] == 7
+
+
+@pytest.mark.asyncio
+async def test_persisted_completion_stops_before_failed_mint_stage(db_session, monkeypatch):
+    monkeypatch.setenv("DID_RESOLVER_ENDPOINT", "https://did.example.test")
+    monkeypatch.setenv("VALIDATOR_DID_SCHEMA", "W3C DID Core 1.0")
+    db_session.add(TreasuryPool(pool_type=PoolType.RESERVE))
+    await db_session.commit()
+
+    state = await _persist_genesis_state(db_session, {
+        "current_stage": 7,
+        "completed_stages": list(range(1, 8)),
+    })
+
+    assert state["current_stage"] == 7
+    assert state["completed_stages"] == list(range(1, 7))
+    assert state["validation_results"]["7"]["passed"] is False
