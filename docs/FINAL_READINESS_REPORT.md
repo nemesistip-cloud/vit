@@ -2,7 +2,9 @@
 
 **Version:** 6.0.0
 **Domain:** /docs/
-**Status:** Approved for Next Implementation Phase
+**Status:** Superseded historical design-readiness report; not a production-readiness attestation
+
+> This report records an earlier architecture/design phase. Its “100% ready” wording does not mean production release gates have passed. See [UPGRADE_ROADMAP_2026-09-22.md](UPGRADE_ROADMAP_2026-09-22.md) for verified live status and remaining acceptance criteria.
 
 ---
 

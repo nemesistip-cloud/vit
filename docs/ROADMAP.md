@@ -1,5 +1,7 @@
-# VIT Network Strategic Roadmap
-_Last updated: 2026-07-19 — Phase 1 Hardening Sprint, Session 2_
+# VIT Network Strategic Roadmap (Historical Snapshot)
+_Snapshot from 2026-07-19 — not current production status._
+
+> For verified implementation progress, current blockers, and release gates, use [UPGRADE_ROADMAP_2026-09-22.md](UPGRADE_ROADMAP_2026-09-22.md). This document is retained as a historical planning record; its dates, status counts, and environment checklist are superseded.
 
 ---
 

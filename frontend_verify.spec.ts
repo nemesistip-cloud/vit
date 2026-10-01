@@ -77,6 +77,40 @@ test('admin console shows a production summary and editable feature flags', asyn
   await page.screenshot({ path: 'admin-console-ux.png' });
 });
 
+test('admin feature flag creates a config row when none exists', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'admin-feature-flag-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 42, username: 'operator', role: 'super_admin' }));
+  });
+
+  let savedFlag: { key: string; value: boolean } | undefined;
+  await page.route('**/api/admin/config', async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(savedFlag ? [savedFlag] : []),
+      });
+      return;
+    }
+
+    const request = route.request();
+    savedFlag = request.postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, key: savedFlag.key }),
+    });
+  });
+
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Config' }).nth(0).click();
+  await page.getByRole('button', { name: 'Predictions enabled' }).click();
+
+  await expect(page.getByRole('button', { name: 'Predictions disabled' })).toBeVisible();
+  expect(savedFlag).toEqual({ key: 'predictions_enabled', value: false, description: 'Feature flag predictions_enabled' });
+});
+
 test('admin Users and System tabs render authorized read data', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('vit_token', 'admin-read-only-test-token');
@@ -293,6 +327,8 @@ test('genesis stage seven requires explicit confirmation for the legacy mint exc
 
   const acceptButton = page.getByRole('button', { name: 'Record legacy exception' });
   await expect(acceptButton).toBeVisible();
+  await expect(page.getByText('Genesis mint acceptance recorded', { exact: true })).toBeVisible();
+  await expect(page.getByText('AI model registry and gateway configured', { exact: true })).toBeVisible();
   await expect(acceptButton).toBeDisabled();
   await page.getByLabel('Decision reason').fill('Authorized acceptance of the existing block-zero mint without verified two-of-three evidence; do not mint again.');
   await expect(acceptButton).toBeDisabled();
@@ -305,6 +341,69 @@ test('genesis stage seven requires explicit confirmation for the legacy mint exc
     reason: 'Authorized acceptance of the existing block-zero mint without verified two-of-three evidence; do not mint again.',
   });
   await expect(page.getByText('Passed', { exact: true }).first()).toBeVisible();
+});
+
+test('subscription page renders live catalog and starts the matching yearly checkout', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'subscription-contract-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 7, username: 'subscriber', role: 'user' }));
+  });
+
+  await page.route('**/api/genesis/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ verified: true }),
+  }));
+  await page.route('**/api/subscription/plans', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ plans: [
+      { name: 'free', display_name: 'Free', price_monthly: 0, price_yearly: 0, description: 'Basic predictions', features: { predictions: true } },
+      { name: 'analyst', display_name: 'Analyst', price_monthly: 49, price_yearly: 441, description: 'Prediction analytics', features: { predictions: true, advanced_analytics: true } },
+    ] }),
+  }));
+  await page.route('**/api/subscription/my-plan', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ plan: { name: 'free', display_name: 'Free' }, subscription: { status: 'active' }, usage: {} }),
+  }));
+
+  let checkoutBody: Record<string, string> | undefined;
+  await page.route('**/api/subscription/create-checkout', async route => {
+    checkoutBody = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ checkout_url: 'https://checkout.paystack.com/test-reference', reference: 'test-reference' }),
+    });
+  });
+  await page.route('https://checkout.paystack.com/**', route => route.fulfill({ status: 200, contentType: 'text/html', body: 'Checkout test' }));
+
+  await page.goto('/subscription');
+  await expect(page.getByRole('heading', { name: 'Analyst' })).toBeVisible();
+  await expect(page.getByText('$49', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'yearly' }).click();
+  await expect(page.getByText('$441', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Continue to checkout' }).click();
+  await expect.poll(() => checkoutBody).toEqual({ plan: 'analyst', billing: 'yearly' });
+});
+
+test('subscription page shows catalog errors instead of invented fallback pricing', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'subscription-error-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 7, username: 'subscriber', role: 'user' }));
+  });
+  await page.route('**/api/genesis/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ verified: true }),
+  }));
+  await page.route('**/api/subscription/plans', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'unavailable' }) }));
+
+  await page.goto('/subscription');
+
+  await expect(page.getByRole('alert')).toContainText('No fallback prices are shown');
+  await expect(page.getByRole('button', { name: 'Continue to checkout' })).toHaveCount(0);
 });
 
 test('platform blocks authenticated access until genesis verification is complete', async ({ page }) => {

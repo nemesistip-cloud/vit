@@ -200,8 +200,8 @@ export default function Genesis() {
     { label: 'Database connection', passed: genesisState?.dependency_status?.database },
     { label: 'Redis connection', passed: genesisState?.dependency_status?.redis },
     { label: 'Treasury pool exists', passed: genesisState?.validation_results?.['6']?.passed },
-    { label: 'Model metadata is registered', passed: genesisState?.validation_results?.['7']?.passed },
-    { label: 'AI service is configured', passed: genesisState?.validation_results?.['8']?.passed },
+    { label: 'Genesis mint acceptance recorded', passed: genesisState?.validation_results?.['7']?.passed },
+    { label: 'AI model registry and gateway configured', passed: genesisState?.validation_results?.['8']?.passed },
     { label: 'Storage provider is available', passed: genesisState?.validation_results?.['9']?.passed },
   ]
 

@@ -34,7 +34,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("train_model")
 
-MANIFEST_PATH = ROOT / "data_manifest.json"
+MANIFEST_PATH = ROOT / "data" / "data_manifest.json"
 
 def load_manifest(manifest_path: Path = None):
     path = manifest_path or MANIFEST_PATH

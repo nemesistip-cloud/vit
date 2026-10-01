@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc && vite build && node ../scripts/check-frontend-assets.mjs dist",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "test:e2e:deployed": "playwright test --config playwright.deployed.config.ts",
     "preview": "vite preview"
   },
   "dependencies": {

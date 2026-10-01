@@ -6,6 +6,7 @@
       "sport": "american_football",
       "name": "NFL matches",
       "description": "NFL game-level rows generated with realistic team schedules and matchup outcomes.",
+      "training_eligible": false,
       "path": "data/sports/american_football/nfl_matches.csv",
       "row_count": 6800,
       "columns": [
@@ -96,6 +97,7 @@
       "sport": "basketball",
       "name": "EuroLeague matches",
       "description": "EuroLeague match results with synthetic but realistic scorelines and ratings.",
+      "training_eligible": false,
       "path": "data/sports/basketball/euroleague_matches.csv",
       "row_count": 10000,
       "columns": [
@@ -178,6 +180,7 @@
       "sport": "rugby",
       "name": "Rugby matches",
       "description": "Rugby match rows generated with realistic scoring patterns for model training.",
+      "training_eligible": false,
       "path": "data/sports/rugby/rugby_matches.csv",
       "row_count": 540,
       "columns": [

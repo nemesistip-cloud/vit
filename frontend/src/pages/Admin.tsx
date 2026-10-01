@@ -1570,11 +1570,17 @@ function ConfigTab() {
   }, [cfg, config])
   const updateConfig = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
-      const response = await fetch(`${ENDPOINTS.gateway}/api/admin/config/${encodeURIComponent(key)}`, {
-        method: 'PUT',
+      const exists = Object.prototype.hasOwnProperty.call(config, key)
+      const response = await fetch(
+        exists
+          ? `${ENDPOINTS.gateway}/api/admin/config/${encodeURIComponent(key)}`
+          : `${ENDPOINTS.gateway}/api/admin/config`,
+        {
+        method: exists ? 'PUT' : 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value }),
-      })
+        body: JSON.stringify(exists ? { value } : { key, value, description: `Feature flag ${key}` }),
+        },
+      )
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail ?? 'Failed to update config')
       return response.json()
     },
@@ -1646,6 +1652,7 @@ function ConfigTab() {
                     <button
                       type="button"
                       onClick={() => updateConfig.mutate({ key: f.key, value: !enabled })}
+                      disabled={updateConfig.isPending}
                       className={cn(
                         'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide transition-colors',
                         enabled ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : 'border-white/10 bg-white/5 text-white/35'
