@@ -441,7 +441,12 @@ async def predict(
         # rolling form / H2H / ELO-proxy values queried from the DB.
         try:
             match_features = await build_predict_features(
-                db, match.home_team, match.away_team, match.league, before=naive_kickoff
+                db,
+                match.home_team,
+                match.away_team,
+                match.league,
+                before=naive_kickoff,
+                sport=sport,
             )
         except Exception as exc:
             logger.warning(
@@ -494,11 +499,8 @@ async def predict(
             "web_context_text":  web_context_text,       # ← formatted for AI prompts
         }
 
-        if sport == "football":
-            raw_result = await orchestrator.predict(features, idempotency_key, sport=sport)
-        else:
-            multi_orch = MultiSportOrchestrator(orchestrator)
-            raw_result = await multi_orch.predict(features, idempotency_key, sport=sport)
+        multi_orch = MultiSportOrchestrator(orchestrator)
+        raw_result = await multi_orch.predict(features, idempotency_key, sport=sport)
         if raw_result.get("status") == "unavailable":
             return JSONResponse(
                 status_code=422,

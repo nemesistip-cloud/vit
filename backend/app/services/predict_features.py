@@ -26,10 +26,12 @@ from __future__ import annotations
 
 import csv
 import logging
+import math
 import re
 from pathlib import Path
 from types import SimpleNamespace
 from datetime import datetime, timezone
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import select, or_, and_, desc
@@ -85,6 +87,10 @@ _FALLBACK_FEATURES: Dict[str, float] = {
 
 
 def _normalise_team_name(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (value or "").lower())
+
+
+def _normalise_league_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", (value or "").lower())
 
 
@@ -145,6 +151,91 @@ def _latest_match_date(matches: List[Any]) -> Optional[str]:
     return max(dates).isoformat() if dates else None
 
 
+def get_fresh_football_form(match_features: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Validate recent trusted football form and derive bounded model inputs."""
+    trusted_sources = {
+        "footballdata", "football-data.org", "football-data-uk",
+        "github-premier-league-data", "sportsdb", "isports",
+        "sportmonks", "api_football", "provider", "user_csv",
+        "odds_api", "the_odds_api",
+    }
+    providers = set(match_features.get("evidence_providers") or [])
+    if not providers or not providers <= trusted_sources:
+        return None
+
+    try:
+        completeness = float(match_features.get("feature_completeness", 0.0))
+        home_count = int(match_features.get("home_history_sample_size", 0))
+        away_count = int(match_features.get("away_history_sample_size", 0))
+        dates = [
+            datetime.fromisoformat(str(match_features[key]).replace("Z", "+00:00"))
+            for key in ("home_history_latest", "away_history_latest")
+        ]
+        values = {
+            key: float(match_features[key])
+            for key in (
+                "home_form_pts_10", "away_form_pts_10",
+                "home_gf_pg_10", "away_gf_pg_10",
+                "home_ga_pg_10", "away_ga_pg_10",
+            )
+        }
+        home_advantage = float(match_features.get("home_adv_league", 0.0) or 0.0)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    if dates[0].tzinfo is None:
+        dates[0] = dates[0].replace(tzinfo=timezone.utc)
+    if dates[1].tzinfo is None:
+        dates[1] = dates[1].replace(tzinfo=timezone.utc)
+    ages = [
+        (datetime.now(timezone.utc) - date.astimezone(timezone.utc)).total_seconds() / 86400
+        for date in dates
+    ]
+    if (
+        not math.isfinite(completeness)
+        or completeness < 0.55
+        or home_count < 3
+        or away_count < 3
+        or any(age < 0 or age > 540 for age in ages)
+        or any(not math.isfinite(value) for value in values.values())
+        or not 0.0 <= values["home_form_pts_10"] <= 3.0
+        or not 0.0 <= values["away_form_pts_10"] <= 3.0
+        or any(not 0.0 <= values[key] <= 10.0 for key in (
+            "home_gf_pg_10", "away_gf_pg_10", "home_ga_pg_10", "away_ga_pg_10"
+        ))
+        or not math.isfinite(home_advantage)
+    ):
+        return None
+
+    goal_difference_edge = (
+        values["home_gf_pg_10"] - values["home_ga_pg_10"]
+        - values["away_gf_pg_10"] + values["away_ga_pg_10"]
+    )
+    form_shift = max(
+        -0.25,
+        min(
+            0.25,
+            0.16 * ((values["home_form_pts_10"] - values["away_form_pts_10"]) / 3.0)
+            + 0.035 * goal_difference_edge,
+        ),
+    )
+    lambda_home = max(
+        0.2,
+        min(4.5, (values["home_gf_pg_10"] + values["away_ga_pg_10"]) / 2.0 + home_advantage / 2.0),
+    )
+    lambda_away = max(
+        0.2,
+        min(4.5, (values["away_gf_pg_10"] + values["home_ga_pg_10"]) / 2.0 - home_advantage / 2.0),
+    )
+    return {
+        "form_shift": form_shift,
+        "lambda_home": lambda_home,
+        "lambda_away": lambda_away,
+        "providers": sorted(providers),
+    }
+
+
+@lru_cache(maxsize=1)
 def _static_history_rows() -> List[SimpleNamespace]:
     rows: List[SimpleNamespace] = []
     history_dir = _sports_history_dir()
@@ -184,6 +275,8 @@ def _static_history_rows() -> List[SimpleNamespace]:
                         away_goals=away_goals,
                         kickoff_time=match_date or datetime.min.replace(tzinfo=timezone.utc),
                         league=(row.get("league") or csv_path.parent.name or "").strip() or "unknown",
+                        sport=csv_path.parent.name,
+                        source=(row.get("source") or "static_csv").strip(),
                         source_file=str(csv_path),
                     ))
         except Exception as exc:  # pragma: no cover - defensive
@@ -193,10 +286,32 @@ def _static_history_rows() -> List[SimpleNamespace]:
     return rows
 
 
-def _static_history_for_team(team: str, limit: int = 10, league: Optional[str] = None) -> List[SimpleNamespace]:
+def _is_before_cutoff(match: Any, before: Optional[datetime]) -> bool:
+    if before is None:
+        return True
+    match_date = _as_utc(getattr(match, "kickoff_time", None))
+    cutoff = _as_utc(before)
+    return match_date is not None and cutoff is not None and match_date < cutoff
+
+
+def _static_history_for_team(
+    team: str,
+    limit: int = 10,
+    league: Optional[str] = None,
+    before: Optional[datetime] = None,
+    sport: Optional[str] = None,
+) -> List[SimpleNamespace]:
     team_matches: List[SimpleNamespace] = []
     for match in _static_history_rows():
-        if league and match.league.lower() not in {"unknown", ""} and match.league.lower() != str(league).lower():
+        if (
+            league
+            and match.league.lower() not in {"unknown", ""}
+            and _normalise_league_name(match.league) != _normalise_league_name(league)
+        ):
+            continue
+        if not _is_before_cutoff(match, before):
+            continue
+        if sport and match.sport not in {sport.lower(), "sports"}:
             continue
         if _match_team_name(team, match.home_team) or _match_team_name(team, match.away_team):
             team_matches.append(match)
@@ -205,10 +320,25 @@ def _static_history_for_team(team: str, limit: int = 10, league: Optional[str] =
     return team_matches
 
 
-def _static_history_for_pair(home: str, away: str, limit: int = 10, league: Optional[str] = None) -> List[SimpleNamespace]:
+def _static_history_for_pair(
+    home: str,
+    away: str,
+    limit: int = 10,
+    league: Optional[str] = None,
+    before: Optional[datetime] = None,
+    sport: Optional[str] = None,
+) -> List[SimpleNamespace]:
     pair_matches: List[SimpleNamespace] = []
     for match in _static_history_rows():
-        if league and match.league.lower() not in {"unknown", ""} and match.league.lower() != str(league).lower():
+        if (
+            league
+            and match.league.lower() not in {"unknown", ""}
+            and _normalise_league_name(match.league) != _normalise_league_name(league)
+        ):
+            continue
+        if not _is_before_cutoff(match, before):
+            continue
+        if sport and match.sport not in {sport.lower(), "sports"}:
             continue
         if (
             (_match_team_name(home, match.home_team) and _match_team_name(away, match.away_team)) or
@@ -275,6 +405,7 @@ async def _recent_matches_for(
     team: str,
     limit: int = 10,
     before: Optional[datetime] = None,
+    sport: Optional[str] = None,
 ) -> List[Match]:
     """Most-recent settled matches for a team (home or away), newest first."""
     terms = _team_search_terms(team)
@@ -289,6 +420,8 @@ async def _recent_matches_for(
     ]
     if before is not None:
         filters.append(Match.kickoff_time < before)
+    if sport:
+        filters.append(Match.sport == sport.lower())
     stmt = (
         select(Match)
         .where(*filters)
@@ -300,22 +433,32 @@ async def _recent_matches_for(
 
 
 async def _h2h_matches(
-    db: AsyncSession, home: str, away: str, limit: int = 10
+    db: AsyncSession,
+    home: str,
+    away: str,
+    limit: int = 10,
+    before: Optional[datetime] = None,
+    sport: Optional[str] = None,
 ) -> List[Match]:
     home_terms = _team_search_terms(home)
     away_terms = _team_search_terms(away)
     home_conds = [or_(Match.home_team.ilike(f'%{t}%'), Match.away_team.ilike(f'%{t}%')) for t in home_terms]
     away_conds = [or_(Match.home_team.ilike(f'%{t}%'), Match.away_team.ilike(f'%{t}%')) for t in away_terms]
-    stmt = (
-        select(Match)
-        .where(
-            and_(
+    filters = [
+        and_(
                 or_(*home_conds),
                 or_(*away_conds),
                 Match.home_goals.isnot(None),
                 Match.away_goals.isnot(None),
-            )
         )
+    ]
+    if before is not None:
+        filters.append(Match.kickoff_time < before)
+    if sport:
+        filters.append(Match.sport == sport.lower())
+    stmt = (
+        select(Match)
+        .where(*filters)
         .order_by(desc(Match.kickoff_time))
         .limit(limit)
     )
@@ -409,6 +552,7 @@ async def build_predict_features(
     away_team: str,
     league: Optional[str] = None,
     before: Optional[datetime] = None,
+    sport: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Returns a feature dict ready to merge into the orchestrator `features` arg.
@@ -424,9 +568,9 @@ async def build_predict_features(
     evidence_source = "db"
 
     if db is None:
-        static_home = _static_history_for_team(home_team, limit=10, league=league)
-        static_away = _static_history_for_team(away_team, limit=10, league=league)
-        static_h2h = _static_history_for_pair(home_team, away_team, limit=10, league=league)
+        static_home = _static_history_for_team(home_team, limit=10, league=league, before=before, sport=sport)
+        static_away = _static_history_for_team(away_team, limit=10, league=league, before=before, sport=sport)
+        static_h2h = _static_history_for_pair(home_team, away_team, limit=10, league=league, before=before, sport=sport)
         if not static_home and not static_away and not static_h2h:
             logger.warning(
                 "FEATURE_FALLBACK db=None for %s vs %s — no static historical evidence found; "
@@ -437,7 +581,11 @@ async def build_predict_features(
         home_recent = static_home
         away_recent = static_away
         h2h = static_h2h
-        evidence_source = "static_csv"
+        providers = {
+            getattr(match, "source", "static_csv")
+            for match in home_recent + away_recent + h2h
+        }
+        evidence_source = next(iter(providers)) if len(providers) == 1 else "mixed"
         logger.info(
             "FEATURE_EVIDENCE db=None for %s vs %s — using real static CSV history (%d rows)",
             home_team, away_team, len(home_recent) + len(away_recent) + len(h2h),
@@ -445,11 +593,11 @@ async def build_predict_features(
 
     else:
         try:
-            home_recent_db = await _recent_matches_for(db, home_team, limit=10, before=before)
+            home_recent_db = await _recent_matches_for(db, home_team, limit=10, before=before, sport=sport)
             if home_recent_db:
                 home_recent = home_recent_db
             else:
-                static_home = _static_history_for_team(home_team, limit=10, league=league)
+                static_home = _static_history_for_team(home_team, limit=10, league=league, before=before, sport=sport)
                 if static_home:
                     home_recent = static_home
                     evidence_source = "mixed"
@@ -458,11 +606,11 @@ async def build_predict_features(
             home_recent = []
 
         try:
-            away_recent_db = await _recent_matches_for(db, away_team, limit=10, before=before)
+            away_recent_db = await _recent_matches_for(db, away_team, limit=10, before=before, sport=sport)
             if away_recent_db:
                 away_recent = away_recent_db
             else:
-                static_away = _static_history_for_team(away_team, limit=10, league=league)
+                static_away = _static_history_for_team(away_team, limit=10, league=league, before=before, sport=sport)
                 if static_away:
                     away_recent = static_away
                     if evidence_source != "mixed":
@@ -472,11 +620,11 @@ async def build_predict_features(
             away_recent = []
 
         try:
-            h2h_db = await _h2h_matches(db, home_team, away_team, limit=10)
+            h2h_db = await _h2h_matches(db, home_team, away_team, limit=10, before=before, sport=sport)
             if h2h_db:
                 h2h = h2h_db
             else:
-                static_h2h = _static_history_for_pair(home_team, away_team, limit=10, league=league)
+                static_h2h = _static_history_for_pair(home_team, away_team, limit=10, league=league, before=before, sport=sport)
                 if static_h2h:
                     h2h = static_h2h
                     evidence_source = "mixed"
@@ -485,9 +633,9 @@ async def build_predict_features(
             h2h = []
 
         if not home_recent and not away_recent and not h2h:
-            static_home = _static_history_for_team(home_team, limit=10, league=league)
-            static_away = _static_history_for_team(away_team, limit=10, league=league)
-            static_h2h = _static_history_for_pair(home_team, away_team, limit=10, league=league)
+            static_home = _static_history_for_team(home_team, limit=10, league=league, before=before, sport=sport)
+            static_away = _static_history_for_team(away_team, limit=10, league=league, before=before, sport=sport)
+            static_h2h = _static_history_for_pair(home_team, away_team, limit=10, league=league, before=before, sport=sport)
             if static_home or static_away or static_h2h:
                 home_recent = static_home
                 away_recent = static_away
@@ -559,6 +707,13 @@ async def build_predict_features(
     out["home_history_latest"] = _latest_match_date(home_recent)
     out["away_history_latest"] = _latest_match_date(away_recent)
     out["h2h_history_latest"] = _latest_match_date(h2h)
+    evidence_providers = sorted({
+        getattr(match, "source", None) or "db"
+        for match in home_recent + away_recent + h2h
+    })
+    if evidence_providers:
+        evidence_source = evidence_providers[0] if len(evidence_providers) == 1 else "mixed"
+    out["evidence_providers"] = evidence_providers
     out["feature_version"] = FEATURE_VERSION
     out["evidence_source"] = evidence_source
 

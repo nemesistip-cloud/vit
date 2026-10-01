@@ -1,11 +1,14 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
+import httpx
 import pytest
 
 from app.services.evidence_engine import EvidenceEngine, PredictionClassification
 from app.services.live_match_ingestion import _database_utc_now
 from app.services.odds_api import OddsAPIClient
 from app.services.odds_provider import NormalizedOdds, OddsIntelligence
+from app.api.routes import matches as matches_route
 
 
 def test_database_timestamp_is_utc_naive_for_postgres():
@@ -39,6 +42,93 @@ async def test_live_odds_feed_does_not_apply_future_only_date_filter():
     assert captured["date_from"] is None
     assert captured["date_to"] is not None
     assert captured["sport"] == "soccer_spain_la_liga"
+
+
+@pytest.mark.asyncio
+async def test_odds_api_uses_recent_cache_on_rate_limit_but_rejects_older_cache():
+    client = OddsAPIClient("test-key", cache_ttl=90, enable_cache=True)
+    now = datetime.now()
+    quote_time = datetime.now(timezone.utc) - timedelta(seconds=120)
+    kickoff_time = datetime.now(timezone.utc) + timedelta(hours=2)
+    cached_events = [{
+        "id": "event",
+        "home_team": "Toronto Raptors",
+        "away_team": "Miami Heat",
+        "last_update": quote_time.isoformat(),
+        "commence_time": kickoff_time.isoformat(),
+        "bookmakers": [{
+            "key": "test_book",
+            "markets": [{
+                "key": "h2h",
+                "outcomes": [
+                    {"name": "Toronto Raptors", "price": 1.9},
+                    {"name": "Miami Heat", "price": 2.0},
+                ],
+            }],
+        }],
+    }]
+
+    async def rate_limited(*args, **kwargs):
+        request = httpx.Request("GET", "https://example.test/odds")
+        response = httpx.Response(429, request=request)
+        raise httpx.HTTPStatusError("rate limited", request=request, response=response)
+
+    client._request = rate_limited
+    cache_key = client._get_cache_key("basketball_nba", "eu,uk", client.FETCH_MARKETS)
+    try:
+        client._cache[cache_key] = (cached_events, now - timedelta(seconds=120))
+        result = await client.get_bookmaker_odds_for_competition("nba")
+        assert len(result) == 1
+        assert result[0].stale_cache is True
+        assert result[0].timestamp == quote_time
+        assert result[0].event_time == kickoff_time
+
+        client._cache[cache_key] = (cached_events, now - timedelta(seconds=301))
+        with pytest.raises(httpx.HTTPStatusError):
+            await client.get_odds("basketball_nba")
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_prediction_odds_refresh_accepts_cached_two_way_basketball(monkeypatch):
+    now = datetime.now(timezone.utc)
+
+    class FakeOddsClient:
+        async def get_bookmaker_odds_for_competition(self, league, **kwargs):
+            assert league == "nba"
+            return [SimpleNamespace(
+                match_id="provider-event",
+                home_team="Toronto Raptors",
+                away_team="Miami Heat",
+                home_odds=1.9,
+                draw_odds=0.0,
+                away_odds=2.0,
+                bookmaker="test_book",
+                timestamp=now - timedelta(seconds=120),
+                stale_cache=True,
+            )]
+
+    monkeypatch.setattr(
+        matches_route,
+        "get_data_loader",
+        lambda: SimpleNamespace(odds_client=FakeOddsClient()),
+    )
+    match = SimpleNamespace(
+        id=1,
+        external_id="sportsdb-event",
+        home_team="Toronto Raptors",
+        away_team="Miami Heat",
+        kickoff_time=now + timedelta(hours=2),
+        league="nba",
+        sport="basketball",
+        status="upcoming",
+    )
+
+    odds = await matches_route._refresh_prediction_odds(match, now)
+
+    assert {item.selection for item in odds} == {"home", "away"}
+    assert all(item.provider == "the_odds_api_stale_cache" for item in odds)
 
 
 def test_partial_real_form_can_produce_limited_evidence_with_live_odds():

@@ -161,14 +161,133 @@ async def test_build_predict_features_uses_static_csv_evidence_when_db_is_empty(
 
 
 @pytest.mark.asyncio
-async def test_predict_surfaces_unavailable_evidence_reason(monkeypatch):
-    async def static_features(db, home_team, away_team, league=None, before=None):
-        return await build_predict_features(None, home_team, away_team, league, before)
+async def test_latest_espn_nba_history_enables_raptors_heat_prediction():
+    features = await build_predict_features(
+        None, "Toronto Raptors", "Miami Heat", league="NBA", sport="basketball"
+    )
+    result = MultiSportOrchestrator()._predict_two_way_statistical(
+        {"match_features": features}, "basketball"
+    )
+
+    assert "espn_public_api" in features["evidence_providers"]
+    assert features["home_history_sample_size"] >= 10
+    assert features["away_history_sample_size"] >= 10
+    assert features["home_history_latest"].startswith("2026-")
+    assert features["away_history_latest"].startswith("2026-")
+    assert result["status"] == "ready"
+    assert 0.0 < result["predictions"]["home_prob"] < 1.0
+    assert 0.0 < result["predictions"]["away_prob"] < 1.0
+
+
+@pytest.mark.asyncio
+async def test_football_prediction_uses_current_public_premier_league_history():
+    features = await build_predict_features(
+        None, "Arsenal", "Chelsea", league="Premier League", sport="football"
+    )
+    prediction = MultiSportOrchestrator()._generate_scie_football({
+        "market_odds": {"home": 2.11, "draw": 3.3, "away": 3.6},
+        "match_features": features,
+    })["predictions"]
+
+    assert features["home_history_sample_size"] >= 10
+    assert features["away_history_sample_size"] >= 10
+    assert features["home_history_latest"].startswith("2026-09")
+    assert features["away_history_latest"].startswith("2026-09")
+    assert {"football-data-uk", "github-premier-league-data"} & set(features["evidence_providers"])
+    assert prediction["data_source"] == "vit_scie_v6_market_plus_real_form"
+
+
+@pytest.mark.asyncio
+async def test_predict_endpoint_uses_public_football_form(monkeypatch):
+    captured_features = {}
+
+    async def public_features(db, home_team, away_team, league=None, before=None, sport=None):
+        features = await build_predict_features(
+            None, home_team, away_team, league, before=before, sport=sport
+        )
+        captured_features.update(features)
+        return features
 
     async def no_web_context(*args, **kwargs):
         return {}
 
-    monkeypatch.setattr(predict_route, "build_predict_features", static_features)
+    monkeypatch.setattr(predict_route, "build_predict_features", public_features)
+    monkeypatch.setattr(web_search, "fetch_match_context", no_web_context)
+    monkeypatch.setattr(web_search, "format_context_for_prompt", lambda *args, **kwargs: "")
+    payload = {
+        "home_team": "Arsenal",
+        "away_team": "Chelsea",
+        "league": "Premier League",
+        "kickoff_time": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+        "sport": "football",
+        "market_odds": {"home": 2.11, "draw": 3.3, "away": 3.6},
+    }
+
+    async with _client() as client:
+        response = await client.post("/api/predict", json=payload)
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert "football-data-uk" in captured_features.get("evidence_providers", []), captured_features
+    assert captured_features["home_history_sample_size"] >= 10
+    assert captured_features["away_history_sample_size"] >= 10
+    assert data["data_quality"]["feature_completeness"] >= 0.55
+
+
+@pytest.mark.asyncio
+async def test_trained_football_ensemble_uses_fresh_public_form():
+    from services.ml_service.models.model_orchestrator import ModelOrchestrator
+
+    features = await build_predict_features(
+        None, "Arsenal", "Chelsea", league="Premier League", sport="football"
+    )
+    market_odds = {"home": 2.1, "draw": 3.3, "away": 3.6}
+    model = ModelOrchestrator()
+    base_features = {
+        "home_team": "Arsenal",
+        "away_team": "Chelsea",
+        "league": "premier_league",
+        "market_odds": market_odds,
+        "match_features": features,
+    }
+    home_form_result = await model.predict(base_features, "football-form-regression", sport="soccer")
+
+    away_form = dict(features)
+    for home_key, away_key in (
+        ("home_form_pts_10", "away_form_pts_10"),
+        ("home_gf_pg_10", "away_gf_pg_10"),
+        ("home_ga_pg_10", "away_ga_pg_10"),
+    ):
+        away_form[home_key], away_form[away_key] = features[away_key], features[home_key]
+    away_form_result = await model.predict(
+        {**base_features, "match_features": away_form},
+        "football-form-regression",
+        sport="soccer",
+    )
+
+    predictions = home_form_result["predictions"]
+    assert predictions["data_source"] == "differentiated_ensemble_v5_market_plus_real_form"
+    assert "football-data-uk" in predictions["evidence_providers"] or "github-premier-league-data" in predictions["evidence_providers"]
+    assert predictions["home_prob"] != away_form_result["predictions"]["home_prob"]
+
+
+@pytest.mark.asyncio
+async def test_predict_surfaces_unavailable_evidence_reason(monkeypatch):
+    async def stale_features(*args, **kwargs):
+        return {
+            "feature_completeness": 1.0,
+            "home_history_sample_size": 10,
+            "away_history_sample_size": 10,
+            "history_sample_size": 10,
+            "home_history_latest": "2015-04-26T00:00:00",
+            "away_history_latest": "2015-04-15T00:00:00",
+            "evidence_source": "static_csv",
+        }
+
+    async def no_web_context(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(predict_route, "build_predict_features", stale_features)
     monkeypatch.setattr(web_search, "fetch_match_context", no_web_context)
     monkeypatch.setattr(web_search, "format_context_for_prompt", lambda *args, **kwargs: "")
     payload = {

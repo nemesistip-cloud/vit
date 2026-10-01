@@ -40,6 +40,7 @@ class OddsData:
     bookmaker:  str            = "pinnacle"
     timestamp:  datetime       = None
     event_time: Optional[datetime] = None
+    stale_cache: bool = False
 
     # ── 1X2 / h2h ───────────────────────────────────────────────────────
     home_odds:  float          = 0.0
@@ -76,10 +77,6 @@ class OddsData:
     # ── Legacy alias kept for backward compat ───────────────────────────
     btts_yes_odds: Optional[float] = None
     btts_no_odds:  Optional[float] = None
-
-    def __post_init__(self):
-        if self.timestamp is None:
-            self.timestamp = datetime.now()
 
     # ────────────────────────────────────────────────────────────────────
     # Probability helpers
@@ -337,6 +334,7 @@ class OddsAPIClient:
         max_retries: int = 3,
         enable_cache: bool = True,
         cache_ttl: int = 90,          # 90 seconds for live odds
+        stale_cache_ttl: int = 300,   # bounded stale-if-rate-limited window
         regions: str = "eu,uk",
     ):
         self.api_key = api_key
@@ -344,14 +342,23 @@ class OddsAPIClient:
         self.max_retries = max_retries
         self.enable_cache = enable_cache
         self.cache_ttl = cache_ttl
+        self.stale_cache_ttl = stale_cache_ttl
         self.regions = regions
         self._cache: Dict[str, Tuple[Any, datetime]] = {}
+        self._stale_cache_keys: set[str] = set()
         self.client = httpx.AsyncClient(timeout=self.timeout)
 
     # ── internal helpers ─────────────────────────────────────────────
 
     def _get_cache_key(self, sport: str, regions: str, markets: str) -> str:
         return f"{sport}:{regions}:{markets}"
+
+    @staticmethod
+    def _is_two_way_sport(sport: str) -> bool:
+        return sport.startswith((
+            "basketball_", "tennis_", "americanfootball_", "baseball_",
+            "icehockey_", "mma_", "boxing_", "rugbyleague_",
+        ))
 
     @staticmethod
     def _parse_event_time(value: Any) -> Optional[datetime]:
@@ -453,12 +460,29 @@ class OddsAPIClient:
         if date_to:
             params["dateTo"] = date_to
 
-        data = await self._request(f"/sports/{sport}/odds", params)
+        try:
+            data = await self._request(f"/sports/{sport}/odds", params)
+        except httpx.HTTPStatusError as exc:
+            cache_entry = self._cache.get(cache_key) if use_cache and self.enable_cache else None
+            response = exc.response
+            if response is not None and response.status_code == 429 and cache_entry:
+                cached_data, cached_at = cache_entry
+                age_seconds = (datetime.now() - cached_at).total_seconds()
+                if 0 <= age_seconds <= self.stale_cache_ttl:
+                    self._stale_cache_keys.add(cache_key)
+                    logger.warning(
+                        "Odds API rate limited for %s; serving cached quotes aged %.0fs",
+                        sport,
+                        age_seconds,
+                    )
+                    return cached_data
+            raise
         if not isinstance(data, list):
             data = []
 
         if use_cache and self.enable_cache:
             self._cache[cache_key] = (data, datetime.now())
+            self._stale_cache_keys.discard(cache_key)
 
         return data
 
@@ -492,12 +516,14 @@ class OddsAPIClient:
             return []
 
         result = []
+        cache_key = self._get_cache_key(sport, self.regions, self.FETCH_MARKETS)
+        is_stale_cache = cache_key in self._stale_cache_keys
         for event in raw_odds:
-            od = self._extract_best_odds(event)
+            od = self._extract_best_odds(
+                event, allow_two_way=self._is_two_way_sport(sport)
+            )
             if od:
-                event_time = self._parse_event_time(event.get("commence_time"))
-                if event_time:
-                    od.timestamp = event_time
+                od.stale_cache = is_stale_cache
                 result.append(od)
 
         logger.info(f"Fetched full-market odds for {len(result)} matches in {competition}")
@@ -525,10 +551,17 @@ class OddsAPIClient:
             return []
 
         result: List[OddsData] = []
+        cache_key = self._get_cache_key(sport, self.regions, self.FETCH_MARKETS)
+        is_stale_cache = cache_key in self._stale_cache_keys
         for event in raw_odds:
             for bookmaker in event.get("bookmakers", []):
-                odds = self._extract_from_bookmaker(event, bookmaker)
+                odds = self._extract_from_bookmaker(
+                    event,
+                    bookmaker,
+                    allow_two_way=self._is_two_way_sport(sport),
+                )
                 if odds:
+                    odds.stale_cache = is_stale_cache
                     result.append(odds)
         logger.info("Fetched bookmaker snapshots=%d for %s", len(result), competition)
         return result
@@ -568,9 +601,8 @@ class OddsAPIClient:
         event = await self.get_all_markets_for_event(sport, str(fixture_id))
         if not event:
             return None
-        odds = self._extract_best_odds(event)
+        odds = self._extract_best_odds(event, allow_two_way=self._is_two_way_sport(sport))
         if odds:
-            odds.timestamp = self._parse_event_time(event.get("last_update")) or odds.timestamp
             odds.event_time = self._parse_event_time(event.get("commence_time"))
         return odds
 
@@ -587,7 +619,7 @@ class OddsAPIClient:
         for event in raw_odds:
             for bk in event.get("bookmakers", []):
                 if bk.get("key") == "pinnacle":
-                    od = self._extract_from_bookmaker(event, bk)
+                    od = self._extract_from_bookmaker(event, bk, allow_two_way=self._is_two_way_sport(sport))
                     if od:
                         sharp.append(od)
                     break
@@ -595,7 +627,9 @@ class OddsAPIClient:
 
     # ── Extraction helpers ──────────────────────────────────────────
 
-    def _extract_best_odds(self, event: Dict) -> Optional["OddsData"]:
+    def _extract_best_odds(
+        self, event: Dict, allow_two_way: bool = False
+    ) -> Optional["OddsData"]:
         """
         Extract the best available odds from the event across all bookmakers.
         Preferred bookmakers are tried first; falls back to best-price composite.
@@ -609,17 +643,22 @@ class OddsAPIClient:
         # 1. Try preferred bookmakers in order
         for preferred in self.PREFERRED_BOOKMAKERS:
             if preferred in bk_map:
-                od = self._extract_from_bookmaker(event, bk_map[preferred])
+                od = self._extract_from_bookmaker(
+                    event, bk_map[preferred], allow_two_way=allow_two_way
+                )
                 if od and od.home_odds > 1:
                     return od
 
         # 2. Fall back: best price per outcome across all bookmakers
-        return self._extract_best_composite(event, bookmakers)
+        return self._extract_best_composite(
+            event, bookmakers, allow_two_way=allow_two_way
+        )
 
     def _extract_from_bookmaker(
         self,
         event: Dict,
         bookmaker: Dict,
+        allow_two_way: bool = False,
     ) -> Optional["OddsData"]:
         """
         Extract ALL market odds from a single bookmaker's data block.
@@ -635,7 +674,9 @@ class OddsAPIClient:
             home_team  = home_name,
             away_team  = away_name,
             bookmaker  = bookmaker.get("key", "unknown"),
-            timestamp   = self._parse_event_time(event.get("last_update")),
+            timestamp   = self._parse_event_time(
+                bookmaker.get("last_update") or event.get("last_update")
+            ),
             event_time  = self._parse_event_time(event.get("commence_time")),
         )
 
@@ -718,11 +759,16 @@ class OddsAPIClient:
                 od.ah_away_odds = primary["away_odds"]
 
         # Require at least 1X2 to be valid
-        if od.home_odds <= 1 or od.draw_odds <= 1 or od.away_odds <= 1:
+        if (
+            od.home_odds <= 1
+            or od.away_odds <= 1
+            or (not allow_two_way and od.draw_odds <= 1)
+        ):
             return None
 
         # ── Derive Double Chance and DNB ────────────────────────────
-        _derive_markets(od)
+        if od.draw_odds > 1:
+            _derive_markets(od)
 
         return od
 
@@ -730,6 +776,7 @@ class OddsAPIClient:
         self,
         event: Dict,
         bookmakers: List[Dict],
+        allow_two_way: bool = False,
     ) -> Optional["OddsData"]:
         """
         Build a composite OddsData using the best price for each outcome
@@ -791,7 +838,11 @@ class OddsAPIClient:
                             ah_all[line]["away_odds"] = max(ah_all[line].get("away_odds", 0), price)
                             ah_all[line]["line"]      = line
 
-        if not (best.get("home", 0) > 1 and best.get("draw", 0) > 1 and best.get("away", 0) > 1):
+        if not (
+            best.get("home", 0) > 1
+            and best.get("away", 0) > 1
+            and (allow_two_way or best.get("draw", 0) > 1)
+        ):
             return None
 
         od = OddsData(
@@ -799,7 +850,7 @@ class OddsAPIClient:
             home_team = home_name,
             away_team = away_name,
             home_odds = best["home"],
-            draw_odds = best["draw"],
+            draw_odds = best.get("draw", 0.0),
             away_odds = best["away"],
             bookmaker = "best",
             timestamp = self._parse_event_time(event.get("last_update")),
@@ -828,7 +879,8 @@ class OddsAPIClient:
                 od.ah_home_odds = primary["home_odds"]
                 od.ah_away_odds = primary["away_odds"]
 
-        _derive_markets(od)
+        if od.draw_odds > 1:
+            _derive_markets(od)
         return od
 
     async def get_odds_movement(

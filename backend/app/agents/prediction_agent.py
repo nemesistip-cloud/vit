@@ -96,6 +96,7 @@ class PredictionAgent(BaseAgent):
                         match.home_team,
                         match.away_team,
                         match.league,
+                        sport=match.sport,
                     )
 
                     market_odds = {

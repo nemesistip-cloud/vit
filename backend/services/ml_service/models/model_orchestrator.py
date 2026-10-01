@@ -202,9 +202,19 @@ class _BaseModel:
             logger.warning("[_BaseModel.train] %s training error: %s", self.key, exc)
             return {"accuracy": 0.34, "1x2_accuracy": 0.34, "log_loss": 1.10, "error": str(exc)}
 
-    def predict_1x2(self, *args, **kwargs): return (0.34, 0.33, 0.33)
-    def predict_ou25(self, *args, **kwargs): return 0.50
-    def predict_btts(self, *args, **kwargs): return 0.50
+    def predict_1x2(self, home_prob, draw_prob, away_prob, *args, **kwargs):
+        return _normalise(home_prob, draw_prob, away_prob)
+
+    def predict_ou25(self, lambda_home, lambda_away, *args, **kwargs):
+        total = max(0.0, lambda_home + lambda_away)
+        under = math.exp(-total) * (1.0 + total + total * total / 2.0)
+        return min(0.99, max(0.01, 1.0 - under))
+
+    def predict_btts(self, lambda_home, lambda_away, *args, **kwargs):
+        return min(
+            0.99,
+            max(0.01, (1.0 - math.exp(-max(0.0, lambda_home))) * (1.0 - math.exp(-max(0.0, lambda_away)))),
+        )
 
 class ModelOrchestrator:
     def __init__(self):
@@ -363,6 +373,15 @@ class ModelOrchestrator:
             "over_25_implied": float(over25_implied),
             "strength_ratio": lam_h / max(0.1, lam_a),
             "lambda_home_est": lam_h, "lambda_away_est": lam_a, "elo_diff": (lam_h - lam_a) * 80.0,
+            "home_form_pts_5": 0.0, "away_form_pts_5": 0.0,
+            "home_form_pts_10": 0.0, "away_form_pts_10": 0.0,
+            "home_gf_pg_5": 0.0, "away_gf_pg_5": 0.0,
+            "home_ga_pg_5": 0.0, "away_ga_pg_5": 0.0,
+            "home_gf_pg_10": 0.0, "away_gf_pg_10": 0.0,
+            "home_ga_pg_10": 0.0, "away_ga_pg_10": 0.0,
+            "h2h_home_win_pct": 0.0, "h2h_draw_pct": 0.0,
+            "h2h_away_win_pct": 0.0, "h2h_home_goals_pg": 0.0,
+            "h2h_away_goals_pg": 0.0, "home_adv_league": 0.0,
         }
 
         if isinstance(match_features, dict) and match_features:
@@ -372,6 +391,10 @@ class ModelOrchestrator:
                         feature_map[k] = float(v)
                     except (TypeError, ValueError):
                         continue
+            feature_map["home_win_ratio_5"] = feature_map["home_form_pts_5"] / 3.0
+            feature_map["away_win_ratio_5"] = feature_map["away_form_pts_5"] / 3.0
+            feature_map["home_goals_avg_5"] = feature_map["home_gf_pg_5"]
+            feature_map["away_goals_avg_5"] = feature_map["away_gf_pg_5"]
 
         try:
             import numpy as np
@@ -454,6 +477,17 @@ class ModelOrchestrator:
         ap_adj = max(0.02, mkt_ap - ha_bias * 0.85)
         dp_adj = max(0.02, mkt_dp - ha_bias * 0.15)
         base_hp, base_dp, base_ap = _normalise(hp_adj, dp_adj, ap_adj)
+
+        from app.services.predict_features import get_fresh_football_form
+
+        current_form = get_fresh_football_form(match_features)
+        if current_form:
+            lam_h = current_form["lambda_home"]
+            lam_a = current_form["lambda_away"]
+            form_shift = current_form["form_shift"]
+            base_hp *= math.exp(form_shift)
+            base_ap *= math.exp(-form_shift)
+            base_hp, base_dp, base_ap = _normalise(base_hp, base_dp, base_ap)
 
         individual_results: List[Dict] = []
         preds_h, preds_d, preds_a = [], [], []
@@ -652,7 +686,14 @@ class ModelOrchestrator:
                     "correct_score": None,
                 },
                 "home_advantage_bias": round(ha_bias, 4), "confidence_intervals": ci, "models_used": len(weights), "models_total": _TOTAL_MODEL_SPECS,
-                "model_agreement": model_agreement, "data_source": "differentiated_ensemble_v4", "model_version": MODEL_VERSION,
+                "model_agreement": model_agreement,
+                "data_source": (
+                    "differentiated_ensemble_v5_market_plus_real_form"
+                    if current_form
+                    else "differentiated_ensemble_v4"
+                ),
+                "evidence_providers": current_form["providers"] if current_form else [],
+                "model_version": MODEL_VERSION,
                 "ensemble_diversity": round(var_h, 5), "llm_signals_used": bool(ai_signals), "league": league or None,
                 "feature_version": match_features.get("feature_version"),
                 "match_quality_rating": match_quality,

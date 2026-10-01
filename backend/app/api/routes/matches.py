@@ -28,6 +28,10 @@ from app.core.dependencies import get_data_loader
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 logger = logging.getLogger(__name__)
+_TWO_WAY_SPORTS = {
+    "basketball", "tennis", "cricket", "american_football", "rugby",
+    "rugby_union", "baseball", "ice_hockey", "mma", "boxing",
+}
 
 
 def _prediction_provenance(prediction: Optional[Prediction]) -> dict:
@@ -186,6 +190,7 @@ async def _refresh_prediction_odds(match: Match, now: datetime) -> list[Normaliz
         return []
 
     valid_candidates = []
+    is_two_way = (getattr(match, "sport", None) or "football").lower() in _TWO_WAY_SPORTS
     for candidate in odds_candidates:
         timestamp = getattr(candidate, "timestamp", None)
         if timestamp and timestamp.tzinfo is None:
@@ -193,10 +198,16 @@ async def _refresh_prediction_odds(match: Match, now: datetime) -> list[Normaliz
         if (
             _provider_team_names_match(match.home_team, getattr(candidate, "home_team", None))
             and _provider_team_names_match(match.away_team, getattr(candidate, "away_team", None))
-            and (timestamp is None or timestamp <= now + timedelta(seconds=5))
-            and all(value and float(value) > 1.0 for value in (
-                candidate.home_odds, candidate.draw_odds, candidate.away_odds,
-            ))
+            and timestamp is not None
+            and now - timedelta(seconds=300) <= timestamp <= now + timedelta(seconds=5)
+            and all(
+                value and float(value) > 1.0
+                for value in (
+                    (candidate.home_odds, candidate.away_odds)
+                    if is_two_way
+                    else (candidate.home_odds, candidate.draw_odds, candidate.away_odds)
+                )
+            )
         ):
             valid_candidates.append(candidate)
     if not valid_candidates:
@@ -208,7 +219,7 @@ async def _refresh_prediction_odds(match: Match, now: datetime) -> list[Normaliz
 
     normalized = []
     for odds_data in valid_candidates:
-        timestamp = odds_data.timestamp or now
+        timestamp = odds_data.timestamp
         normalized.extend(
             NormalizedOdds(
                 fixture_id=str(getattr(odds_data, "match_id", None) or getattr(match, "external_id", match.id)),
@@ -218,13 +229,21 @@ async def _refresh_prediction_odds(match: Match, now: datetime) -> list[Normaliz
                 odds=float(value),
                 bookmaker=odds_data.bookmaker or "odds_api",
                 timestamp=timestamp,
-                provider="the_odds_api",
+                provider=(
+                    "the_odds_api_stale_cache"
+                    if getattr(odds_data, "stale_cache", False)
+                    else "the_odds_api"
+                ),
                 event_id=str(getattr(odds_data, "match_id", None) or ""),
             )
             for selection, value in (
-                ("home", odds_data.home_odds),
-                ("draw", odds_data.draw_odds),
-                ("away", odds_data.away_odds),
+                (("home", odds_data.home_odds), ("away", odds_data.away_odds))
+                if is_two_way
+                else (
+                    ("home", odds_data.home_odds),
+                    ("draw", odds_data.draw_odds),
+                    ("away", odds_data.away_odds),
+                )
             )
         )
     return normalized
@@ -1164,7 +1183,12 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
     a = latest.get("away_prob")
 
     features = await build_predict_features(
-        db, match.home_team, match.away_team, match.league, before=match.kickoff_time
+        db,
+        match.home_team,
+        match.away_team,
+        match.league,
+        before=match.kickoff_time,
+        sport=match.sport,
     )
     elo_diff = features.get("elo_diff")
 
@@ -1337,7 +1361,12 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
     try:
         # 1. Fetch Features
         features = await build_predict_features(
-            db, match.home_team, match.away_team, match.league, before=match.kickoff_time
+            db,
+            match.home_team,
+            match.away_team,
+            match.league,
+            before=match.kickoff_time,
+            sport=match.sport,
         )
 
         # A newly started season can leave the local result window empty even
@@ -1365,7 +1394,12 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                     backfill.get("inserted", 0), backfill.get("updated", 0),
                 )
                 features = await build_predict_features(
-                    db, match.home_team, match.away_team, match.league, before=match.kickoff_time
+                    db,
+                    match.home_team,
+                    match.away_team,
+                    match.league,
+                    before=match.kickoff_time,
+                    sport=match.sport,
                 )
             except Exception as refresh_exc:
                 logger.warning(

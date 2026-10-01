@@ -5,6 +5,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from app.schemas.schemas import PredictionResponse, ModelInsight
+from app.services.predict_features import get_fresh_football_form
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ def _require_two_way_odds(features: Dict[str, Any]) -> tuple[float, float]:
         raise ValueError("provider home/away odds must be greater than 1.0")
     return home, away
 
+
 class MultiSportOrchestrator:
     """
     Enhanced orchestrator to handle non-football sports with dynamic logic.
@@ -90,12 +92,7 @@ class MultiSportOrchestrator:
             return self._predict_two_way(features, f"{sport}_scie_v3")
 
     def _predict_two_way_statistical(self, features: Dict[str, Any], sport: str) -> Dict[str, Any]:
-        """Generate a two-way prediction from verified team statistics when odds are absent.
-
-        This is a fail-closed statistical fallback: it only returns a prediction when there
-        is sufficient historical evidence. Otherwise it explicitly reports that the fixture is
-        unavailable due to insufficient evidence instead of inventing probabilities.
-        """
+        """Return a no-odds prediction only when real, recent team history is sufficient."""
         match_features = features.get("match_features") or {}
         completeness = float(match_features.get("feature_completeness", 0.0) or 0.0)
         home_hist = int(match_features.get("home_history_sample_size", 0) or 0)
@@ -193,6 +190,7 @@ class MultiSportOrchestrator:
     def _generate_scie_football(self, features: Dict[str, Any]) -> Dict[str, Any]:
         """High-fidelity statistical fallback for football — fully deterministic."""
         mkt = features.get("market_odds", {})
+        match_features = features.get("match_features") or {}
         odds = {
             side: mkt.get(side) if isinstance(mkt, dict) else None
             for side in ("home", "draw", "away")
@@ -216,9 +214,20 @@ class MultiSportOrchestrator:
         hp, dp, ap = (1/h)/total_implied, (1/d)/total_implied, (1/a)/total_implied
         hp, dp, ap = self._normalise(hp, dp, ap)
 
-        # Derive Poisson λ values from vig-free win probabilities
-        lambda_home = _implied_lambda(hp, 1.45)
-        lambda_away = _implied_lambda(ap, 1.15)
+        current_form = get_fresh_football_form(match_features)
+        providers = set(current_form["providers"]) if current_form else set()
+        if current_form:
+            hp *= math.exp(current_form["form_shift"])
+            ap *= math.exp(-current_form["form_shift"])
+            hp, dp, ap = self._normalise(hp, dp, ap)
+            data_source = "vit_scie_v6_market_plus_real_form"
+            lambda_home = current_form["lambda_home"]
+            lambda_away = current_form["lambda_away"]
+        else:
+            # Without recent football evidence, keep secondary markets as
+            # lower-confidence market-derived estimates.
+            lambda_home = _implied_lambda(hp, 1.45)
+            lambda_away = _implied_lambda(ap, 1.15)
         lambda_total = lambda_home + lambda_away
 
         over25 = _poisson_over25(lambda_total)
@@ -237,7 +246,8 @@ class MultiSportOrchestrator:
                 "confidence": {"1x2": confidence_1x2, "over_under": 0.65 if has_valid_market else 0.40},
                 "models_used": 0,
                 "models_total": 13,
-                "data_source": data_source
+                "data_source": data_source,
+                "evidence_providers": sorted(providers),
             },
             "individual_results": [],
             "scie_mode": True
