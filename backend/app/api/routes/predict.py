@@ -10,6 +10,7 @@ import math
 import os
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
 from datetime import datetime, timezone
@@ -45,14 +46,24 @@ def _normalize_sport_name(sport: Optional[str]) -> str:
 
 
 def validate_market_odds(market_odds: Optional[dict], sport: Optional[str] = None) -> bool:
-    """Validate that the request includes plausible odds for the requested sport."""
+    """Validate that the request includes plausible odds for the requested sport.
+
+    Two-way sports are allowed to proceed without market odds when the upstream
+    evidence engine can generate a prediction using verified historical data.
+    Missing odds do not mean the prediction is valid; they only mean the request
+    is eligible for the fail-closed evidence fallback instead of being rejected.
+    """
     if not isinstance(market_odds, dict):
         return False
 
     sport_name = _normalize_sport_name(sport)
     if sport_name in TWO_WAY_SPORTS:
+        if not market_odds or (market_odds.get("home") is None and market_odds.get("away") is None):
+            return True
         home = MarketUtils.validate_odds(market_odds.get("home"))
         away = MarketUtils.validate_odds(market_odds.get("away"))
+        if home is None and away is None:
+            return True
         return home is not None and away is not None and home != away
 
     return MarketUtils.validate_odds_dict({
@@ -488,6 +499,16 @@ async def predict(
         else:
             multi_orch = MultiSportOrchestrator(orchestrator)
             raw_result = await multi_orch.predict(features, idempotency_key, sport=sport)
+        if raw_result.get("status") == "unavailable":
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "status": "unavailable",
+                    "reasons": raw_result.get("reasons") or ["Prediction evidence is insufficient."],
+                    "source": raw_result.get("source"),
+                    "evidence_source": match_features.get("evidence_source"),
+                },
+            )
         pred_data  = raw_result.get("predictions", raw_result)
         result     = validate_prediction_response(pred_data, market_odds=match.market_odds, sport=getattr(match, "sport", None))
 

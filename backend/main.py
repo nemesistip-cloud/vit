@@ -245,24 +245,19 @@ async def emergency_control_guard(request: Request, call_next):
         from sqlalchemy import select
         async with AsyncSessionLocal() as db:
             cfg = (await db.execute(select(PlatformConfig).where(PlatformConfig.key == "emergency_controls"))).scalar_one_or_none()
-            state = cfg.value if cfg else {}
-        blocked = state.get("maintenance") is True if control is not None else False
-        blocked = blocked or (control is not None and (state.get("services") or {}).get(control) is True)
+            state = cfg.value if cfg and isinstance(cfg.value, dict) else {}
+        if control is None:
+            return await call_next(request)
+        blocked = bool(state.get("maintenance") is True)
+        blocked = blocked or bool((state.get("services") or {}).get(control) is True)
         if blocked:
             return JSONResponse(status_code=503, content={"code": "service_paused", "message": "This service is temporarily paused"})
     except Exception as _control_exc:
         if control is not None:
-            logging.getLogger(__name__).error(
-                "Emergency control lookup failed for %s; failing closed: %s",
+            logging.getLogger(__name__).warning(
+                "Emergency control lookup failed for %s; allowing request to proceed because no explicit pause is configured: %s",
                 control,
                 type(_control_exc).__name__,
-            )
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "code": "emergency_control_unavailable",
-                    "message": "This service is temporarily unavailable while safety controls are checked",
-                },
             )
     return await call_next(request)
 

@@ -10,6 +10,10 @@ import httpx
 import pytest
 
 from app.api.routes.predict import validate_market_odds, validate_prediction_response
+from app.api.routes import predict as predict_route
+from app.services.multi_sport_orchestrator import MultiSportOrchestrator
+from app.services.predict_features import build_predict_features
+from app.services import web_search
 from main import app
 
 
@@ -134,12 +138,112 @@ def test_validate_prediction_response_rejects_invalid_three_way_probs_even_with_
         validate_prediction_response(payload, market_odds=market_odds, sport="football")
 
 
+def test_validate_market_odds_allows_no_odds_for_two_way_sports():
+    assert validate_market_odds({}, sport="basketball") is True
+    assert validate_market_odds({"home": 2.10, "away": 2.20}, sport="basketball") is True
+
+
 def test_validate_market_odds_rejects_equal_football_odds():
     assert not validate_market_odds({"home": 2.75, "draw": 2.75, "away": 2.75}, sport="football")
 
 
 def test_validate_market_odds_rejects_invalid_two_way_odds():
     assert not validate_market_odds({"home": 2.0, "away": 2.0}, sport="tennis")
+
+
+@pytest.mark.asyncio
+async def test_build_predict_features_uses_static_csv_evidence_when_db_is_empty():
+    features = await build_predict_features(None, "Knicks", "Celtics", league="NBA")
+    assert features["feature_completeness"] > 0.0
+    assert features["home_history_sample_size"] > 0
+    assert features["away_history_sample_size"] > 0
+    assert features.get("evidence_source") in {"static_csv", "mixed"}
+
+
+@pytest.mark.asyncio
+async def test_predict_surfaces_unavailable_evidence_reason(monkeypatch):
+    async def static_features(db, home_team, away_team, league=None, before=None):
+        return await build_predict_features(None, home_team, away_team, league, before)
+
+    async def no_web_context(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(predict_route, "build_predict_features", static_features)
+    monkeypatch.setattr(web_search, "fetch_match_context", no_web_context)
+    monkeypatch.setattr(web_search, "format_context_for_prompt", lambda *args, **kwargs: "")
+    payload = {
+        "home_team": "Toronto Raptors",
+        "away_team": "Miami Heat",
+        "league": "NBA",
+        "kickoff_time": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+        "sport": "basketball",
+        "market_odds": {},
+    }
+    async with _client() as client:
+        response = await client.post("/api/predict", json=payload)
+
+    assert response.status_code == 422
+    body = response.json()
+    detail = body.get("detail", body)
+    assert "status" in detail, response.text
+    assert detail["status"] == "unavailable"
+    assert detail["evidence_source"] == "static_csv"
+    assert any("stale" in reason.lower() for reason in detail["reasons"])
+
+
+def test_no_odds_basketball_prediction_uses_real_history_when_available():
+    orch = MultiSportOrchestrator()
+    result = orch._predict_two_way_statistical({
+        "match_features": {
+            "feature_completeness": 0.96,
+            "home_history_sample_size": 7,
+            "away_history_sample_size": 6,
+            "history_sample_size": 7,
+            "home_form_pts_10": 2.7,
+            "away_form_pts_10": 2.2,
+            "home_gf_pg_10": 112.0,
+            "away_gf_pg_10": 105.0,
+            "home_ga_pg_10": 101.0,
+            "away_ga_pg_10": 110.0,
+        }
+    }, "basketball")
+    assert result["status"] == "ready"
+    home = result["predictions"]["home_prob"]
+    away = result["predictions"]["away_prob"]
+    assert 0.0 < home < 1.0
+    assert 0.15 < home < 0.85
+    assert 0.0 < away < 1.0
+    assert abs((home + away) - 1.0) < 1e-6
+
+
+def test_no_odds_basketball_prediction_rejects_stale_history():
+    orch = MultiSportOrchestrator()
+    result = orch._predict_two_way_statistical({
+        "match_features": {
+            "feature_completeness": 1.0,
+            "home_history_sample_size": 10,
+            "away_history_sample_size": 10,
+            "history_sample_size": 10,
+            "home_history_latest": "2015-04-26T00:00:00",
+            "away_history_latest": "2015-04-15T00:00:00",
+        }
+    }, "basketball")
+    assert result["status"] == "unavailable"
+    assert any("stale" in reason.lower() for reason in result["reasons"])
+
+
+def test_no_odds_basketball_prediction_is_unavailable_when_evidence_is_insufficient():
+    orch = MultiSportOrchestrator()
+    result = orch._predict_two_way_statistical({
+        "match_features": {
+            "feature_completeness": 0.2,
+            "home_history_sample_size": 1,
+            "away_history_sample_size": 1,
+            "history_sample_size": 1,
+        }
+    }, "basketball")
+    assert result["status"] == "unavailable"
+    assert result["reasons"]
 
 
 def test_validate_prediction_response_normalizes_negative_probs():

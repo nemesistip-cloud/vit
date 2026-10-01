@@ -24,8 +24,12 @@ Designed to be cheap (≤4 small queries) so it can run on every /predict call.
 
 from __future__ import annotations
 
+import csv
 import logging
-from datetime import datetime
+import re
+from pathlib import Path
+from types import SimpleNamespace
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import select, or_, and_, desc
@@ -78,6 +82,142 @@ _FALLBACK_FEATURES: Dict[str, float] = {
     "elo_diff":          0.0,
     "feature_completeness": 0.0,
 }
+
+
+def _normalise_team_name(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (value or "").lower())
+
+
+def _match_team_name(team: str, candidate: str) -> bool:
+    if not team or not candidate:
+        return False
+    target = _normalise_team_name(team)
+    other = _normalise_team_name(candidate)
+    if not target or not other:
+        return False
+    if target == other:
+        return True
+    if target in other or other in target:
+        return True
+    for term in _team_search_terms(team):
+        norm_term = _normalise_team_name(term)
+        if norm_term and norm_term in other:
+            return True
+    return False
+
+
+def _sports_history_dir() -> Path:
+    return Path(__file__).resolve().parents[3] / "data" / "sports"
+
+
+def _parse_date(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    raw = raw.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(raw)
+    except ValueError:
+        for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y", "%d/%m/%Y"):
+            try:
+                return datetime.strptime(raw, fmt)
+            except ValueError:
+                continue
+    return None
+
+
+def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _latest_match_date(matches: List[Any]) -> Optional[str]:
+    dates = [
+        date
+        for date in (_as_utc(getattr(match, "kickoff_time", None)) for match in matches)
+        if date is not None
+    ]
+    return max(dates).isoformat() if dates else None
+
+
+def _static_history_rows() -> List[SimpleNamespace]:
+    rows: List[SimpleNamespace] = []
+    history_dir = _sports_history_dir()
+    if not history_dir.exists():
+        return rows
+
+    for csv_path in sorted(history_dir.glob("**/*_matches.csv")):
+        try:
+            with csv_path.open("r", encoding="utf-8", newline="") as fh:
+                reader = csv.DictReader(fh)
+                for row in reader:
+                    home = (row.get("home_team") or row.get("home") or "").strip()
+                    away = (row.get("away_team") or row.get("away") or "").strip()
+                    if not home or not away:
+                        continue
+
+                    home_score = row.get("home_score") or row.get("home_goals") or row.get("home_points")
+                    away_score = row.get("away_score") or row.get("away_goals") or row.get("away_points")
+                    try:
+                        home_goals = int(float(str(home_score).strip())) if home_score not in (None, "") else None
+                        away_goals = int(float(str(away_score).strip())) if away_score not in (None, "") else None
+                    except (TypeError, ValueError):
+                        home_goals = None
+                        away_goals = None
+
+                    if home_goals is None or away_goals is None:
+                        continue
+
+                    date_raw = row.get("date") or row.get("kickoff_time") or row.get("match_date") or row.get("datetime")
+                    match_date = _as_utc(_parse_date(date_raw))
+                    if match_date is not None and match_date > datetime.now(timezone.utc):
+                        continue
+                    rows.append(SimpleNamespace(
+                        home_team=home,
+                        away_team=away,
+                        home_goals=home_goals,
+                        away_goals=away_goals,
+                        kickoff_time=match_date or datetime.min.replace(tzinfo=timezone.utc),
+                        league=(row.get("league") or csv_path.parent.name or "").strip() or "unknown",
+                        source_file=str(csv_path),
+                    ))
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("STATIC_EVIDENCE failed to read %s: %s", csv_path, exc)
+
+    rows.sort(key=lambda match: getattr(match, "kickoff_time", datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    return rows
+
+
+def _static_history_for_team(team: str, limit: int = 10, league: Optional[str] = None) -> List[SimpleNamespace]:
+    team_matches: List[SimpleNamespace] = []
+    for match in _static_history_rows():
+        if league and match.league.lower() not in {"unknown", ""} and match.league.lower() != str(league).lower():
+            continue
+        if _match_team_name(team, match.home_team) or _match_team_name(team, match.away_team):
+            team_matches.append(match)
+        if len(team_matches) >= limit:
+            break
+    return team_matches
+
+
+def _static_history_for_pair(home: str, away: str, limit: int = 10, league: Optional[str] = None) -> List[SimpleNamespace]:
+    pair_matches: List[SimpleNamespace] = []
+    for match in _static_history_rows():
+        if league and match.league.lower() not in {"unknown", ""} and match.league.lower() != str(league).lower():
+            continue
+        if (
+            (_match_team_name(home, match.home_team) and _match_team_name(away, match.away_team)) or
+            (_match_team_name(home, match.away_team) and _match_team_name(away, match.home_team))
+        ):
+            pair_matches.append(match)
+        if len(pair_matches) >= limit:
+            break
+    return pair_matches
 
 
 
@@ -278,51 +418,100 @@ async def build_predict_features(
     fallback feature set with `feature_completeness=0.0` so downstream
     diagnostics can detect this.
     """
+    home_recent: List[Any] = []
+    away_recent: List[Any] = []
+    h2h: List[Any] = []
+    evidence_source = "db"
+
     if db is None:
-        logger.warning(
-            "FEATURE_FALLBACK db=None for %s vs %s — returning full neutral "
-            "fallback feature set (predictions will not be data-grounded)",
-            home_team, away_team,
+        static_home = _static_history_for_team(home_team, limit=10, league=league)
+        static_away = _static_history_for_team(away_team, limit=10, league=league)
+        static_h2h = _static_history_for_pair(home_team, away_team, limit=10, league=league)
+        if not static_home and not static_away and not static_h2h:
+            logger.warning(
+                "FEATURE_FALLBACK db=None for %s vs %s — no static historical evidence found; "
+                "returning neutral fallback feature set",
+                home_team, away_team,
+            )
+            return dict(_FALLBACK_FEATURES)
+        home_recent = static_home
+        away_recent = static_away
+        h2h = static_h2h
+        evidence_source = "static_csv"
+        logger.info(
+            "FEATURE_EVIDENCE db=None for %s vs %s — using real static CSV history (%d rows)",
+            home_team, away_team, len(home_recent) + len(away_recent) + len(h2h),
         )
-        return dict(_FALLBACK_FEATURES)
+
+    else:
+        try:
+            home_recent_db = await _recent_matches_for(db, home_team, limit=10, before=before)
+            if home_recent_db:
+                home_recent = home_recent_db
+            else:
+                static_home = _static_history_for_team(home_team, limit=10, league=league)
+                if static_home:
+                    home_recent = static_home
+                    evidence_source = "mixed"
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(f"home recent fetch failed for {home_team}: {exc}")
+            home_recent = []
+
+        try:
+            away_recent_db = await _recent_matches_for(db, away_team, limit=10, before=before)
+            if away_recent_db:
+                away_recent = away_recent_db
+            else:
+                static_away = _static_history_for_team(away_team, limit=10, league=league)
+                if static_away:
+                    away_recent = static_away
+                    if evidence_source != "mixed":
+                        evidence_source = "mixed"
+        except Exception as exc:  # pragma: no cover
+            logger.warning(f"away recent fetch failed for {away_team}: {exc}")
+            away_recent = []
+
+        try:
+            h2h_db = await _h2h_matches(db, home_team, away_team, limit=10)
+            if h2h_db:
+                h2h = h2h_db
+            else:
+                static_h2h = _static_history_for_pair(home_team, away_team, limit=10, league=league)
+                if static_h2h:
+                    h2h = static_h2h
+                    evidence_source = "mixed"
+        except Exception as exc:  # pragma: no cover
+            logger.warning(f"h2h fetch failed for {home_team} vs {away_team}: {exc}")
+            h2h = []
+
+        if not home_recent and not away_recent and not h2h:
+            static_home = _static_history_for_team(home_team, limit=10, league=league)
+            static_away = _static_history_for_team(away_team, limit=10, league=league)
+            static_h2h = _static_history_for_pair(home_team, away_team, limit=10, league=league)
+            if static_home or static_away or static_h2h:
+                home_recent = static_home
+                away_recent = static_away
+                h2h = static_h2h
+                evidence_source = "static_csv"
 
     out: Dict[str, Any] = {}
     completeness_signals: List[float] = []
-
-    try:
-        home_recent = await _recent_matches_for(db, home_team, limit=10, before=before)
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.warning(f"home recent fetch failed for {home_team}: {exc}")
-        home_recent = []
-    try:
-        away_recent = await _recent_matches_for(db, away_team, limit=10, before=before)
-    except Exception as exc:  # pragma: no cover
-        logger.warning(f"away recent fetch failed for {away_team}: {exc}")
-        away_recent = []
-    try:
-        h2h = await _h2h_matches(db, home_team, away_team, limit=10)
-    except Exception as exc:  # pragma: no cover
-        logger.warning(f"h2h fetch failed for {home_team} vs {away_team}: {exc}")
-        h2h = []
 
     # Explicit fallback warnings — operators must see when the feature
     # builder is running on cold-start defaults instead of real history.
     if not home_recent:
         logger.warning(
-            "FEATURE_FALLBACK home=%s — no historical matches in DB, "
-            "using neutral form/GF/GA defaults",
+            "FEATURE_FALLBACK home=%s — no historical matches found, using neutral form/GF/GA defaults",
             home_team,
         )
     if not away_recent:
         logger.warning(
-            "FEATURE_FALLBACK away=%s — no historical matches in DB, "
-            "using neutral form/GF/GA defaults",
+            "FEATURE_FALLBACK away=%s — no historical matches found, using neutral form/GF/GA defaults",
             away_team,
         )
     if not h2h:
         logger.info(
-            "FEATURE_FALLBACK h2h=%s vs %s — no head-to-head history, "
-            "using neutral H2H split",
+            "FEATURE_FALLBACK h2h=%s vs %s — no head-to-head history, using neutral H2H split",
             home_team, away_team,
         )
 
@@ -367,6 +556,10 @@ async def build_predict_features(
     out["home_history_sample_size"] = home_10["n"]
     out["away_history_sample_size"] = away_10["n"]
     out["h2h_sample_size"] = h2h_b["n"]
+    out["home_history_latest"] = _latest_match_date(home_recent)
+    out["away_history_latest"] = _latest_match_date(away_recent)
+    out["h2h_history_latest"] = _latest_match_date(h2h)
     out["feature_version"] = FEATURE_VERSION
+    out["evidence_source"] = evidence_source
 
     return out

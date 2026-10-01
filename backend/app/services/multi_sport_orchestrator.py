@@ -8,6 +8,17 @@ from app.schemas.schemas import PredictionResponse, ModelInsight
 
 logger = logging.getLogger(__name__)
 
+
+def _sigmoid(x: float) -> float:
+    return 1.0 / (1.0 + math.exp(-x))
+
+
+def _safe_normalize(home: float, away: float) -> tuple[float, float]:
+    total = home + away
+    if total <= 0:
+        return 0.5, 0.5
+    return home / total, away / total
+
 def _poisson_over25(lambda_total: float) -> float:
     """P(total goals > 2.5) using Poisson(lambda_total)."""
     p_under = math.exp(-lambda_total) * (
@@ -59,8 +70,9 @@ class MultiSportOrchestrator:
         if sport == "football":
             return await self._predict_football(features, idempotency_key)
         elif sport in {"basketball", "tennis", "rugby", "american_football", "rugby_union", "baseball", "ice_hockey", "mma", "boxing", "formula1", "esports"}:
-            # These sports all use a binary moneyline market; a production engine should
-            # accept valid home/away odds even when they are not explicitly enumerated.
+            market = (features.get("market_odds") or {})
+            if (market.get("home") is None or market.get("away") is None) and sport in {"basketball", "tennis", "rugby", "american_football", "rugby_union", "baseball", "ice_hockey", "mma", "boxing"}:
+                return self._predict_two_way_statistical(features, sport)
             if sport == "basketball":
                 return self._predict_basketball(features)
             if sport == "tennis":
@@ -75,10 +87,84 @@ class MultiSportOrchestrator:
         elif sport == "cricket":
             return self._predict_two_way(features, "cricket_scie_v3")
         else:
-            # Unknown sports still have a safe, market-derived moneyline path instead of
-            # failing hard. This keeps the API functioning for newer fixtures while preserving
-            # strict odds validation and deterministic probability outputs.
             return self._predict_two_way(features, f"{sport}_scie_v3")
+
+    def _predict_two_way_statistical(self, features: Dict[str, Any], sport: str) -> Dict[str, Any]:
+        """Generate a two-way prediction from verified team statistics when odds are absent.
+
+        This is a fail-closed statistical fallback: it only returns a prediction when there
+        is sufficient historical evidence. Otherwise it explicitly reports that the fixture is
+        unavailable due to insufficient evidence instead of inventing probabilities.
+        """
+        match_features = features.get("match_features") or {}
+        completeness = float(match_features.get("feature_completeness", 0.0) or 0.0)
+        home_hist = int(match_features.get("home_history_sample_size", 0) or 0)
+        away_hist = int(match_features.get("away_history_sample_size", 0) or 0)
+        history_sample = int(match_features.get("history_sample_size", 0) or 0)
+        reasons: List[str] = []
+
+        if completeness < 0.55:
+            reasons.append(f"feature completeness {completeness:.2f} below the required 0.55 threshold")
+        if history_sample < 3:
+            reasons.append(f"insufficient historical sample size ({history_sample}), need at least 3 recent matches")
+        if home_hist < 2 or away_hist < 2:
+            reasons.append(f"insufficient per-team history ({home_hist}/{away_hist}), need at least 2 matches each")
+
+        now = datetime.now(timezone.utc)
+        for label, key in (("home", "home_history_latest"), ("away", "away_history_latest")):
+            raw_date = match_features.get(key)
+            if not raw_date:
+                continue
+            try:
+                latest = datetime.fromisoformat(str(raw_date).replace("Z", "+00:00"))
+                if latest.tzinfo is None:
+                    latest = latest.replace(tzinfo=timezone.utc)
+                else:
+                    latest = latest.astimezone(timezone.utc)
+                age_days = (now - latest).total_seconds() / 86400
+                if age_days < 0:
+                    reasons.append(f"{label} historical evidence is future-dated")
+                elif age_days > 540:
+                    reasons.append(f"{label} historical evidence is stale ({int(age_days)} days old; maximum 540)")
+            except (TypeError, ValueError):
+                reasons.append(f"{label} historical evidence has an invalid date")
+
+        if reasons:
+            return {
+                "status": "unavailable",
+                "reasons": reasons,
+                "predictions": {
+                    "home_prob": 0.0,
+                    "draw_prob": 0.0,
+                    "away_prob": 0.0,
+                    "confidence": {"moneyline": 0.0},
+                },
+                "source": f"{sport}_statistical_fallback_unavailable",
+            }
+
+        home_form = float(match_features.get("home_form_pts_10", 1.3) or 1.3)
+        away_form = float(match_features.get("away_form_pts_10", 1.2) or 1.2)
+        home_win_rate = min(1.0, max(0.0, home_form / 3.0))
+        away_win_rate = min(1.0, max(0.0, away_form / 3.0))
+        logit = 1.1 * (home_win_rate - away_win_rate) + 0.1
+        home_prob = round(min(0.85, max(0.15, _sigmoid(logit))), 4)
+        away_prob = round(1.0 - home_prob, 4)
+
+        confidence = min(0.65, 0.40 + completeness * 0.25)
+        return {
+            "status": "ready",
+            "reasons": [],
+            "predictions": {
+                "home_prob": home_prob,
+                "draw_prob": 0.0,
+                "away_prob": away_prob,
+                "confidence": {"moneyline": round(confidence, 4)},
+                "models_used": 0,
+                "models_total": 0,
+                "data_source": f"{sport}_statistical_fallback",
+            },
+            "source": f"{sport}_statistical_fallback",
+        }
 
     async def _predict_football(self, features: Dict[str, Any], idempotency_key: str = None) -> Dict[str, Any]:
         """Hybrid football prediction: ML Ensemble with SCIE Fallback."""
@@ -159,14 +245,16 @@ class MultiSportOrchestrator:
 
     def _predict_basketball(self, features: Dict[str, Any]) -> Dict[str, Any]:
         """Market-derived basketball prediction — no random stubs."""
+        market = features.get("market_odds") or {}
+        if market.get("home") is None or market.get("away") is None:
+            return self._predict_two_way_statistical(features, "basketball")
+
         h_odds, a_odds = _require_two_way_odds(features)
 
         total_implied = (1/h_odds) + (1/a_odds)
         h_prob = round((1/h_odds) / total_implied, 4)
         a_prob = round(1.0 - h_prob, 4)
 
-        # Basketball almost always exceeds 2.5 total points — use 95% as baseline,
-        # nudged by match competitiveness (closer game → slightly lower scoring pace).
         balance = 1.0 - abs(h_prob - a_prob)
         over_total = round(min(0.97, 0.93 + balance * 0.03), 4)
 
@@ -187,6 +275,10 @@ class MultiSportOrchestrator:
 
     def _predict_tennis(self, features: Dict[str, Any]) -> Dict[str, Any]:
         """Market-derived tennis prediction — no random stubs."""
+        market = features.get("market_odds") or {}
+        if market.get("home") is None or market.get("away") is None:
+            return self._predict_two_way_statistical(features, "tennis")
+
         h_odds, a_odds = _require_two_way_odds(features)
 
         total_implied = (1/h_odds) + (1/a_odds)
