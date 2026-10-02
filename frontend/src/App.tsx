@@ -57,10 +57,18 @@ function RequireGuest() {
   return <Outlet />
 }
 
+const GENESIS_INDEPENDENT_PATHS = new Set(['/odds', '/predictions'])
+
 function RequireGenesisVerified() {
   const location = useLocation()
 
-  if (location.pathname === '/genesis' || location.pathname.startsWith('/admin')) {
+  if (
+    location.pathname === '/genesis' ||
+    location.pathname.startsWith('/admin') ||
+    location.pathname === '/matches' ||
+    location.pathname.startsWith('/matches/') ||
+    GENESIS_INDEPENDENT_PATHS.has(location.pathname)
+  ) {
     return <Outlet />
   }
 

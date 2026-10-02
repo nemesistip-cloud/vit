@@ -545,6 +545,43 @@ test('platform blocks authenticated access until genesis verification is complet
   await expect(page.getByRole('heading', { name: /Genesis Initialization Wizard/i })).toBeVisible();
 });
 
+test('unverified genesis does not block VIT sports prediction workflows', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'sports-before-genesis-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 7, username: 'sports-user', role: 'user' }));
+  });
+
+  await page.route('**/api/genesis/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ current_stage: 9, total_stages: 10, verified: false, status: 'bootstrapping' }),
+  }));
+  await page.route('**/api/odds/compare**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ data_status: 'database_fallback', events: [] }),
+  }));
+  await page.route('**/api/predict/history**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([]),
+  }));
+  await page.route('**/api/predict/accuracy', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ total: 0, settled: 0, win_rate: 0, current_streak: 0 }),
+  }));
+
+  await page.goto('/odds');
+  await expect(page).toHaveURL(/\/odds$/);
+  await expect(page.getByRole('heading', { name: 'Odds Comparison' })).toBeVisible();
+  await expect(page.getByText('Database fallback', { exact: true })).toBeVisible();
+
+  await page.goto('/predictions');
+  await expect(page).toHaveURL(/\/predictions$/);
+  await expect(page.getByRole('heading', { name: 'My Predictions' })).toBeVisible();
+});
+
 test('chain explorer interprets Unix-second block timestamps correctly', async ({ page }) => {
   const timestamp = Math.floor(Date.now() / 1000) - 5;
   await page.route('**/api/chain/height', route => route.fulfill({
