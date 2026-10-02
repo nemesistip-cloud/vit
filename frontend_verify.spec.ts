@@ -47,6 +47,11 @@ test('prediction history distinguishes an API failure from an empty history', as
     contentType: 'application/json',
     body: JSON.stringify({ total: 0, win_rate: 0, current_streak: 0 }),
   }));
+  await page.route('**/api/genesis/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ verified: true }),
+  }));
 
   await page.goto('/predictions');
 

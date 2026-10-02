@@ -284,7 +284,7 @@ async def test_public_blockchain_metrics_use_authoritative_chain_values(monkeypa
     assert result["source"] == "vit-chain"
     assert result["block_height"] == 4321
     assert result["total_transactions"] == 900
-    assert result["circulating_supply"] == "800"
+    assert result["circulating_supply"] == 800
     assert result["tps"] == 8.5
     assert result["block_time"] is None
     assert result["finality"] is None
