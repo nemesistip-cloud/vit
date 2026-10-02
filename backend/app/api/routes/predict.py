@@ -263,15 +263,20 @@ def build_prediction_response(prediction: Prediction, match: Match, orchestrator
         match_id=prediction.match_id, sport=sport, available_markets=available_markets or [],
         home_prob=prediction.home_prob, draw_prob=prediction.draw_prob, away_prob=prediction.away_prob,
         over_25_prob=prediction.over_25_prob, under_25_prob=prediction.under_25_prob, btts_prob=prediction.btts_prob,
+        cs_probs=prediction.cs_probs or {},
+        top_correct_score=prediction.top_correct_score,
+        top_cs_prob=prediction.top_cs_prob,
+        market_probabilities=(prediction.provenance or {}).get("market_probabilities"),
         model_consensus=prediction.model_consensus, alternative_bets=prediction.alternative_bets, consensus_prob=prediction.consensus_prob,
         final_ev=prediction.final_ev, recommended_stake=prediction.recommended_stake, edge=prediction.vig_free_edge, confidence=prediction.confidence, timestamp=prediction.timestamp,
         models_used=sum(
             1 for insight in (prediction.model_insights or [])
             if not insight.get("failed", False)
         ),
-        models_total=13,
+        models_total=int((prediction.provenance or {}).get("models_total") or 13),
         data_source=data_source, bet_side=prediction.bet_side, entry_odds=prediction.entry_odds, raw_edge=prediction.raw_edge, normalized_edge=prediction.normalized_edge, vig_free_edge=prediction.vig_free_edge,
-        model_weights=prediction.model_weights or {}, model_insights=prediction.model_insights or [], neural_consensus_score=(prediction.consensus_prob * 100), analytics_rating=rating, prediction_accuracy_estimate=None, data_quality=data_quality
+        model_weights=prediction.model_weights or {}, model_insights=prediction.model_insights or [], neural_consensus_score=(prediction.consensus_prob * 100), analytics_rating=rating, prediction_accuracy_estimate=None, data_quality=data_quality,
+        provenance=prediction.provenance or {},
     )
 
 @router.post("", response_model=PredictionResponse)
@@ -295,12 +300,15 @@ async def predict(
     - Accepts fixture_id to track which specific fixture was predicted
     - Logs fixture_id for debugging and fixture-prediction mapping
     """
-    if orchestrator is None:
+    sport = (match.sport or "football").lower()
+    if orchestrator is None and sport != "football":
         raise HTTPException(status_code=503, detail="Orchestrator not initialized")
+    naive_kickoff = to_naive_utc(match.kickoff_time)
+    if sport == "football" and naive_kickoff <= datetime.now(timezone.utc).replace(tzinfo=None):
+        raise HTTPException(status_code=422, detail="Predictions are only generated before kickoff.")
 
     fixture_id = match.fixture_id if match.fixture_id else "unknown"
     user_id: Optional[int] = current_user.id if current_user else None
-    sport = (match.sport or "football").lower()
     available_markets = get_markets_for_sport(sport)
 
     # C-1 / T10 — per-user daily prediction rate limit (DB-backed: accurate across restarts)
@@ -308,7 +316,7 @@ async def predict(
     _user_role = getattr(current_user, "role", None) if current_user else None
     _is_admin = _user_role in ("admin", "super_admin")
     if user_id is not None and not _is_admin:
-        from datetime import datetime, timezone, timedelta
+        from datetime import timedelta
         from sqlalchemy import func as _rl_func
         from app.core.rate_limit import get_limit_for_tier
         _limit = get_limit_for_tier(getattr(current_user, "tier", "free"))
@@ -332,7 +340,6 @@ async def predict(
                 },
             )
     idempotency_key = create_idempotency_key(match, user_id)
-    naive_kickoff = to_naive_utc(match.kickoff_time)
 
     # v4.10.0 — fallback / data-quality tracker.
     # Every degraded code path appends a flag here so the response (and the
@@ -354,11 +361,10 @@ async def predict(
     }
 
     try:
-        if not validate_market_odds(match.market_odds, getattr(match, "sport", None)):
+        has_market_odds = bool(match.market_odds)
+        if (sport != "football" or has_market_odds) and not validate_market_odds(match.market_odds, sport):
             raise ValueError(
-                "Valid live market odds are required for prediction. "
-                "Provide accurate home/draw/away odds for football, or "
-                "home/away odds for two-way sports, instead of relying on synthetic fallback values."
+                "Market odds, when supplied, must contain valid prices for every required outcome."
             )
 
         # --- Idempotency: return existing prediction if same hash ---
@@ -473,21 +479,22 @@ async def predict(
         # AI signal layer have access to current information.
         web_context: dict = {}
         web_context_text: str = ""
-        try:
-            from app.services.web_search import fetch_match_context, format_context_for_prompt
-            web_context = await fetch_match_context(
-                match.home_team, match.away_team, match.league or ""
-            )
-            web_context_text = format_context_for_prompt(
-                web_context, match.home_team, match.away_team
-            )
-            if web_context_text:
-                logger.info(
-                    "[predict] web-search context fetched for %s vs %s (%d chars)",
-                    match.home_team, match.away_team, len(web_context_text),
+        if sport != "football":
+            try:
+                from app.services.web_search import fetch_match_context, format_context_for_prompt
+                web_context = await fetch_match_context(
+                    match.home_team, match.away_team, match.league or ""
                 )
-        except Exception as _wse:
-            logger.debug("[predict] web-search context unavailable: %s", _wse)
+                web_context_text = format_context_for_prompt(
+                    web_context, match.home_team, match.away_team
+                )
+                if web_context_text:
+                    logger.info(
+                        "[predict] web-search context fetched for %s vs %s (%d chars)",
+                        match.home_team, match.away_team, len(web_context_text),
+                    )
+            except Exception as _wse:
+                logger.debug("[predict] web-search context unavailable: %s", _wse)
 
         features = {
             "home_team":         match.home_team,
@@ -499,8 +506,15 @@ async def predict(
             "web_context_text":  web_context_text,       # ← formatted for AI prompts
         }
 
-        multi_orch = MultiSportOrchestrator(orchestrator)
-        raw_result = await multi_orch.predict(features, idempotency_key, sport=sport)
+        if sport == "football":
+            from app.services.odds_free_prediction import predict_odds_free
+
+            raw_result = await predict_odds_free(
+                db, match.home_team, match.away_team, match.league, naive_kickoff
+            )
+        else:
+            multi_orch = MultiSportOrchestrator(orchestrator)
+            raw_result = await multi_orch.predict(features, idempotency_key, sport=sport)
         if raw_result.get("status") == "unavailable":
             return JSONResponse(
                 status_code=422,
@@ -519,21 +533,22 @@ async def predict(
         draw_prob = float(result.get("draw_prob", 0.0))
         away_prob = float(result.get("away_prob", 0.0))
 
-        # --- Extract market odds (validated live odds only) ---
+        # Odds are an optional value layer, applied only after model inference.
         sport_lower = getattr(match, "sport", "football") or "football"
-        home_odds = MarketUtils.validate_odds(match.market_odds.get("home"))
-        draw_odds = MarketUtils.validate_odds(match.market_odds.get("draw"))
-        away_odds = MarketUtils.validate_odds(match.market_odds.get("away"))
-        if home_odds is None or away_odds is None or (
-            sport_lower not in TWO_WAY_SPORTS and draw_odds is None
-        ):
-            raise ValueError(
-                "Market odds must include valid home/draw/away values for football, "
-                "or valid home/away odds for two-way sports."
-            )
-        home_odds = float(home_odds)
-        draw_odds = float(draw_odds) if draw_odds is not None else 0.0
-        away_odds = float(away_odds)
+        submitted_odds = match.market_odds or {}
+        home_odds = MarketUtils.validate_odds(submitted_odds.get("home"))
+        draw_odds = MarketUtils.validate_odds(submitted_odds.get("draw"))
+        away_odds = MarketUtils.validate_odds(submitted_odds.get("away"))
+        has_complete_odds = (
+            home_odds is not None and away_odds is not None
+            and (sport_lower in TWO_WAY_SPORTS or draw_odds is not None)
+        )
+        if has_complete_odds:
+            home_odds = float(home_odds)
+            draw_odds = float(draw_odds) if draw_odds is not None else 0.0
+            away_odds = float(away_odds)
+        else:
+            home_odds = draw_odds = away_odds = None
 
         # --- Best bet calculation (v4.6.1: multi-market — 1X2 + O/U 2.5 + BTTS) ---
         _o25 = result.get("over_25_prob") or result.get("over_2_5_prob")
@@ -561,7 +576,10 @@ async def predict(
             # v4.6.1 — Correct Score (bookmaker priced ladder)
             cs_probs=result.get("cs_probs"),
             cs_odds=_mo.get("cs_odds") if isinstance(_mo.get("cs_odds"), dict) else None,
-        )
+        ) if has_complete_odds else {
+            "best_side": None, "best_market": None, "model_prob": None,
+            "odds": None, "edge": None, "raw_edge": None, "kelly_stake": 0.0,
+        }
 
         recommended_stake = min(best_bet.get("kelly_stake", 0), MAX_STAKE)
 
@@ -581,8 +599,8 @@ async def predict(
 
         # --- v2.1.0: Extract model metadata from orchestrator result ---
         models_used   = result.get("models_used", raw_result.get("models_count", 0))
-        models_total  = result.get("models_total", orchestrator._total_model_specs if orchestrator else 0)
-        data_source   = result.get("data_source", "market_implied")
+        models_total  = result.get("models_total", getattr(orchestrator, "_total_model_specs", 0))
+        data_source   = result.get("data_source", "odds_free_dixon_coles" if sport == "football" else "native_ensemble")
         # Confidence: prefer the orchestrator's reported value; otherwise derive
         # from the actual probability distribution. Never fall back to a fixed
         # constant — that would be presenting a hardcoded number as a model
@@ -654,7 +672,7 @@ async def predict(
             )
             data_quality["warnings"].append("model_failures")
 
-        if models_used < (orchestrator._total_model_specs if orchestrator else 12):
+        if models_used < models_total:
             data_quality["warnings"].append("partial_ensemble")
 
         if data_quality["calibration"]["calibrated_models"] == 0:
@@ -684,15 +702,30 @@ async def predict(
         bet_side_to_store = submitted_side or best_bet.get("best_side")
         entry_odds_to_store = None
         try:
-            entry_odds_to_store = float(match.market_odds.get(submitted_side)) if submitted_side and match.market_odds.get(submitted_side) else best_bet.get("odds", 2.0)
+            entry_odds_to_store = float(submitted_odds.get(submitted_side)) if submitted_side and submitted_odds.get(submitted_side) else best_bet.get("odds")
         except Exception:
-            entry_odds_to_store = best_bet.get("odds", 2.0)
+            entry_odds_to_store = best_bet.get("odds")
 
         prediction = Prediction(
             status="READY",
             source="live_generated",
             is_seed=False,
-            provenance={"source": data_source, "models_used": models_used, "models_total": models_total},
+            provenance={
+                "source": data_source,
+                "model_version": result.get("model_version"),
+                "dataset_version": result.get("dataset_version"),
+                "feature_version": result.get("feature_version"),
+                "calibration_version": result.get("calibration_version"),
+                "models_used": models_used,
+                "models_total": models_total,
+                "training_matches": result.get("training_matches"),
+                "training_seasons": result.get("training_seasons"),
+                "training_cutoff": result.get("training_cutoff"),
+                "prediction_timestamp": datetime.now(timezone.utc).isoformat(),
+                "fixture_id": match.fixture_id,
+                "market_probabilities": result.get("market_probabilities"),
+                "schedule_features": result.get("schedule_features"),
+            },
             request_hash=idempotency_key,
             match_id=db_match.id,
             user_id=user_id,
@@ -708,14 +741,20 @@ async def predict(
             ah_home_prob=result.get("ah_home_prob"),
             ah_away_prob=result.get("ah_away_prob"),
             ah_lines=result.get("ah_lines"),
-            cs_probs=result.get("cs_probs"),
-            top_correct_score=result.get("top_correct_score"),
-            top_cs_prob=result.get("top_cs_prob"),
+            cs_probs=result.get("cs_probs") or result.get("scoreline_probabilities"),
+            top_correct_score=result.get("top_correct_score") or max(
+                result.get("scoreline_probabilities", {}),
+                key=(result.get("scoreline_probabilities") or {}).get,
+                default=None,
+            ),
+            top_cs_prob=result.get("top_cs_prob") or max(
+                (result.get("scoreline_probabilities") or {}).values(), default=None
+            ),
             # v4.6.2 — consensus + alternatives
             model_consensus=model_consensus,
             alternative_bets=alternative_bets,
             consensus_prob=consensus_prob,
-            final_ev=best_bet.get("edge", 0),
+            final_ev=best_bet.get("edge"),
             recommended_stake=recommended_stake,
             model_weights={
                 **(result.get("model_weights") or {}),
@@ -729,9 +768,9 @@ async def predict(
             confidence=confidence_val,
             bet_side=bet_side_to_store,
             entry_odds=entry_odds_to_store,
-            raw_edge=best_bet.get("raw_edge", 0),
-            normalized_edge=best_bet.get("edge", 0),
-            vig_free_edge=best_bet.get("edge", 0),
+            raw_edge=best_bet.get("raw_edge"),
+            normalized_edge=best_bet.get("edge"),
+            vig_free_edge=best_bet.get("edge"),
             # Submitted market metadata (user selection)
             submitted_market_id=getattr(match, "market_id", None),
             submitted_market_side=getattr(match, "selected_side", None),
@@ -790,7 +829,7 @@ async def predict(
         logger.info(
             f"Prediction saved: fixture_id={fixture_id}, match={db_match.id}, "
             f"side={best_bet.get('best_side')}, "
-            f"edge={best_bet.get('edge', 0):.4f}, "
+            f"edge={float(best_bet.get('edge') or 0.0):.4f}, "
             f"models={models_used}/{models_total}, "
             f"source={data_source}"
         )
@@ -803,7 +842,7 @@ async def predict(
         # C-7 — calibration advisory note
         calibration_note: Optional[str] = None
         agreement_pct = float((model_consensus or {}).get("agreement_pct", 0.0))
-        edge_val = float(best_bet.get("edge", 0.0))
+        edge_val = float(best_bet.get("edge") or 0.0)
         if confidence_val > 0.80 and agreement_pct < 0.60:
             calibration_note = "High confidence but low model agreement — treat with caution"
         elif edge_val > 0.05 and confidence_val < 0.55:
@@ -835,34 +874,37 @@ async def predict(
 
         # --- Decision logging ---
         try:
-            dl = DecisionLogger(db)
-            await dl.log_decision(
+            if has_complete_odds:
+                dl = DecisionLogger(db)
+                await dl.log_decision(
                 match_id=db_match.id,
                 prediction_id=prediction.id,
-                decision={
-                    "type":          "bet",
-                    "stake":         recommended_stake,
-                    "odds":          best_bet.get("odds", 2.0),
-                    "edge":          best_bet.get("edge", 0),
-                    "reason":        f"{best_bet.get('best_side','?').upper()} @ {best_bet.get('odds',2.0):.2f} — edge {best_bet.get('edge',0):.2%}",
-                    "model_weights": {p.get("model_name"): p.get("model_weight", 1.0)
-                                      for p in individual_results},
-                },
-                context={
-                    "market": {
-                        "home_odds": home_odds, "draw_odds": draw_odds, "away_odds": away_odds,
-                        "home_prob": home_prob, "draw_prob": draw_prob, "away_prob": away_prob,
+                    decision={
+                        "type":          "bet",
+                        "stake":         recommended_stake,
+                        "odds":          best_bet.get("odds"),
+                        "edge":          best_bet.get("edge"),
+                        "reason":        f"{best_bet.get('best_side','?').upper()} @ {best_bet['odds']:.2f} — edge {best_bet['edge']:.2%}",
+                        "model_weights": {p.get("model_name"): p.get("model_weight", 1.0)
+                                          for p in individual_results},
                     },
-                    "bankroll": {},
-                },
-            )
+                    context={
+                        "market": {
+                            "home_odds": home_odds, "draw_odds": draw_odds, "away_odds": away_odds,
+                            "home_prob": home_prob, "draw_prob": draw_prob, "away_prob": away_prob,
+                        },
+                        "bankroll": {},
+                    },
+                )
         except Exception as e:
             logger.warning(f"DecisionLogger failed (non-fatal): {e}")
 
         # --- v2.1.0: Send Telegram alert ---
         # Always send for edge > 2%, or when there's a clear prediction to share
-        edge_value = best_bet.get("edge", 0)
+        edge_value = float(best_bet.get("edge") or 0.0)
         should_alert = (
+            has_complete_odds
+            and
             telegram_alerts
             and telegram_alerts.enabled
             and edge_value > MIN_EDGE_THRESHOLD
@@ -1003,6 +1045,15 @@ async def prediction_history(
             "created_at": pred.timestamp.isoformat() if pred.timestamp else None,
             "bet_side": pred.bet_side,
             "confidence": float(pred.confidence or 0.0),
+            "home_prob": pred.home_prob,
+            "draw_prob": pred.draw_prob,
+            "away_prob": pred.away_prob,
+            "over_25_prob": pred.over_25_prob,
+            "btts_prob": pred.btts_prob,
+            "cs_probs": pred.cs_probs or {},
+            "top_correct_score": pred.top_correct_score,
+            "top_cs_prob": pred.top_cs_prob,
+            "provenance": pred.provenance or {},
             "final_ev": float(pred.final_ev or 0.0) if getattr(pred, 'final_ev', None) is not None else None,
             "entry_odds": float(pred.entry_odds) if getattr(pred, 'entry_odds', None) is not None else None,
             "was_correct": was_correct,

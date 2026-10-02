@@ -16,7 +16,7 @@ MARKET_REQUIREMENTS: Dict[str, MarketRequirementSpec] = {
     "1x2": {
         "required_features": ["home_team", "away_team", "league", "kickoff_time"],
         "min_feature_completeness_pct": 70,
-        "requires_odds": True,
+        "requires_odds": False,
     },
     "over_under_2_5": {
         "required_features": ["home_team", "away_team", "league", "goal_stats"],

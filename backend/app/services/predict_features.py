@@ -261,6 +261,19 @@ def _static_history_rows() -> List[SimpleNamespace]:
                         home_goals = None
                         away_goals = None
 
+                    try:
+                        home_xg = float(row.get("home_xg") or row.get("HxG"))
+                        if not math.isfinite(home_xg):
+                            home_xg = None
+                    except (TypeError, ValueError):
+                        home_xg = None
+                    try:
+                        away_xg = float(row.get("away_xg") or row.get("AxG"))
+                        if not math.isfinite(away_xg):
+                            away_xg = None
+                    except (TypeError, ValueError):
+                        away_xg = None
+
                     if home_goals is None or away_goals is None:
                         continue
 
@@ -273,6 +286,8 @@ def _static_history_rows() -> List[SimpleNamespace]:
                         away_team=away,
                         home_goals=home_goals,
                         away_goals=away_goals,
+                        home_xg=home_xg,
+                        away_xg=away_xg,
                         kickoff_time=match_date or datetime.min.replace(tzinfo=timezone.utc),
                         league=(row.get("league") or csv_path.parent.name or "").strip() or "unknown",
                         sport=csv_path.parent.name,

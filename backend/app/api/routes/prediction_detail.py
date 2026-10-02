@@ -5,7 +5,7 @@ Assembly endpoint returning the complete canonical prediction contract
 (evidence + model + markets + market_intelligence + value + validation + provenance)
 for a given match_id.
 
-NOTE: Router NOT registered in main.py in this session — awaiting separate designated integration session.
+The router is mounted from backend/main.py.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
 import time
 from datetime import datetime, timezone
@@ -46,6 +47,8 @@ def _compute_attestation_hash(prediction: Prediction) -> str:
         "home_prob": float(prediction.home_prob or 0),
         "draw_prob": float(prediction.draw_prob or 0),
         "away_prob": float(prediction.away_prob or 0),
+        "scoreline_probabilities": prediction.cs_probs or {},
+        "provenance": prediction.provenance or {},
         "final_ev": float(prediction.final_ev or 0),
         "outcome": getattr(prediction, "outcome", None),
         "timestamp": str(prediction.timestamp),
@@ -78,6 +81,8 @@ class ModelBlock(BaseModel):
     over_25_prob: Optional[float] = None
     under_25_prob: Optional[float] = None
     btts_prob: Optional[float] = None
+    scoreline_probabilities: Optional[Dict[str, float]] = None
+    market_probabilities: Optional[Dict[str, float]] = None
     consensus_prob: Optional[float] = None
     confidence: Optional[float] = None
     bet_side: Optional[str] = None
@@ -301,6 +306,8 @@ async def get_match_prediction_detail(
             over_25_prob=prediction.over_25_prob,
             under_25_prob=prediction.under_25_prob,
             btts_prob=prediction.btts_prob,
+            scoreline_probabilities=prediction.cs_probs or {},
+            market_probabilities=(prediction.provenance or {}).get("market_probabilities"),
             consensus_prob=prediction.consensus_prob,
             confidence=prediction.confidence,
             bet_side=prediction.bet_side,
@@ -352,13 +359,21 @@ async def get_match_prediction_detail(
     if prediction:
         attestation_hash = _compute_attestation_hash(prediction)
 
-        if prediction.home_prob is not None and prediction.away_prob is not None:
+        probabilities = (prediction.home_prob, prediction.draw_prob, prediction.away_prob)
+        if all(value is not None for value in probabilities) and math.isclose(sum(probabilities), 1.0, abs_tol=1e-5):
             rules_passed.append("probabilities_normalized")
         else:
             rules_failed.append("missing_probabilities")
 
+        odds_free_prediction = (
+            (prediction.provenance or {}).get("source") == "odds_free_dixon_coles"
+            and bool(prediction.cs_probs)
+            and bool((prediction.provenance or {}).get("dataset_version"))
+        )
         if home_odds and away_odds:
             rules_passed.append("valid_market_odds")
+        elif odds_free_prediction:
+            rules_passed.append("market_odds_not_required")
         else:
             rules_failed.append("missing_market_odds")
 
@@ -366,6 +381,13 @@ async def get_match_prediction_detail(
         primary_req = markets_dict.get("1x2")
         if primary_req and primary_req.requirements_met:
             rules_passed.append("primary_market_requirements_met")
+        elif odds_free_prediction:
+            markets_dict["1x2"] = MarketRequirementItem(
+                market_key="1x2",
+                requirements_met=True,
+                reason="Probabilities derive from trusted historical results; bookmaker odds are optional.",
+            )
+            rules_passed.append("historical_score_model_present")
         else:
             fail_reason = primary_req.reason if primary_req else "1x2 market requirements failed"
             rules_failed.append(f"primary_market_requirements_failed: {fail_reason}")
@@ -374,7 +396,7 @@ async def get_match_prediction_detail(
 
         validation_block = ValidationBlock(
             attestation_hash=attestation_hash,
-            attested=True,
+            attested=False,
             tx_hash=None,
             block_height=None,
             timestamp=int(time.time()),
@@ -396,13 +418,17 @@ async def get_match_prediction_detail(
     provenance_block = ProvenanceBlock(
         match_id=match_id,
         sport=getattr(match, "sport", "football") or "football",
-        data_source=getattr(prediction, "source", None) or "native_ensemble",
+        data_source=(getattr(prediction, "provenance", None) or {}).get("source")
+        or getattr(prediction, "source", None) or "native_ensemble",
         timestamp=prediction.timestamp.isoformat() if (prediction and prediction.timestamp) else datetime.now(timezone.utc).isoformat(),
         data_quality={
             "quality_score": evidence_block.quality_score if evidence_block else None,
             "completeness": evidence_block.feature_completeness_pct if evidence_block else None,
+            "dataset_version": (prediction.provenance or {}).get("dataset_version") if prediction else None,
+            "feature_version": (prediction.provenance or {}).get("feature_version") if prediction else None,
+            "calibration_version": (prediction.provenance or {}).get("calibration_version") if prediction else None,
         },
-        model_version=APP_VERSION,
+        model_version=(prediction.provenance or {}).get("model_version") if prediction else None,
         environment=os.getenv("ENVIRONMENT", "production"),
         reason_if_null=None,
     )

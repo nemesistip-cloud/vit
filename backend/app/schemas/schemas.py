@@ -75,6 +75,7 @@ class PredictionResponse(BaseModel):
     ah_away_prob: Optional[float] = None
     ah_lines: Optional[List[Dict[str, Any]]] = None
     cs_probs: Optional[Dict[str, float]] = None
+    market_probabilities: Optional[Dict[str, float]] = None
     top_correct_score: Optional[str] = None
     top_cs_prob: Optional[float] = None
 
@@ -83,9 +84,9 @@ class PredictionResponse(BaseModel):
     alternative_bets: Optional[List[Dict[str, Any]]] = None
 
     consensus_prob: float
-    final_ev: float
+    final_ev: Optional[float]
     recommended_stake: float
-    edge: float
+    edge: Optional[float]
     confidence: float
     timestamp: datetime
 
@@ -109,6 +110,7 @@ class PredictionResponse(BaseModel):
     # prediction came from real data + real models, or whether any path
     # had to degrade. Every flag here corresponds to a logged WARNING.
     data_quality: Optional[Dict[str, Any]] = None
+    provenance: Optional[Dict[str, Any]] = None
 
     # v5.0.0 — calibration advisory note surfaced to the user
     calibration_note: Optional[str] = None

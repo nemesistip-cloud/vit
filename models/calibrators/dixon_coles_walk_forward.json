@@ -1,0 +1,23 @@
+{
+  "calibration_method": "platt",
+  "calibration_version": "915ee40d53d7d213eb378863b71023dc3a5963076d055bba80cda67826b5a008",
+  "calibrators": {
+    "away": {
+      "intercept": -2.0580153749965855,
+      "slope": 4.026381035154208
+    },
+    "draw": {
+      "intercept": -1.8781078064494436,
+      "slope": 2.815342935358621
+    },
+    "home": {
+      "intercept": -1.9253793480205106,
+      "slope": 3.783894051090222
+    }
+  },
+  "dataset_version": "7b8abdca8d39747d551c5d9d96427cecaf65a608941338e4d8e79539109724d0",
+  "feature_version": "match-results-xg-schedule-1.1.0",
+  "model_version": "vit-dixon-coles-1.0.0",
+  "training_cutoff": "2026-09-20T00:00:00+00:00",
+  "training_samples": 3470
+}

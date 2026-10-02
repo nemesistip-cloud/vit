@@ -67,6 +67,7 @@ class Match(Base):
     home_goals = Column(Integer, nullable=True)
     away_goals = Column(Integer, nullable=True)
     actual_outcome = Column(String, nullable=True)  # home/draw/away
+    statistics = Column(JSON, nullable=True)  # Provider-reported match stats; absent values remain null.
 
     # Market data
     opening_odds_home = Column(Float, nullable=True)

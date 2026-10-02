@@ -19,11 +19,19 @@ import httpx
 logger = logging.getLogger(__name__)
 
 SOURCE_NAME = "football-data-uk"
-SEASON_URLS = (
-    "https://football-data.co.uk/mmz4281/2627/E0.csv",
-    "https://www.football-data.co.uk/mmz4281/2526/E0.csv",
-    "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
-)
+
+
+def _season_urls() -> tuple[str, ...]:
+    now = datetime.now(timezone.utc)
+    current_season_start = now.year if now.month >= 7 else now.year - 1
+    first_season_start = current_season_start - 11
+    return tuple(
+        f"https://football-data.co.uk/mmz4281/{start % 100:02d}{(start + 1) % 100:02d}/E0.csv"
+        for start in range(first_season_start, current_season_start + 1)
+    )
+
+
+SEASON_URLS = _season_urls()
 PREMIER_LEAGUE_URLS = SEASON_URLS
 GITHUB_DATASET_URL = (
     "https://raw.githubusercontent.com/AnishKhetani/premier-league-data/"
@@ -58,6 +66,14 @@ def _float(value: str) -> float | None:
         return float(cleaned) if cleaned not in (None, "") else None
     except (TypeError, ValueError):
         return None
+
+
+def _first_price(row: dict[str, str], *keys: str) -> float | None:
+    for key in keys:
+        price = _float(row.get(key, ""))
+        if price is not None and price > 1.0:
+            return price
+    return None
 
 
 def _normalise_team(name: str) -> str:
@@ -105,8 +121,8 @@ def _row_to_event(row: dict[str, str], source_url: str) -> dict[str, Any] | None
         "away_yellow_cards": _number(row.get("AY", "")),
         "home_red_cards": _number(row.get("HR", "")),
         "away_red_cards": _number(row.get("AR", "")),
-        "home_xg": _float(row.get("HxG", "")) or _float(row.get("HxG", "")),
-        "away_xg": _float(row.get("AxG", "")) or _float(row.get("AxG", "")),
+        "home_xg": _float(row.get("HxG", "")),
+        "away_xg": _float(row.get("AxG", "")),
     }
     return {
         "external_id": None,
@@ -132,6 +148,16 @@ def _row_to_event(row: dict[str, str], source_url: str) -> dict[str, Any] | None
             "reliability": "public",
         },
         "statistics": stats,
+        "opening_odds": {
+            "home": _first_price(row, "AvgH", "B365H"),
+            "draw": _first_price(row, "AvgD", "B365D"),
+            "away": _first_price(row, "AvgA", "B365A"),
+        },
+        "closing_odds": {
+            "home": _first_price(row, "AvgCH", "B365CH", "PSCH"),
+            "draw": _first_price(row, "AvgCD", "B365CD", "PSCD"),
+            "away": _first_price(row, "AvgCA", "B365CA", "PSCA"),
+        },
     }
 
 

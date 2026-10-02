@@ -21,6 +21,7 @@ function ProvenanceBadge({ source }: { source?: string }) {
   const isLive = s.includes('live') || s.includes('provider') || s.includes('isports')
   const isFallback = s.includes('fallback') || s.includes('scie')
   const isSeed = s.includes('seed') || s.includes('demo')
+  const isStatistical = s.includes('dixon_coles') || s.includes('odds_free')
 
   return (
     <span className={cn(
@@ -28,9 +29,10 @@ function ProvenanceBadge({ source }: { source?: string }) {
       isLive ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
       isFallback ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' :
       isSeed ? 'bg-purple-500/15 text-purple-300 border-purple-500/30' :
+      isStatistical ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30' :
       'bg-vit-500/15 text-vit-300 border-vit-500/30'
     )}>
-      {isLive ? 'LIVE' : isFallback ? 'SCIE FALLBACK' : isSeed ? 'DEMO SEED' : 'ENSEMBLE'}
+      {isLive ? 'LIVE' : isFallback ? 'SCIE FALLBACK' : isSeed ? 'DEMO SEED' : isStatistical ? 'STATISTICAL' : 'ENSEMBLE'}
     </span>
   )
 }
@@ -238,6 +240,9 @@ export default function Predictions() {
             {data.map((pred: any, i: number) => {
               const predictionId = pred.id ?? pred.prediction_id ?? null
               const outcome = pred.outcome ?? (pred.was_correct === true ? 'won' : pred.was_correct === false ? 'lost' : 'pending')
+              const provenance = pred.provenance && typeof pred.provenance === 'object' ? pred.provenance : {}
+              const topScore = Object.entries(pred.cs_probs ?? {})
+                .sort((left, right) => Number(right[1]) - Number(left[1]))[0]
               return (
                 <motion.div key={predictionId ?? i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                   className="bg-surface-800/60 border border-white/8 rounded-xl p-5 hover:border-white/15 transition-colors">
@@ -256,10 +261,28 @@ export default function Predictions() {
                           <Target className="w-3.5 h-3.5" />{Math.round(pred.confidence * 100)}%
                         </span>
                       )}
-                      <ProvenanceBadge source={pred.provenance ?? pred.data_provenance?.data_source} />
+                      <ProvenanceBadge source={provenance.source ?? pred.data_provenance?.data_source} />
                       <OutcomeChip outcome={outcome} />
                     </div>
                   </div>
+
+                  {pred.home_prob != null && pred.draw_prob != null && pred.away_prob != null && (
+                    <div className="mt-3 pt-3 border-t border-white/6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-white/45" aria-label="Model probabilities">
+                      <span className="text-white/25 uppercase">1X2</span>
+                      <span>Home <strong className="text-white/75">{(pred.home_prob * 100).toFixed(1)}%</strong></span>
+                      <span>Draw <strong className="text-white/75">{(pred.draw_prob * 100).toFixed(1)}%</strong></span>
+                      <span>Away <strong className="text-white/75">{(pred.away_prob * 100).toFixed(1)}%</strong></span>
+                      {pred.over_25_prob != null && <span>Over 2.5 <strong className="text-white/75">{(pred.over_25_prob * 100).toFixed(1)}%</strong></span>}
+                      {pred.btts_prob != null && <span>BTTS <strong className="text-white/75">{(pred.btts_prob * 100).toFixed(1)}%</strong></span>}
+                      {topScore && <span>Top score <strong className="text-white/75">{topScore[0]} ({(Number(topScore[1]) * 100).toFixed(1)}%)</strong></span>}
+                    </div>
+                  )}
+                  {provenance.model_version && (
+                    <p className="mt-2 text-[11px] text-white/25">
+                      {provenance.model_version}
+                      {provenance.training_matches != null && ` · ${Number(provenance.training_matches).toLocaleString()} historical matches`}
+                    </p>
+                  )}
 
                   {pred.entry_odds != null && (
                     <div className="mt-3 pt-3 border-t border-white/6 flex gap-6 text-xs text-white/40">

@@ -849,6 +849,31 @@ async def sync_and_insert_historical(
                     existing.away_goals = ev.get("away_goals")
                     existing.status = "settled"
                     changed = True
+                incoming_statistics = ev.get("statistics")
+                if isinstance(incoming_statistics, dict) and any(
+                    value is not None for value in incoming_statistics.values()
+                ):
+                    merged_statistics = dict(existing.statistics or {})
+                    merged_statistics.update({
+                        key: value for key, value in incoming_statistics.items()
+                        if value is not None
+                    })
+                    if merged_statistics != (existing.statistics or {}):
+                        existing.statistics = merged_statistics
+                        changed = True
+                for price_key, column in (
+                    ("opening_odds", "opening_odds_"),
+                    ("closing_odds", "closing_odds_"),
+                ):
+                    prices = ev.get(price_key)
+                    if not isinstance(prices, dict):
+                        continue
+                    for side in ("home", "draw", "away"):
+                        price = prices.get(side)
+                        field = f"{column}{side}"
+                        if price is not None and getattr(existing, field) is None:
+                            setattr(existing, field, price)
+                            changed = True
                 if changed:
                     updated += 1
                 else:
@@ -864,6 +889,18 @@ async def sync_and_insert_historical(
                     home_goals=ev.get("home_goals"),
                     away_goals=ev.get("away_goals"),
                     actual_outcome=ev.get("actual_outcome"),
+                    statistics=(
+                        ev.get("statistics")
+                        if isinstance(ev.get("statistics"), dict)
+                        and any(value is not None for value in ev["statistics"].values())
+                        else None
+                    ),
+                    opening_odds_home=(ev.get("opening_odds") or {}).get("home"),
+                    opening_odds_draw=(ev.get("opening_odds") or {}).get("draw"),
+                    opening_odds_away=(ev.get("opening_odds") or {}).get("away"),
+                    closing_odds_home=(ev.get("closing_odds") or {}).get("home"),
+                    closing_odds_draw=(ev.get("closing_odds") or {}).get("draw"),
+                    closing_odds_away=(ev.get("closing_odds") or {}).get("away"),
                     source=ev.get("source") or "sportsdb",
                     fingerprint=fingerprint,
                 )
