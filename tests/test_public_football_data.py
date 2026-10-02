@@ -19,6 +19,9 @@ def test_public_csv_row_preserves_score_stats_and_provenance():
             "AST": "1",
             "HC": "8",
             "AC": "2",
+            "AvgCH": "1.42",
+            "AvgCD": "4.70",
+            "AvgCA": "7.10",
         },
         "https://www.football-data.co.uk/mmz4281/2526/E0.csv",
     )
@@ -26,6 +29,7 @@ def test_public_csv_row_preserves_score_stats_and_provenance():
     assert event["home_team"] == "Tottenham Hotspur FC"
     assert event["actual_outcome"] == "home"
     assert event["statistics"]["home_shots_on_target"] == 7
+    assert event["closing_odds"] == {"home": 1.42, "draw": 4.7, "away": 7.1}
     assert event["source"] == "football-data-uk"
     assert event["source_url"].endswith("2526/E0.csv")
 

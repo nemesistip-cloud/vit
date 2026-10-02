@@ -44,6 +44,26 @@ async def test_predict_returns_probabilities():
 
 
 @pytest.mark.asyncio
+async def test_football_prediction_works_without_market_odds():
+    payload = _match_payload()
+    payload["market_odds"] = {}
+    async with _client() as client:
+        response = await client.post("/api/predict", json=payload)
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["data_source"] == "odds_free_dixon_coles"
+    assert data["entry_odds"] is None
+    assert data["bet_side"] is None
+    assert data["final_ev"] is None
+    assert data["edge"] is None
+    assert data["provenance"]["model_version"] == "vit-dixon-coles-1.0.0"
+    assert data["provenance"]["training_matches"] >= 760
+    assert len(data["provenance"]["dataset_version"]) == 64
+    assert abs(sum(data["cs_probs"].values()) - 1.0) < 1e-8
+
+
+@pytest.mark.asyncio
 async def test_predict_probabilities_sum_to_one():
     async with _client() as client:
         resp = await client.post("/api/predict", json=_match_payload())
