@@ -42,7 +42,11 @@ function usePredictions(outcome: OutcomeFilter) {
     queryFn: async ({ signal }) => {
       const params = outcome !== 'all' ? `?outcome=${outcome}` : ''
       const r = await fetch(`${ENDPOINTS.gateway}/api/predict/history${params}`, { signal, headers: authHeaders() })
-      if (!r.ok) return []
+      if (!r.ok) {
+        const payload = await r.json().catch(() => ({}))
+        const message = payload.detail ?? payload.error?.message ?? payload.message
+        throw new Error(typeof message === 'string' ? message : `Predictions request failed (${r.status})`)
+      }
       const d = await r.json()
       return Array.isArray(d) ? d : d.predictions ?? d.items ?? []
     },
@@ -140,7 +144,7 @@ export default function Predictions() {
   useEffect(() => { if (!token) navigate('/login', { replace: true }) }, [token, navigate])
 
   const [filter, setFilter] = useState<OutcomeFilter>('all')
-  const { data, isLoading }  = usePredictions(filter)
+  const { data, isLoading, isError, refetch } = usePredictions(filter)
   const { data: accuracy }   = useAccuracy()
 
   if (!token) return <div className="pt-16 min-h-screen flex items-center justify-center"><Spinner className="w-8 h-8 text-vit-400" /></div>
@@ -213,6 +217,13 @@ export default function Predictions() {
         {/* Prediction list */}
         {isLoading ? (
           <div className="flex items-center justify-center py-24"><Spinner className="w-8 h-8 text-vit-400" /></div>
+        ) : isError ? (
+          <div role="alert" className="text-center py-24">
+            <AlertCircle className="w-10 h-10 text-amber-400 mx-auto mb-4" />
+            <p className="text-white/70 font-medium">Predictions could not be loaded</p>
+            <p className="text-white/40 text-sm mt-1">Your history is still available. Try again in a moment.</p>
+            <button type="button" onClick={() => refetch()} className="mt-4 px-4 py-2 rounded-lg border border-white/10 text-sm text-white/70 hover:bg-white/5">Retry</button>
+          </div>
         ) : !data || data.length === 0 ? (
           <div className="text-center py-24">
             <Brain className="w-14 h-14 text-white/10 mx-auto mb-4" />

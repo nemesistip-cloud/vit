@@ -31,6 +31,30 @@ test('Match detail page renders the actual fixture heading and title', async ({ 
   await expect(page.getByText('Premier League')).toBeVisible();
 });
 
+test('prediction history distinguishes an API failure from an empty history', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'playwright-test-placeholder');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 7, username: 'test-user', role: 'user' }));
+  });
+
+  await page.route('**/api/predict/history**', route => route.fulfill({
+    status: 503,
+    contentType: 'application/json',
+    body: JSON.stringify({ detail: 'temporarily unavailable' }),
+  }));
+  await page.route('**/api/predict/accuracy', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ total: 0, win_rate: 0, current_streak: 0 }),
+  }));
+
+  await page.goto('/predictions');
+
+  await expect(page.getByRole('alert')).toContainText('Predictions could not be loaded');
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+  await expect(page.getByText('No predictions yet')).toHaveCount(0);
+});
+
 test('Matches page renders its real tabs, summary count, and search', async ({ page }) => {
   await page.goto('/matches');
 
