@@ -58,6 +58,21 @@ async def test_lifespan_starts_when_signal_handlers_are_unavailable(monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_lifespan_bootstraps_admin_on_startup(monkeypatch):
+    import main as main_module
+
+    admin_bootstrap_called = asyncio.Event()
+
+    async def fake_bootstrap():
+        admin_bootstrap_called.set()
+
+    monkeypatch.setattr(main_module, "bootstrap_default_admin", fake_bootstrap)
+
+    async with main_module.lifespan(main_module.app):
+        await asyncio.wait_for(admin_bootstrap_called.wait(), timeout=2)
+
+
+@pytest.mark.asyncio
 async def test_lifespan_cancels_background_boot_and_watchdog(monkeypatch):
     import app.db.database as database_module
     import main as main_module

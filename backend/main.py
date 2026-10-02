@@ -1,7 +1,9 @@
 import os
+import sys
 import time
 import logging
 import asyncio
+from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Request
@@ -33,6 +35,21 @@ from app.modules.platform.search_routes import router as platform_search_router
 
 validate_runtime_security()
 
+async def bootstrap_default_admin() -> None:
+    """Ensure the configured env credentials are present in the database."""
+    try:
+        repo_root = Path(__file__).resolve().parent.parent
+        if str(repo_root) not in sys.path:
+            sys.path.insert(0, str(repo_root))
+        from scripts.ensure_admin import main as ensure_admin_main
+        await ensure_admin_main()
+    except Exception as _bootstrap_exc:
+        logging.getLogger(__name__).warning(
+            "[main] admin bootstrap failed: %s",
+            _bootstrap_exc,
+            exc_info=True,
+        )
+
 # --- VIT Runtime Kernel ---
 # Wrapped in try/except: even a total import-chain failure must not cause
 # nonZeroExit(1) before uvicorn binds, which would make /ping unreachable.
@@ -58,6 +75,16 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).warning(
             "[lifespan] database schema initialization failed: %s",
             _schema_exc,
+            exc_info=True,
+        )
+
+    try:
+        await bootstrap_default_admin()
+        logging.getLogger(__name__).info("[lifespan] default admin bootstrap complete")
+    except Exception as _bootstrap_exc:
+        logging.getLogger(__name__).warning(
+            "[lifespan] default admin bootstrap raised unexpectedly: %s",
+            _bootstrap_exc,
             exc_info=True,
         )
 
