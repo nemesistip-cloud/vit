@@ -4,7 +4,10 @@ from decimal import Decimal
 
 from app.api.routes.admin import _safe_config_value, list_matches, list_predictions, router, api_key_usage_stats
 from app.api.routes.admin_ops import get_mission_control
+from app.api.routes import admin_finance
+from app.modules.blockchain import routes as blockchain_routes
 from app.db.models import Match, Prediction, User
+from app.modules.blockchain.models import MatchSettlement
 from app.modules.developer.models import APIKey, APIUsageLog
 from app.modules.wallet.admin_routes import platform_revenue
 from app.modules.wallet.models import Wallet, WalletTransaction
@@ -187,3 +190,101 @@ async def test_admin_api_key_usage_stats_aggregates_usage_logs(db_session):
     assert result["days"] == 7
     assert result["top_consumers"][0]["key_id"] == api_key.id
     assert result["top_consumers"][0]["errors_5xx"] == 1
+
+
+@pytest.mark.asyncio
+async def test_finance_admin_metrics_use_chain_and_wallet_ledger(db_session, monkeypatch):
+    user = User(email="finance-admin@example.com", username="finance_admin", hashed_password="hash", role="super_admin")
+    db_session.add(user)
+    await db_session.flush()
+
+    wallet = Wallet(
+        id="wallet-finance",
+        user_id=user.id,
+        usd_balance=Decimal("120.50"),
+        usdt_balance=Decimal("79.50"),
+        vitcoin_balance=Decimal("25"),
+        staked_vitcoin_balance=Decimal("5"),
+    )
+    db_session.add(wallet)
+    db_session.add(WalletTransaction(
+        id="tx-finance-fee",
+        user_id=user.id,
+        wallet_id=wallet.id,
+        type="fee",
+        currency="USD",
+        amount=Decimal("12.75"),
+        direction="credit",
+        status="confirmed",
+        reference="ref-finance-fee",
+    ))
+    db_session.add(MatchSettlement(
+        id="settlement-finance",
+        match_id="finance-match",
+        consensus_id="finance-consensus",
+        oracle_result="home",
+        burn_amount=Decimal("3.25"),
+        settled_at=datetime.now().replace(tzinfo=None),
+    ))
+    await db_session.commit()
+
+    class FakeChainClient:
+        async def status(self):
+            return {"block_height": 4321, "connected_peers": 4}
+
+        async def metrics(self):
+            return {"tps": 8.5, "total_transactions": 900, "active_validators": 3}
+
+        async def supply(self):
+            return {
+                "total_supply": 1000,
+                "circulating_supply": 800,
+                "burned_supply": 20,
+                "staked_supply": 200,
+            }
+
+    monkeypatch.setattr(admin_finance, "VitChainClient", FakeChainClient)
+
+    vitals = await admin_finance.get_blockchain_vitals(db=db_session, admin=user)
+    treasury = await admin_finance.get_treasury_summary(db=db_session, admin=user)
+
+    assert vitals["block_height"] == 4321
+    assert vitals["tps"] == 8.5
+    assert vitals["mempool_size"] is None
+    assert treasury["total_reserves_usd"] == 200
+    assert treasury["circulating_supply"] == 800
+    assert treasury["burned_tokens"] == 20
+    assert treasury["monthly_revenue_by_currency"]["USD"] == 12.75
+    assert treasury["staked_ratio"] == "20.00%"
+    assert treasury["burn_rate_24h"] == 3.25
+
+
+@pytest.mark.asyncio
+async def test_public_blockchain_metrics_use_authoritative_chain_values(monkeypatch):
+    class FakeChainClient:
+        async def status(self):
+            return {"block_height": 4321}
+
+        async def metrics(self):
+            return {"tps": 8.5, "total_transactions": 900, "active_validators": 3}
+
+        async def supply(self):
+            return {
+                "total_supply": "1000",
+                "circulating_supply": "800",
+                "burned_supply": "20",
+                "staked_supply": "200",
+            }
+
+    monkeypatch.setattr(blockchain_routes, "resolve_chain_mode", lambda: "external")
+    monkeypatch.setattr(blockchain_routes, "VitChainClient", FakeChainClient)
+
+    result = await blockchain_routes.network_blockchain_metrics(db=None)
+
+    assert result["source"] == "vit-chain"
+    assert result["block_height"] == 4321
+    assert result["total_transactions"] == 900
+    assert result["circulating_supply"] == "800"
+    assert result["tps"] == 8.5
+    assert result["block_time"] is None
+    assert result["finality"] is None

@@ -33,6 +33,8 @@ from app.modules.wallet.models import Currency, TransactionType, Wallet, WalletT
 from app.modules.wallet.pricing import VITCoinPricingEngine
 from app.modules.wallet.services import WalletService
 from app.db.models import Match
+from app.config import resolve_chain_mode
+from app.services.vit_chain_client import VitChainClient, VitChainClientError
 from datetime import datetime, timezone
 
 MIN_STAKE_VITCOIN = Decimal("1")
@@ -1222,25 +1224,47 @@ async def list_pending_appeals(
 
 @router.get("/metrics")
 async def network_blockchain_metrics(db: AsyncSession = Depends(get_db)):
-    """Global blockchain and tokenomics metrics."""
+    """Return chain-backed metrics, or wallet-ledger values when running locally."""
     from app.modules.blockchain.models import ValidatorProfile
     from sqlalchemy import func, select
 
+    if resolve_chain_mode() == "external":
+        chain = VitChainClient()
+        try:
+            status, metrics, supply = await chain.status(), await chain.metrics(), await chain.supply()
+        except VitChainClientError as exc:
+            raise HTTPException(status_code=503, detail="Standalone blockchain metrics unavailable") from exc
+
+        return {
+            "source": "vit-chain",
+            "active_validators": metrics["active_validators"],
+            "total_staked": float(supply.get("staked_supply") or 0),
+            "circulating_supply": supply.get("circulating_supply"),
+            "total_supply": supply.get("total_supply"),
+            "burned_tokens": supply.get("burned_supply"),
+            "tps": metrics["tps"],
+            "total_transactions": metrics["total_transactions"],
+            "block_height": status["block_height"],
+            "block_time": None,
+            "finality": None,
+        }
+
     val_count = (await db.execute(select(func.count(ValidatorProfile.id)).where(ValidatorProfile.status == "active"))).scalar() or 0
     total_staked = (await db.execute(select(func.sum(ValidatorProfile.stake_amount)))).scalar() or 0
-
-    # Supply metrics (Simulated for institutional completeness)
-    circulating_supply = 85000000.0 # 85M VIT
-    total_supply = 100000000.0 # 100M VIT
-    burned = 12450.0
+    wallet_supply = (await db.execute(
+        select(func.coalesce(func.sum(Wallet.vitcoin_balance), 0))
+    )).scalar_one()
 
     return {
+        "source": "wallet-ledger",
         "active_validators": val_count,
         "total_staked": float(total_staked),
-        "circulating_supply": circulating_supply,
-        "total_supply": total_supply,
-        "burned_tokens": burned,
-        "tps": 14.2,
-        "block_time": "2.1s",
-        "finality": "instant",
+        "circulating_supply": float(wallet_supply or 0),
+        "total_supply": None,
+        "burned_tokens": None,
+        "tps": None,
+        "total_transactions": None,
+        "block_height": None,
+        "block_time": None,
+        "finality": None,
     }
