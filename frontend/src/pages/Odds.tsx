@@ -32,10 +32,15 @@ interface OddsEntry {
   bookmakers: BookmakerOdds[]
 }
 
+interface OddsResponse {
+  entries: OddsEntry[]
+  dataStatus: string | null
+}
+
 // ── Hook ───────────────────────────────────────────────────────────────────────
 
 function useOdds(sport: string, search: string) {
-  return useQuery<OddsEntry[]>({
+  return useQuery<OddsResponse>({
     queryKey: ['odds', sport],
     queryFn: async ({ signal }) => {
       const queryParams = new URLSearchParams()
@@ -43,12 +48,17 @@ function useOdds(sport: string, search: string) {
         queryParams.set('sport', sport)
       }
       const qs = queryParams.toString() ? `?${queryParams.toString()}` : ''
-      try {
-        const r = await fetch(`${ENDPOINTS.gateway}/api/odds/compare${qs}`, { signal, headers: authHeaders() })
-        if (!r.ok) return []
-        const d = await r.json()
-        const rawList = Array.isArray(d) ? d : d.odds ?? d.events ?? d.matches ?? d.items ?? []
-        return rawList.map((item: any) => ({
+      const r = await fetch(`${ENDPOINTS.gateway}/api/odds/compare${qs}`, { signal, headers: authHeaders() })
+      if (!r.ok) {
+        const payload = await r.json().catch(() => ({}))
+        const message = payload.detail ?? payload.error?.message ?? payload.message
+        throw new Error(typeof message === 'string' ? message : `Odds request failed (${r.status})`)
+      }
+      const d = await r.json()
+      const rawList = Array.isArray(d) ? d : d.odds ?? d.events ?? d.matches ?? d.items ?? []
+      return {
+        dataStatus: Array.isArray(d) ? null : d.data_status ?? null,
+        entries: rawList.map((item: any) => ({
           match_id: item.match_id ?? item.id ?? `${item.home_team}::${item.away_team}`,
           home_team: item.home_team ?? '',
           away_team: item.away_team ?? '',
@@ -65,9 +75,7 @@ function useOdds(sport: string, search: string) {
                 draw: val.draw ?? null,
                 away: val.away ?? null,
               })),
-        }))
-      } catch (e) {
-        return []
+        })),
       }
     },
     staleTime: 120_000,
@@ -226,7 +234,16 @@ const SPORTS = ['all', 'football', 'basketball', 'tennis', 'cricket']
 export default function Odds() {
   const [sport, setSport]   = useState('all')
   const [search, setSearch] = useState('')
-  const { data = [], isLoading, refetch, isFetching, dataUpdatedAt } = useOdds(sport, search)
+  const { data: oddsResponse, isLoading, isError, refetch, isFetching, dataUpdatedAt } = useOdds(sport, search)
+  const data = oddsResponse?.entries ?? []
+  const sourceStatus = oddsResponse?.dataStatus
+  const sourceLabel = sourceStatus === 'ok'
+    ? 'Live provider'
+    : sourceStatus === 'database_fallback'
+      ? 'Database fallback'
+      : sourceStatus === 'fallback'
+        ? 'Provider fallback'
+        : sourceStatus
 
   const filtered = search
     ? data.filter(e =>
@@ -252,6 +269,7 @@ export default function Odds() {
               <p className="text-white/45 text-sm">Best available odds across bookmakers, with AI picks and EV scores.</p>
             </div>
             <div className="flex items-center gap-2">
+              {sourceLabel && <span className="rounded border border-white/10 px-2 py-1 text-[10px] text-white/45">{sourceLabel}</span>}
               {dataUpdatedAt > 0 && (
                 <span className="text-[11px] text-white/30">Updated {timeAgo(new Date(dataUpdatedAt).toISOString())}</span>
               )}
@@ -300,6 +318,13 @@ export default function Odds() {
         <div className="bg-surface-800/40 border border-white/8 rounded-2xl overflow-hidden">
           {isLoading ? (
             <div className="flex justify-center py-20"><Spinner className="w-8 h-8" /></div>
+          ) : isError ? (
+            <div role="alert" className="text-center py-20 text-white/50">
+              <AlertCircle className="w-10 h-10 mx-auto mb-3 text-amber-400" />
+              <p className="text-sm">Odds data could not be loaded.</p>
+              <p className="mt-1 text-xs text-white/35">Try again in a moment.</p>
+              <button type="button" onClick={() => refetch()} className="mt-4 rounded-lg border border-white/10 px-3 py-2 text-sm text-white/70 hover:bg-white/5">Retry</button>
+            </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-20 text-white/40">
               <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />

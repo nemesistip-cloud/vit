@@ -88,6 +88,63 @@ test('prediction accuracy labels its settled denominator', async ({ page }) => {
   await expect(page.getByText('6 / 7', { exact: true })).toBeVisible();
 });
 
+test('odds page distinguishes an API failure from an empty market', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'playwright-test-placeholder');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 7, username: 'test-user', role: 'user' }));
+  });
+
+  await page.route('**/api/genesis/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ verified: true }),
+  }));
+  await page.route('**/api/odds/compare**', route => route.fulfill({
+    status: 503,
+    contentType: 'application/json',
+    body: JSON.stringify({ detail: 'temporarily unavailable' }),
+  }));
+
+  await page.goto('/odds');
+
+  await expect(page.getByRole('alert')).toContainText('Odds data could not be loaded');
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+  await expect(page.getByText('No odds data available right now.')).toHaveCount(0);
+});
+
+test('odds page labels database fallback data', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'playwright-test-placeholder');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 7, username: 'test-user', role: 'user' }));
+  });
+
+  await page.route('**/api/genesis/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ verified: true }),
+  }));
+  await page.route('**/api/odds/compare**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      data_status: 'database_fallback',
+      events: [{
+        match_id: 12,
+        home_team: 'Fallback Home',
+        away_team: 'Fallback Away',
+        league: 'Fallback League',
+        kickoff_time: '2026-10-01T12:00:00Z',
+        bookmakers: [{ bookmaker: 'database', home: 2.1, draw: 3.2, away: 3.4 }],
+      }],
+    }),
+  }));
+
+  await page.goto('/odds');
+
+  await expect(page.getByText('Database fallback', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Fallback Home.*Fallback Away/i)).toBeVisible();
+});
+
 test('Matches page renders its real tabs, summary count, and search', async ({ page }) => {
   await page.goto('/matches');
 
