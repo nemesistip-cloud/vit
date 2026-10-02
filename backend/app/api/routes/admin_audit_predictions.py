@@ -37,7 +37,13 @@ async def audit_all_predictions(
     matches = result.scalars().all()
 
     if not matches:
-        return {"status": "ok", "message": "No upcoming matches found for audit", "results": []}
+        return {
+            "status": "ok",
+            "timestamp": datetime.now(timezone.utc),
+            "total_audited": 0,
+            "message": "No upcoming matches found for audit",
+            "results": [],
+        }
 
     audit_results = []
 

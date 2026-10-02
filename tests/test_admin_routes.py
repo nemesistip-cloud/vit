@@ -313,3 +313,13 @@ async def test_prediction_audit_is_read_only_and_never_invents_odds(db_session):
     assert report["prediction_status"] == "missing"
     assert report["markets"]["1x2"] is False
     assert "did not generate one" in report["errors"][0]
+
+
+@pytest.mark.asyncio
+async def test_prediction_audit_empty_result_has_stable_response_shape(db_session):
+    result = await audit_all_predictions(sport="football", limit=50, db=db_session, admin=object())
+
+    assert result["status"] == "ok"
+    assert result["total_audited"] == 0
+    assert result["timestamp"]
+    assert result["results"] == []
