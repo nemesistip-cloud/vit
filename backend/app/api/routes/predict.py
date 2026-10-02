@@ -1077,6 +1077,7 @@ async def prediction_accuracy(
 
     return {
         "total": total,
+        "settled": settled,
         "win_rate": round(win_rate, 3),
         "current_streak": streak,
         "best_league": best_league.league if best_league else None,

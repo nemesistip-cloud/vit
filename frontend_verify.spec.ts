@@ -60,6 +60,34 @@ test('prediction history distinguishes an API failure from an empty history', as
   await expect(page.getByText('No predictions yet')).toHaveCount(0);
 });
 
+test('prediction accuracy labels its settled denominator', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'playwright-test-placeholder');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 7, username: 'test-user', role: 'user' }));
+  });
+
+  await page.route('**/api/genesis/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ verified: true }),
+  }));
+  await page.route('**/api/predict/history**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([]),
+  }));
+  await page.route('**/api/predict/accuracy', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ total: 7, settled: 6, win_rate: 0.833, current_streak: 3, best_league: 'League B' }),
+  }));
+
+  await page.goto('/predictions');
+
+  await expect(page.getByText('Settled / Total')).toBeVisible();
+  await expect(page.getByText('6 / 7', { exact: true })).toBeVisible();
+});
+
 test('Matches page renders its real tabs, summary count, and search', async ({ page }) => {
   await page.goto('/matches');
 

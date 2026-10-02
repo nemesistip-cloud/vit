@@ -58,6 +58,7 @@ async def test_prediction_history_and_accuracy_endpoints(client, auth_headers):
     assert accuracy_resp.status_code == 200, accuracy_resp.text
     accuracy_data = accuracy_resp.json()
     assert accuracy_data["total"] >= 1
+    assert accuracy_data["settled"] == 0
     assert accuracy_data["win_rate"] == 0.0
     assert accuracy_data["current_streak"] == 0
 
@@ -106,6 +107,7 @@ async def test_prediction_accuracy_excludes_pending_and_selects_best_league(db_s
     result = await prediction_accuracy(db=db_session, current_user=user)
 
     assert result["total"] == 7
+    assert result["settled"] == 6
     assert result["win_rate"] == 0.833
     assert result["current_streak"] == 3
     assert result["best_league"] == "League B"
