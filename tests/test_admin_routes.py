@@ -5,6 +5,7 @@ from decimal import Decimal
 from app.api.routes.admin import _safe_config_value, list_matches, list_predictions, router, api_key_usage_stats
 from app.api.routes.admin_ops import get_mission_control
 from app.api.routes import admin_finance
+from app.api.routes.admin_audit_predictions import audit_all_predictions
 from app.modules.blockchain import routes as blockchain_routes
 from app.db.models import Match, Prediction, User
 from app.modules.blockchain.models import MatchSettlement
@@ -288,3 +289,27 @@ async def test_public_blockchain_metrics_use_authoritative_chain_values(monkeypa
     assert result["tps"] == 8.5
     assert result["block_time"] is None
     assert result["finality"] is None
+
+
+@pytest.mark.asyncio
+async def test_prediction_audit_is_read_only_and_never_invents_odds(db_session):
+    match = Match(
+        external_id="prediction-audit-readonly",
+        home_team="Audit Home",
+        away_team="Audit Away",
+        league="audit-league",
+        sport="football",
+        kickoff_time=datetime.utcnow() + timedelta(days=1),
+        status="scheduled",
+        source="footballdata",
+    )
+    db_session.add(match)
+    await db_session.commit()
+
+    result = await audit_all_predictions(sport="football", limit=50, db=db_session, admin=object())
+
+    assert result["total_audited"] == 1
+    report = result["results"][0]
+    assert report["prediction_status"] == "missing"
+    assert report["markets"]["1x2"] is False
+    assert "did not generate one" in report["errors"][0]

@@ -1,16 +1,13 @@
-import asyncio
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func
+from datetime import datetime, timezone
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.db.models import Match, Prediction
 from app.auth.dependencies import get_current_admin
-from app.core.dependencies import get_orchestrator
-from app.schemas.schemas import MatchRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -23,8 +20,7 @@ async def audit_all_predictions(
     admin = Depends(get_current_admin),
 ):
     """
-    Diagnostic tool to audit predictions across all sports.
-    Iterates through upcoming matches and attempts to generate/verify predictions.
+    Read-only audit of persisted predictions across upcoming matches.
     """
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -43,7 +39,6 @@ async def audit_all_predictions(
     if not matches:
         return {"status": "ok", "message": "No upcoming matches found for audit", "results": []}
 
-    orchestrator = get_orchestrator()
     audit_results = []
 
     for match in matches:
@@ -69,50 +64,20 @@ async def audit_all_predictions(
         prediction = pred_result.scalars().first()
 
         if prediction:
-            match_report["prediction_status"] = "present"
-            match_report["markets"]["1x2"] = all([prediction.home_prob, prediction.draw_prob, prediction.away_prob])
+            state = str(prediction.status or "unknown").lower()
+            match_report["prediction_status"] = "present" if state == "ready" else state
+            match_report["markets"]["1x2"] = all(
+                value is not None
+                for value in (prediction.home_prob, prediction.draw_prob, prediction.away_prob)
+            )
             match_report["markets"]["over_under"] = prediction.over_25_prob is not None
             match_report["markets"]["btts"] = prediction.btts_prob is not None
             match_report["markets"]["asian_handicap"] = prediction.ah_line is not None
             match_report["markets"]["correct_score"] = prediction.cs_probs is not None
+            if prediction.error_message:
+                match_report["errors"].append(prediction.error_message)
         else:
-            # Try to trigger a prediction if missing (dry run via orchestrator)
-            if orchestrator:
-                try:
-                    # Mock features for diagnostic
-                    features = {
-                        "home_team": match.home_team,
-                        "away_team": match.away_team,
-                        "league": match.league,
-                        "sport": match.sport,
-                        "market_odds": {
-                            "home": match.opening_odds_home or 2.0,
-                            "draw": match.opening_odds_draw or 3.0,
-                            "away": match.opening_odds_away or 3.5
-                        }
-                    }
-
-                    # For football, use the full orchestrator
-                    if match.sport == "football":
-                        # We don't want to save to DB, just test the engine
-                        res = orchestrator.predict_ensemble(features)
-                        if res and "predictions" in res:
-                            p = res["predictions"]
-                            match_report["prediction_status"] = "test_success"
-                            match_report["markets"]["1x2"] = True
-                            match_report["markets"]["over_under"] = p.get("over_25_prob") is not None
-                            match_report["markets"]["btts"] = p.get("btts_prob") is not None
-                            match_report["markets"]["asian_handicap"] = p.get("ah_line") is not None
-                            match_report["markets"]["correct_score"] = p.get("cs_probs") is not None
-                    else:
-                        match_report["prediction_status"] = "placeholder_only"
-                        match_report["errors"].append(f"Sport '{match.sport}' lacks non-placeholder implementation")
-
-                except Exception as e:
-                    match_report["prediction_status"] = "test_failed"
-                    match_report["errors"].append(str(e))
-            else:
-                match_report["prediction_status"] = "orchestrator_unavailable"
+            match_report["errors"].append("No persisted prediction is available; this audit did not generate one.")
 
         audit_results.append(match_report)
 

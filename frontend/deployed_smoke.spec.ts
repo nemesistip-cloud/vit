@@ -67,4 +67,37 @@ test.describe('authenticated deployed smoke', () => {
     expect(identity.status).toBe(200)
     expect(['admin', 'super_admin']).toContain(identity.role)
   })
+
+  test('admin read tabs load their production data without server errors', async ({ page }) => {
+    await page.goto('/login')
+    await page.locator('input[type="text"]').first().fill(smokeEmail!)
+    await page.locator('input[type="password"]').fill(smokePassword!)
+    await page.locator('form').getByRole('button', { name: 'Sign In' }).click()
+    await page.waitForURL(url => !url.pathname.endsWith('/login'))
+    await page.goto('/admin')
+    await expect(page.getByRole('heading', { name: 'Administration' })).toBeVisible()
+
+    const tabs = [
+      { label: 'Users', path: '/api/admin/users' },
+      { label: 'Wallet', path: '/api/admin/wallet/transactions' },
+      { label: 'KYC', path: '/api/kyc/admin/queue' },
+      { label: 'Matches', path: '/api/admin/matches' },
+      { label: 'Validators', path: '/api/admin/validators' },
+      { label: 'Models', path: '/api/admin/models' },
+      { label: 'API Keys', path: '/api/admin/api-keys' },
+      { label: 'Secrets', path: '/api/admin/secrets' },
+      { label: 'Marketplace', path: '/api/admin/marketplace/listings' },
+      { label: 'Training', path: '/api/admin/training-jobs' },
+      { label: 'Config', path: '/api/admin/config' },
+      { label: 'Audit', path: '/api/admin/audit-log' },
+      { label: 'Controls', path: '/api/admin/reliability' },
+    ]
+
+    for (const tab of tabs) {
+      const responsePromise = page.waitForResponse(response => response.url().includes(tab.path))
+      await page.getByRole('button', { name: tab.label, exact: true }).click()
+      const response = await responsePromise
+      expect(response.ok(), `${tab.label} read endpoint returned ${response.status()}`).toBe(true)
+    }
+  })
 })
