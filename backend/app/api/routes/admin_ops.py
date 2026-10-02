@@ -54,7 +54,7 @@ async def get_mission_control(
     # Predictions today
     predictions_today = (await db.execute(
         select(func.count(Prediction.id)).where(
-            Prediction.created_at >= since_today
+            Prediction.timestamp >= since_today
         )
     )).scalar() or 0
 

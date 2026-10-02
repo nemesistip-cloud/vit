@@ -17,7 +17,7 @@ import psutil
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, or_, desc, text
+from sqlalchemy import Integer, case, cast, select, func, or_, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.admin import require_admin, require_super_admin
@@ -384,7 +384,7 @@ async def list_predictions(
     total_res = await db.execute(select(func.count()).select_from(q.subquery()))
     total = total_res.scalar_one()
 
-    q = q.order_by(desc(Prediction.created_at)).offset((page - 1) * limit).limit(limit)
+    q = q.order_by(desc(Prediction.timestamp)).offset((page - 1) * limit).limit(limit)
     result = await db.execute(q)
     preds = result.scalars().all()
 
@@ -394,7 +394,7 @@ async def list_predictions(
             "market": getattr(p, "market", None), "selection": getattr(p, "selection", None),
             "was_correct": getattr(p, "was_correct", None),
             "clv": getattr(p, "clv", None),
-            "created_at": p.created_at.isoformat() if hasattr(p, "created_at") and p.created_at else None,
+            "created_at": p.timestamp.isoformat() if hasattr(p, "timestamp") and p.timestamp else None,
         }
 
     return {"total": total, "page": page, "limit": limit, "predictions": [fmt(p) for p in preds]}
@@ -1644,9 +1644,7 @@ async def api_key_usage_stats(
             APIKey.name,
             APIKey.plan,
             func.count(APIUsageLog.id).label("total_calls"),
-            func.sum(
-                func.cast(func.case((APIUsageLog.status_code >= 500, 1), else_=0), Integer)
-            ).label("errors_5xx"),
+            func.sum(cast(case((APIUsageLog.status_code >= 500, 1), else_=0), Integer)).label("errors_5xx"),
             func.avg(APIUsageLog.latency_ms).label("avg_latency_ms"),
         ).join(APIUsageLog, APIKey.id == APIUsageLog.api_key_id, isouter=True)
         .where(APIUsageLog.called_at >= since)

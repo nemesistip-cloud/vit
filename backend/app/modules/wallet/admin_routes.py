@@ -269,7 +269,7 @@ async def platform_revenue(
 
     total_res = await db.execute(
         select(WalletTransaction.currency, func.sum(WalletTransaction.amount))
-        .where(WalletTransaction.transaction_type.in_(["fee", "platform_fee", "subscription"]))
+        .where(WalletTransaction.type.in_(["fee", "platform_fee", "subscription"]))
         .group_by(WalletTransaction.currency)
     )
     by_currency = {str(row[0].value if hasattr(row[0], "value") else row[0]): float(row[1] or 0)
@@ -278,7 +278,7 @@ async def platform_revenue(
     trend_res = await db.execute(
         select(func.sum(WalletTransaction.amount))
         .where(
-            WalletTransaction.transaction_type.in_(["fee", "platform_fee", "subscription"]),
+            WalletTransaction.type.in_(["fee", "platform_fee", "subscription"]),
             WalletTransaction.created_at >= thirty_days_ago,
         )
     )
