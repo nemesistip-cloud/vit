@@ -55,6 +55,8 @@ services:
           sync: false
         - key: ADMIN_PASSWORD
           sync: false
+        - key: RENDER_API_KEY
+          sync: false
         # ── Service integration URLs ─────────────────────────────
         - key: VIT_AI_URL
           value: https://vit-ai.onrender.com
