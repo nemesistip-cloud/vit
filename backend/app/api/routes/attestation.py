@@ -44,6 +44,11 @@ class AttestationResponse(BaseModel):
 
 
 def _prediction_payload(prediction: Prediction) -> dict:
+    outcome = (
+        "won" if prediction.was_correct is True
+        else "lost" if prediction.was_correct is False
+        else "pending"
+    )
     return {
         "id": prediction.id,
         "match_id": prediction.match_id,
@@ -53,13 +58,18 @@ def _prediction_payload(prediction: Prediction) -> dict:
         "draw_prob": float(prediction.draw_prob or 0),
         "away_prob": float(prediction.away_prob or 0),
         "final_ev": float(prediction.final_ev or 0),
-        "outcome": prediction.outcome,
+        "outcome": outcome,
         "timestamp": str(prediction.timestamp),
         "user_id": prediction.user_id,
     }
 
 
 def _build_prediction_proof(prediction: Prediction, timestamp: str) -> dict:
+    outcome = (
+        "won" if prediction.was_correct is True
+        else "lost" if prediction.was_correct is False
+        else "pending"
+    )
     return build_proof_envelope(
         proof_type="prediction_provenance",
         object_id=f"prediction:{prediction.id}",
@@ -67,7 +77,7 @@ def _build_prediction_proof(prediction: Prediction, timestamp: str) -> dict:
         timestamp=timestamp,
         signer=f"did:vit:user:{prediction.user_id}",
         payload=_prediction_payload(prediction),
-        result={"outcome": prediction.outcome},
+        result={"outcome": outcome},
     )
 
 
@@ -121,7 +131,7 @@ async def attest_prediction(
                     "prediction_id": prediction_id,
                     "attestation_hash": attestation_hash,
                     "user_id": current_user.id,
-                    "outcome": prediction.outcome,
+                    "outcome": _prediction_payload(prediction)["outcome"],
                 },
                 timestamp=now_ts,
             )
