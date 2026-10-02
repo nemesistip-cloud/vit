@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, func
+from sqlalchemy import case, select, desc, func
 from datetime import datetime, timezone
 
 from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD, MAX_PREDICTIONS_PER_DAY, PUBLIC_APP_URL
@@ -1024,13 +1024,49 @@ async def prediction_accuracy(
     total = total_q.scalar() or 0
     wins_q = await db.execute(select(func.count(Prediction.id)).where(Prediction.user_id == current_user.id, Prediction.was_correct.is_(True)))
     wins = wins_q.scalar() or 0
+    settled_q = await db.execute(
+        select(func.count(Prediction.id)).where(
+            Prediction.user_id == current_user.id,
+            Prediction.was_correct.is_not(None),
+        )
+    )
+    settled = settled_q.scalar() or 0
 
-    win_rate = (wins / total) if total > 0 else 0.0
+    win_rate = (wins / settled) if settled > 0 else 0.0
+
+    league_rows = (await db.execute(
+        select(
+            Match.league,
+            func.count(Prediction.id).label("settled_count"),
+            func.sum(case((Prediction.was_correct.is_(True), 1), else_=0)).label("wins"),
+        )
+        .join(Match, Prediction.match_id == Match.id)
+        .where(
+            Prediction.user_id == current_user.id,
+            Prediction.was_correct.is_not(None),
+            Match.league.is_not(None),
+        )
+        .group_by(Match.league)
+    )).all()
+    eligible_leagues = [row for row in league_rows if row.settled_count >= 3]
+    best_league = max(
+        eligible_leagues,
+        key=lambda row: (row.wins / row.settled_count, row.settled_count, row.league),
+        default=None,
+    )
 
     # Current streak (consecutive wins from latest)
     streak = 0
     if total > 0:
-        recent_q = select(Prediction).where(Prediction.user_id == current_user.id).order_by(Prediction.timestamp.desc()).limit(100)
+        recent_q = (
+            select(Prediction)
+            .where(
+                Prediction.user_id == current_user.id,
+                Prediction.was_correct.is_not(None),
+            )
+            .order_by(Prediction.timestamp.desc())
+            .limit(100)
+        )
         recent_res = await db.execute(recent_q)
         recent_preds = recent_res.scalars().all()
         for p in recent_preds:
@@ -1043,7 +1079,7 @@ async def prediction_accuracy(
         "total": total,
         "win_rate": round(win_rate, 3),
         "current_streak": streak,
-        "best_league": None,
+        "best_league": best_league.league if best_league else None,
     }
 
 

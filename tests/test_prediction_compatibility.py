@@ -8,7 +8,8 @@ import pytest
 from app.core.cache import cache
 from app.core.cache_keys import FIXTURE_LIST
 from app.db import database as db_module
-from app.db.models import Match, Prediction
+from app.db.models import Match, Prediction, User
+from app.api.routes.predict import prediction_accuracy
 from app.modules.ai.models import AIPredictionAudit
 import app.services.sportsdb_api as sportsdb_api
 
@@ -59,6 +60,55 @@ async def test_prediction_history_and_accuracy_endpoints(client, auth_headers):
     assert accuracy_data["total"] >= 1
     assert accuracy_data["win_rate"] == 0.0
     assert accuracy_data["current_streak"] == 0
+
+
+@pytest.mark.asyncio
+async def test_prediction_accuracy_excludes_pending_and_selects_best_league(db_session):
+    user = User(
+        email="accuracy-user@example.com",
+        username="accuracy_user",
+        hashed_password="not-used-in-test",
+        role="user",
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    matches = []
+    for league in ("League A", "League B"):
+        match = Match(
+            external_id=f"accuracy-{league.lower().replace(' ', '-')}",
+            home_team="Accuracy Home",
+            away_team="Accuracy Away",
+            league=league,
+            sport="football",
+            kickoff_time=datetime.now(timezone.utc),
+            status="finished",
+            source="test",
+        )
+        db_session.add(match)
+        await db_session.flush()
+        matches.append(match)
+
+    outcomes = [True, True, False, True, True, True, None]
+    league_sequence = [matches[0], matches[0], matches[0], matches[1], matches[1], matches[1], matches[1]]
+    for index, (match, outcome) in enumerate(zip(league_sequence, outcomes)):
+        db_session.add(Prediction(
+            match_id=match.id,
+            user_id=user.id,
+            home_prob=0.5,
+            draw_prob=0.2,
+            away_prob=0.3,
+            was_correct=outcome,
+            timestamp=datetime.now(timezone.utc) + timedelta(seconds=index),
+        ))
+    await db_session.commit()
+
+    result = await prediction_accuracy(db=db_session, current_user=user)
+
+    assert result["total"] == 7
+    assert result["win_rate"] == 0.833
+    assert result["current_streak"] == 3
+    assert result["best_league"] == "League B"
 
 
 @pytest.mark.asyncio
