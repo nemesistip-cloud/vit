@@ -621,6 +621,15 @@ test('AI overview does not invent accuracy for models without measurements', asy
     contentType: 'application/json',
     body: JSON.stringify({ services: { ai: { status: 'healthy', version: '1.0', models_loaded: 1 } } }),
   }));
+  await page.route('**/api/v1/ai/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      status: 'operational', version: '0.1.0', models_registered: 1, models_loaded: 1,
+      models_inference_ready: 1, models_failed: 0, storage_status: 'configured',
+      database_status: 'configured', total_inference_count: 0, failed_inference_count: 0,
+    }),
+  }));
   await page.route('**/api/dashboard/model-confidence', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -645,7 +654,7 @@ test('AI overview does not invent accuracy for models without measurements', asy
   await page.route('**/api/ai-feed/sources', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify([]),
+    body: JSON.stringify({ sources: [] }),
   }));
 
   await page.goto('/ai');
@@ -660,6 +669,88 @@ test('AI overview does not invent accuracy for models without measurements', asy
   await expect(page.getByText('2 registered · 1 loaded in runtime')).toBeVisible();
   await expect(page.getByText('Model A')).toBeVisible();
   await expect(page.getByText('Registered', { exact: true }).first()).toBeVisible();
+});
+
+test('AI inference sends a validated JSON payload to the VIT AI inference API', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'ai-inference-test-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'tester', role: 'user' }));
+  });
+  await page.route('**/api/registry', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ services: { ai: { status: 'healthy', version: '0.1.0', models_loaded: 1 } } }),
+  }));
+  await page.route('**/api/v1/ai/status', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      status: 'operational', version: '0.1.0', models_registered: 1, models_loaded: 1,
+      models_inference_ready: 0, models_failed: 1, storage_status: 'configured',
+      database_status: 'configured', total_inference_count: 0, failed_inference_count: 1,
+    }),
+  }));
+  await page.route('**/api/ai-feed/health', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ status: 'healthy', models_loaded: 1 }),
+  }));
+  await page.route('**/api/ai-feed/models', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      models: [{
+        id: 'model-a',
+        name: 'Model A',
+        input_schema: { type: 'object', properties: { value: { type: 'number' } } },
+      }],
+    }),
+  }));
+  await page.route('**/api/ai-feed/sources', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ sources: [] }),
+  }));
+  await page.route('**/api/dashboard/model-confidence', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ models: [] }),
+  }));
+
+  let inferenceRequests = 0;
+  let submittedBody: unknown;
+  await page.route('**/api/v1/infer', async route => {
+    inferenceRequests += 1;
+    submittedBody = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        request_id: 'request-123',
+        model_id: 'model-a',
+        result: { prediction: 0.82 },
+        latency: 42,
+      }),
+    });
+  });
+
+  await page.goto('/ai');
+  await expect(page.getByText('degraded', { exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'inference', exact: true }).click();
+  const input = page.getByRole('textbox', { name: 'Model input JSON' });
+  await input.fill('{invalid');
+  await page.getByRole('button', { name: 'Run' }).click();
+  await expect(page.getByText('Input must be valid JSON.')).toBeVisible();
+  expect(inferenceRequests).toBe(0);
+
+  await input.fill('{"value": 7}');
+  await page.getByRole('button', { name: 'Run' }).click();
+  await expect(page.getByText(/request-123/)).toBeVisible();
+  expect(submittedBody).toEqual({
+    model_id: 'model-a',
+    payload: { value: 7 },
+    timeout: 30,
+  });
 });
 
 test('human status page is separate from the legacy machine status route', async ({ page }) => {
