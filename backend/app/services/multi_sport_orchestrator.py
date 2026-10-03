@@ -5,9 +5,21 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from app.schemas.schemas import PredictionResponse, ModelInsight
-from app.services.predict_features import get_fresh_football_form
+from app.services.predict_features import (
+    get_fresh_football_form,
+    has_fresh_verified_match_history,
+)
 
 logger = logging.getLogger(__name__)
+
+TWO_WAY_STATISTICAL_FALLBACK_SPORTS = frozenset({
+    "basketball", "tennis", "rugby", "american_football", "rugby_union",
+    "baseball", "ice_hockey", "mma", "boxing",
+})
+ODDS_OPTIONAL_MATCH_WINNER_SPORTS = frozenset({
+    "football",
+    *TWO_WAY_STATISTICAL_FALLBACK_SPORTS,
+})
 
 
 def _sigmoid(x: float) -> float:
@@ -56,8 +68,8 @@ class MultiSportOrchestrator:
     Enhanced orchestrator to handle non-football sports with dynamic logic.
     Provides a unified interface for all sports while supporting specialized models.
     Supports 'Hybrid Mode' (ML + SCIE Fallback).
-    All probability outputs are derived deterministically from market odds/priors —
-    no random stubs.
+    Probabilities come from market inputs or validated historical form; no random
+    stubs are used.
     """
 
     def __init__(self, football_orchestrator=None):
@@ -73,7 +85,10 @@ class MultiSportOrchestrator:
             return await self._predict_football(features, idempotency_key)
         elif sport in {"basketball", "tennis", "rugby", "american_football", "rugby_union", "baseball", "ice_hockey", "mma", "boxing", "formula1", "esports"}:
             market = (features.get("market_odds") or {})
-            if (market.get("home") is None or market.get("away") is None) and sport in {"basketball", "tennis", "rugby", "american_football", "rugby_union", "baseball", "ice_hockey", "mma", "boxing"}:
+            if (
+                (market.get("home") is None or market.get("away") is None)
+                and sport in TWO_WAY_STATISTICAL_FALLBACK_SPORTS
+            ):
                 return self._predict_two_way_statistical(features, sport)
             if sport == "basketball":
                 return self._predict_basketball(features)
@@ -104,13 +119,16 @@ class MultiSportOrchestrator:
             reasons.append(f"feature completeness {completeness:.2f} below the required 0.55 threshold")
         if history_sample < 3:
             reasons.append(f"insufficient historical sample size ({history_sample}), need at least 3 recent matches")
-        if home_hist < 2 or away_hist < 2:
-            reasons.append(f"insufficient per-team history ({home_hist}/{away_hist}), need at least 2 matches each")
+        if home_hist < 3 or away_hist < 3:
+            reasons.append(f"insufficient per-team history ({home_hist}/{away_hist}), need at least 3 matches each")
+        if not has_fresh_verified_match_history(match_features):
+            reasons.append("trusted, fresh match history is required for an odds-free prediction")
 
         now = datetime.now(timezone.utc)
         for label, key in (("home", "home_history_latest"), ("away", "away_history_latest")):
             raw_date = match_features.get(key)
             if not raw_date:
+                reasons.append(f"{label} historical evidence date is unavailable")
                 continue
             try:
                 latest = datetime.fromisoformat(str(raw_date).replace("Z", "+00:00"))

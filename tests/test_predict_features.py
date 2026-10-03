@@ -7,6 +7,7 @@ from app.services.predict_features import (
     _recent_matches_for,
     _team_search_terms,
     build_predict_features,
+    has_fresh_verified_match_history,
 )
 
 
@@ -147,3 +148,36 @@ def test_recent_matches_exclude_results_after_prediction_kickoff():
     matches = asyncio.run(_recent_matches_for(FakeDb(), "Tottenham Hotspur FC", before=before))
 
     assert matches == [older]
+
+
+def test_fresh_verified_history_accepts_basketball_provider_results():
+    now = datetime.now(timezone.utc).isoformat()
+    features = {
+        "evidence_providers": ["sportsdb"],
+        "feature_completeness": 0.8,
+        "home_history_sample_size": 5,
+        "away_history_sample_size": 4,
+        "history_sample_size": 4,
+        "home_history_latest": now,
+        "away_history_latest": now,
+    }
+
+    assert has_fresh_verified_match_history(features) is True
+
+
+def test_fresh_verified_history_rejects_untrusted_or_missing_history():
+    now = datetime.now(timezone.utc).isoformat()
+    features = {
+        "evidence_providers": ["unverified"],
+        "feature_completeness": 0.9,
+        "home_history_sample_size": 5,
+        "away_history_sample_size": 5,
+        "history_sample_size": 5,
+        "home_history_latest": now,
+        "away_history_latest": now,
+    }
+
+    assert has_fresh_verified_match_history(features) is False
+    features["evidence_providers"] = ["sportsdb"]
+    features.pop("away_history_latest")
+    assert has_fresh_verified_match_history(features) is False

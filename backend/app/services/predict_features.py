@@ -69,6 +69,12 @@ _LEAGUE_HOME_ADV: Dict[str, float] = {
 }
 _DEFAULT_HOME_ADV = 0.40
 _TEAM_NAME_IGNORED_TOKENS = {"fc", "afc", "cf", "club", "the", "sc", "ac", "as", "fsv"}
+_TRUSTED_HISTORY_SOURCES = {
+    "footballdata", "football-data.org", "football-data-uk",
+    "github-premier-league-data", "sportsdb", "isports",
+    "sportmonks", "api_football", "provider", "user_csv",
+    "odds_api", "the_odds_api",
+}
 
 # Neutral fallbacks used only when there's no historical data at all.
 _FALLBACK_FEATURES: Dict[str, float] = {
@@ -170,6 +176,54 @@ def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
     return value.astimezone(timezone.utc)
 
 
+def has_fresh_verified_match_history(
+    match_features: Dict[str, Any],
+    *,
+    min_samples: int = 3,
+    max_age_days: int = 540,
+) -> bool:
+    raw_providers = match_features.get("evidence_providers") or []
+    if not isinstance(raw_providers, (list, tuple, set)):
+        return False
+    providers = {
+        str(provider).strip().lower()
+        for provider in raw_providers
+        if provider
+    }
+    if not providers or not providers <= _TRUSTED_HISTORY_SOURCES:
+        return False
+
+    try:
+        completeness = float(match_features["feature_completeness"])
+        home_count = int(match_features["home_history_sample_size"])
+        away_count = int(match_features["away_history_sample_size"])
+        history_count = int(match_features["history_sample_size"])
+        dates = [
+            datetime.fromisoformat(str(match_features[key]).replace("Z", "+00:00"))
+            for key in ("home_history_latest", "away_history_latest")
+        ]
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return False
+
+    if (
+        not math.isfinite(completeness)
+        or completeness < 0.55
+        or home_count < min_samples
+        or away_count < min_samples
+        or history_count < min_samples
+    ):
+        return False
+
+    now = datetime.now(timezone.utc)
+    for latest in dates:
+        if latest.tzinfo is None:
+            latest = latest.replace(tzinfo=timezone.utc)
+        age_days = (now - latest.astimezone(timezone.utc)).total_seconds() / 86400
+        if age_days < 0 or age_days > max_age_days:
+            return False
+    return True
+
+
 def _latest_match_date(matches: List[Any]) -> Optional[str]:
     dates = [
         date
@@ -220,14 +274,8 @@ def _merge_match_history(primary: List[Any], supplement: List[Any], limit: int) 
 
 def get_fresh_football_form(match_features: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Validate recent trusted football form and derive bounded model inputs."""
-    trusted_sources = {
-        "footballdata", "football-data.org", "football-data-uk",
-        "github-premier-league-data", "sportsdb", "isports",
-        "sportmonks", "api_football", "provider", "user_csv",
-        "odds_api", "the_odds_api",
-    }
     providers = set(match_features.get("evidence_providers") or [])
-    if not providers or not providers <= trusted_sources:
+    if not providers or not providers <= _TRUSTED_HISTORY_SOURCES:
         return None
 
     try:

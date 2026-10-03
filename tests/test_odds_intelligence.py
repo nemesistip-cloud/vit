@@ -151,6 +151,38 @@ def test_football_match_winner_accepts_sufficient_verified_form_without_odds():
     assert breakdown.checklist["current_market_odds"] is False
 
 
+def test_basketball_prediction_uses_verified_history_fallback_without_odds():
+    import asyncio
+    from app.services.multi_sport_orchestrator import MultiSportOrchestrator
+
+    latest = datetime.now(timezone.utc).isoformat()
+    orchestrator = MultiSportOrchestrator()
+    result = asyncio.run(orchestrator.predict(
+        {
+            "market_odds": None,
+            "match_features": {
+                "evidence_providers": ["sportsdb"],
+                "feature_completeness": 0.8,
+                "home_history_sample_size": 5,
+                "away_history_sample_size": 5,
+                "history_sample_size": 5,
+                "home_history_latest": latest,
+                "away_history_latest": latest,
+                "home_form_pts_10": 2.1,
+                "away_form_pts_10": 1.4,
+            },
+        },
+        idempotency_key="nba-no-odds-regression",
+        sport="basketball",
+    ))
+
+    probabilities = result["predictions"]
+    assert result["status"] == "ready"
+    assert result["source"] == "basketball_statistical_fallback"
+    assert probabilities["home_prob"] + probabilities["away_prob"] == pytest.approx(1.0)
+    assert probabilities["draw_prob"] == 0.0
+
+
 @pytest.mark.asyncio
 async def test_provider_registry_health_matrix():
     registry = ProviderRegistry()

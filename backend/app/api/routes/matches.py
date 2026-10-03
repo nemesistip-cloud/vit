@@ -23,6 +23,7 @@ from app.services.deterministic_insights import generate_match_insights
 from app.services.predict_features import (
     build_predict_features,
     get_fresh_football_form,
+    has_fresh_verified_match_history,
     _static_history_for_team,
     _team_search_terms,
 )
@@ -64,14 +65,23 @@ def _build_match_intelligence_profile(
     model_agreement_pct: float,
     historical_sample_size: int,
     model_ready: bool,
+    odds_required: bool = True,
 ) -> MatchIntelligenceProfile:
     """Create a traceable, real-data intelligence snapshot for a match."""
     feature_block = features or {}
     completeness = float(feature_block.get("feature_completeness", 0.0) or 0.0)
-    football_without_odds = (match.sport or "").lower() == "football"
     freshness = getattr(reconciled_odds, "freshness", None)
-    if football_without_odds and not getattr(reconciled_odds, "consensus_odds", None):
-        freshness_status = "fresh_historical_form" if get_fresh_football_form(feature_block) else "unknown"
+    odds_are_current = bool(
+        getattr(reconciled_odds, "consensus_odds", None)
+        and freshness in {OddsFreshness.LIVE, OddsFreshness.FRESH, OddsFreshness.ACCEPTABLE}
+    )
+    if not odds_required and not odds_are_current:
+        history_is_fresh = (
+            bool(get_fresh_football_form(feature_block))
+            if (match.sport or "").strip().lower() == "football"
+            else has_fresh_verified_match_history(feature_block)
+        )
+        freshness_status = "fresh_historical_form" if history_is_fresh else "unknown"
     else:
         freshness_status = getattr(freshness, "value", "unknown") if freshness else "unknown"
     profile = MatchIntelligenceProfile(
@@ -95,7 +105,7 @@ def _build_match_intelligence_profile(
 
     if not completeness:
         profile.mark_missing("feature completeness below threshold")
-    if not getattr(reconciled_odds, "consensus_odds", None) and not football_without_odds:
+    if not odds_are_current and odds_required:
         profile.mark_missing("Current market odds")
     if model_agreement_pct < 0.6:
         profile.mark_conflict("Model agreement below threshold")
@@ -1384,6 +1394,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             }
 
     job_id = f"job_pred_{match_id}_{int(now.timestamp())}"
+    sport_key = (match.sport or "football").strip().lower().replace(" ", "_")
 
     new_pred = Prediction(
         match_id=match.id,
@@ -1408,7 +1419,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             match.away_team,
             match.league,
             before=match.kickoff_time,
-            sport=match.sport,
+            sport=sport_key,
         )
 
         # A newly started season can leave the local result window empty even
@@ -1442,7 +1453,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                     match.away_team,
                     match.league,
                     before=match.kickoff_time,
-                    sport=match.sport,
+                    sport=sport_key,
                 )
             except Exception as refresh_exc:
                 logger.warning(
@@ -1499,11 +1510,21 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             ))
 
         reconciled_odds = OddsIntelligence.reconcile(odds_list, sport=match.sport or "football", market="match_winner")
+        current_odds_available = bool(
+            reconciled_odds
+            and reconciled_odds.consensus_odds
+            and reconciled_odds.freshness in {
+                OddsFreshness.LIVE, OddsFreshness.FRESH, OddsFreshness.ACCEPTABLE,
+            }
+        )
 
         # 3. Run models before evidence evaluation. Model agreement is an
         # evidence input and must come from actual ensemble outputs.
         from app.core.dependencies import get_orchestrator_dep
-        from app.services.multi_sport_orchestrator import MultiSportOrchestrator
+        from app.services.multi_sport_orchestrator import (
+            MultiSportOrchestrator,
+            ODDS_OPTIONAL_MATCH_WINNER_SPORTS,
+        )
         model_ready = False
         try:
             base_orch = await get_orchestrator_dep()
@@ -1515,16 +1536,16 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                 and getattr(base_orch, "num_models_ready", lambda: 0)() > 0
             )
             orchestrator = MultiSportOrchestrator(football_orchestrator=base_orch)
-            market_odds_payload = reconciled_odds.consensus_odds if reconciled_odds else None
+            market_odds_payload = reconciled_odds.consensus_odds if current_odds_available else None
             market_features = {
-                "home_implied_probability": reconciled_odds.vig_free_probabilities.get("home") if reconciled_odds else None,
-                "draw_implied_probability": reconciled_odds.vig_free_probabilities.get("draw") if reconciled_odds else None,
-                "away_implied_probability": reconciled_odds.vig_free_probabilities.get("away") if reconciled_odds else None,
-                "market_margin": reconciled_odds.margin if reconciled_odds else None,
-                "bookmaker_count": reconciled_odds.bookmaker_count if reconciled_odds else 0,
-                "market_freshness": reconciled_odds.freshness.value if reconciled_odds else None,
-                "odds_age_seconds": reconciled_odds.odds_age_seconds if reconciled_odds else None,
-                "dispersion": reconciled_odds.dispersion if reconciled_odds else {},
+                "home_implied_probability": reconciled_odds.vig_free_probabilities.get("home") if current_odds_available else None,
+                "draw_implied_probability": reconciled_odds.vig_free_probabilities.get("draw") if current_odds_available else None,
+                "away_implied_probability": reconciled_odds.vig_free_probabilities.get("away") if current_odds_available else None,
+                "market_margin": reconciled_odds.margin if current_odds_available else None,
+                "bookmaker_count": reconciled_odds.bookmaker_count if current_odds_available else 0,
+                "market_freshness": reconciled_odds.freshness.value if current_odds_available else None,
+                "odds_age_seconds": reconciled_odds.odds_age_seconds if current_odds_available else None,
+                "dispersion": reconciled_odds.dispersion if current_odds_available else {},
             }
             raw_result = await orchestrator.predict(
                 features={
@@ -1536,10 +1557,14 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                     "match_features": features,
                 },
                 idempotency_key=f"match_init_{match_id}_{job_id}",
-                sport=match.sport or "football",
+                sport=sport_key,
             )
         except Exception as exc:
             raise RuntimeError(f"Prediction model unavailable: {exc}") from exc
+
+        if isinstance(raw_result, dict) and raw_result.get("status") == "unavailable":
+            fallback_reasons = raw_result.get("reasons") or ["verified history is insufficient"]
+            raise RuntimeError(f"Prediction unavailable: {'; '.join(map(str, fallback_reasons))}")
 
         if raw_result and "predictions" in raw_result:
             pred_res = raw_result.get("predictions", {})
@@ -1547,6 +1572,20 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             pred_res = raw_result
         else:
             raise RuntimeError("Prediction model returned no prediction")
+
+        fallback_source = raw_result.get("source") if isinstance(raw_result, dict) else None
+        statistical_fallback_ready = bool(
+            isinstance(raw_result, dict)
+            and raw_result.get("status") == "ready"
+            and fallback_source == f"{sport_key}_statistical_fallback"
+        )
+        football_scie_fallback_ready = bool(
+            sport_key == "football"
+            and isinstance(raw_result, dict)
+            and raw_result.get("scie_mode") is True
+            and get_fresh_football_form(features)
+        )
+        prediction_engine_ready = model_ready or statistical_fallback_ready or football_scie_fallback_ready
 
         required = ("home_prob", "draw_prob", "away_prob")
         if any(pred_res.get(key) is None for key in required):
@@ -1598,26 +1637,31 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             recent_form_data=recent_form_data,
             model_agreement_pct=model_agreement_pct,
             historical_sample_size=int(features.get("history_sample_size", 0) or 0),
-            model_ready=model_ready,
+            model_ready=prediction_engine_ready,
+            odds_required=sport_key not in ODDS_OPTIONAL_MATCH_WINNER_SPORTS,
         )
         readiness = readiness_gate.evaluate(
             feature_completeness=float(features.get("feature_completeness", 0.0) or 0.0),
             evidence_score=float(evidence.total_score or 0.0),
-            odds_available=bool(reconciled_odds and reconciled_odds.consensus_odds),
+            odds_available=current_odds_available,
             historical_sample_size=int(features.get("history_sample_size", 0) or 0),
             data_freshness_ok=(
-                bool(get_fresh_football_form(features))
-                if (match.sport or "").lower() == "football"
+                (
+                    bool(get_fresh_football_form(features))
+                    if sport_key == "football"
+                    else has_fresh_verified_match_history(features)
+                )
+                if sport_key in ODDS_OPTIONAL_MATCH_WINNER_SPORTS
                 else bool(reconciled_odds and getattr(reconciled_odds, "freshness", None) in {
                     OddsFreshness.LIVE, OddsFreshness.FRESH, OddsFreshness.ACCEPTABLE,
                 })
             ),
-            model_ready=model_ready,
-            odds_required=(match.sport or "").lower() != "football",
+            model_ready=prediction_engine_ready,
+            odds_required=sport_key not in ODDS_OPTIONAL_MATCH_WINNER_SPORTS,
         )
 
         logger.info(
-            "PREDICTION_READINESS match=%s fixture=%s status=%s live_score=%s-%s feature_completeness=%.3f evidence_score=%.1f history_samples=%s odds_available=%s odds_freshness=%s model_ready=%s reasons=%s",
+            "PREDICTION_READINESS match=%s fixture=%s status=%s live_score=%s-%s feature_completeness=%.3f evidence_score=%.1f history_samples=%s odds_available=%s odds_freshness=%s prediction_engine_ready=%s reasons=%s",
             match.id,
             match.external_id,
             "ready" if readiness["ready"] else "blocked",
@@ -1628,7 +1672,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             features.get("history_sample_size", 0),
             bool(reconciled_odds and reconciled_odds.consensus_odds),
             getattr(reconciled_odds, "freshness", None).value if getattr(reconciled_odds, "freshness", None) else None,
-            model_ready,
+            prediction_engine_ready,
             ";".join(readiness.get("reasons", [])),
         )
 
