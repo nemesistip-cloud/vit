@@ -1,7 +1,7 @@
 """Production data adapter for the odds-independent football model."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 import json
 import math
@@ -66,32 +66,42 @@ async def load_historical_results(
     league: str,
     before: datetime,
 ) -> tuple[HistoricalResult, ...]:
-    """Combine trusted, settled DB and checked-in CSV results strictly pre-kickoff."""
+    """Combine trusted, settled DB and checked-in CSV results strictly pre-kickoff.
+
+    The database query is intentionally narrowed to the requested league and a recent
+    historical window. A full-table scan on production football data causes each
+    prediction request to stall long enough for Render health checks and downstream
+    502s to trigger.
+    """
     cutoff = _utc(before)
+    cutoff_naive = cutoff.replace(tzinfo=None)
+    history_start = cutoff_naive - timedelta(days=366 * (MAX_MODEL_SEASONS + 2))
     league_key = _key(league)
     deduped: dict[tuple[str, str, str], HistoricalResult] = {}
 
     if db is not None:
-        result = await db.execute(
-            select(
-                Match.home_team,
-                Match.away_team,
-                Match.kickoff_time,
-                Match.home_goals,
-                Match.away_goals,
-                Match.league,
-                Match.source,
-                Match.statistics,
-                Match.closing_odds_home,
-                Match.closing_odds_draw,
-                Match.closing_odds_away,
-            ).where(
-                Match.sport == "football",
-                Match.home_goals.is_not(None),
-                Match.away_goals.is_not(None),
-                Match.kickoff_time < cutoff.replace(tzinfo=None),
-            )
+        stmt = select(
+            Match.home_team,
+            Match.away_team,
+            Match.kickoff_time,
+            Match.home_goals,
+            Match.away_goals,
+            Match.league,
+            Match.source,
+            Match.statistics,
+            Match.closing_odds_home,
+            Match.closing_odds_draw,
+            Match.closing_odds_away,
+        ).where(
+            Match.sport == "football",
+            Match.home_goals.is_not(None),
+            Match.away_goals.is_not(None),
+            Match.kickoff_time >= history_start,
+            Match.kickoff_time < cutoff_naive,
         )
+        if league and league.strip():
+            stmt = stmt.where(Match.league == league)
+        result = await db.execute(stmt)
         for home, away, kickoff, hg, ag, row_league, source, statistics, close_home, close_draw, close_away in result.all():
             if (
                 not home or not away or not kickoff or _key(row_league) != league_key

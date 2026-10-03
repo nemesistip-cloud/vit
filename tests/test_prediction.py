@@ -12,6 +12,7 @@ import pytest
 from app.api.routes.predict import validate_market_odds, validate_prediction_response
 from app.api.routes import predict as predict_route
 from app.services.multi_sport_orchestrator import MultiSportOrchestrator
+from app.services.odds_free_prediction import load_historical_results
 from app.services.predict_features import build_predict_features
 from app.services import web_search
 from main import app
@@ -169,6 +170,33 @@ def test_validate_market_odds_rejects_equal_football_odds():
 
 def test_validate_market_odds_rejects_invalid_two_way_odds():
     assert not validate_market_odds({"home": 2.0, "away": 2.0}, sport="tennis")
+
+
+@pytest.mark.asyncio
+async def test_load_historical_results_filters_db_query_to_league_and_recent_window():
+    class _StubResult:
+        def all(self):
+            return []
+
+    class _StubDB:
+        def __init__(self):
+            self.statement = None
+
+        async def execute(self, statement):
+            self.statement = statement
+            return _StubResult()
+
+    db = _StubDB()
+    cutoff = datetime(2026, 10, 10, tzinfo=timezone.utc)
+
+    await load_historical_results(db, "Premier League", cutoff)
+
+    assert db.statement is not None
+    sql = str(db.statement.compile(compile_kwargs={"literal_binds": True})).lower()
+    assert "league" in sql
+    assert "premier league" in sql
+    assert "kickoff_time" in sql
+    assert "<" in sql or ">=" in sql
 
 
 @pytest.mark.asyncio
