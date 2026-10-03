@@ -98,6 +98,7 @@ class PredictionReadinessGate:
         historical_sample_size: int,
         data_freshness_ok: bool,
         model_ready: bool,
+        odds_required: bool = True,
     ) -> Dict[str, Any]:
         reasons: List[str] = []
 
@@ -109,7 +110,7 @@ class PredictionReadinessGate:
             reasons.append(
                 f"evidence score {evidence_score:.1f} is below minimum threshold {self.min_evidence_score:.1f}"
             )
-        if not odds_available:
+        if odds_required and not odds_available:
             reasons.append("current market odds are unavailable")
         if historical_sample_size < self.min_history_samples:
             reasons.append(

@@ -63,3 +63,18 @@ def test_prediction_readiness_gate_allows_valid_match():
     assert result["prediction_status"] == "ready"
     assert result["ready"] is True
     assert result["reasons"] == []
+
+
+def test_prediction_readiness_gate_allows_odds_free_football_with_fresh_history():
+    result = PredictionReadinessGate().evaluate(
+        feature_completeness=0.8,
+        evidence_score=55.0,
+        odds_available=False,
+        historical_sample_size=5,
+        data_freshness_ok=True,
+        model_ready=True,
+        odds_required=False,
+    )
+
+    assert result["ready"] is True
+    assert result["reasons"] == []

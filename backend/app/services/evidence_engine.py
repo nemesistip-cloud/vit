@@ -84,6 +84,8 @@ class EvidenceEngine:
         """
         missing = []
         checklist = {}
+        reqs = MARKET_REQUIREMENTS.get(market.lower(), MARKET_REQUIREMENTS["match_winner"])
+        needs_odds = reqs["odds_required"]
 
         # 1. Verified Fixture (Max 20)
         # Fixture must come from a verified provider source
@@ -158,7 +160,7 @@ class EvidenceEngine:
         elif is_completed:
             score_odds = 18.0
             checklist["current_market_odds"] = True
-        else:
+        elif needs_odds:
             missing.append("Current market odds")
 
         # 5. Multiple Bookmaker Agreement (Max 10)
@@ -205,9 +207,7 @@ class EvidenceEngine:
             classification = PredictionClassification.UNAVAILABLE
 
         # Check market specific requirements
-        reqs = MARKET_REQUIREMENTS.get(market.lower(), MARKET_REQUIREMENTS["match_winner"])
         min_required_score = reqs["min_evidence_score"]
-        needs_odds = reqs["odds_required"]
 
         is_sufficient = total_score >= min_required_score
         rejection_reason = None

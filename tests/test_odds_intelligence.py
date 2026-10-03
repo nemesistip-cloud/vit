@@ -135,6 +135,22 @@ def test_market_specific_input_requirements():
     assert "strictly requires market odds" in (breakdown_no_odds.rejection_reason or "")
 
 
+def test_football_match_winner_accepts_sufficient_verified_form_without_odds():
+    breakdown = EvidenceEngine.evaluate(
+        match_source="sportsdb",
+        match_features={"feature_completeness": 1.0},
+        reconciled_odds=None,
+        recent_form_data={"home": {"matches_played": 5}, "away": {"matches_played": 5}},
+        model_agreement_pct=0.0,
+        market="match_winner",
+    )
+
+    assert breakdown.total_score == 55.0
+    assert breakdown.is_sufficient is True
+    assert "Current market odds" not in breakdown.missing_elements
+    assert breakdown.checklist["current_market_odds"] is False
+
+
 @pytest.mark.asyncio
 async def test_provider_registry_health_matrix():
     registry = ProviderRegistry()

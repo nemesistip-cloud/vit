@@ -20,7 +20,12 @@ from app.modules.wallet.models import PlatformConfig
 from app.core.cache import cache
 from app.modules.ai.models import AIPredictionAudit
 from app.services.deterministic_insights import generate_match_insights
-from app.services.predict_features import build_predict_features, _static_history_for_team, _team_search_terms
+from app.services.predict_features import (
+    build_predict_features,
+    get_fresh_football_form,
+    _static_history_for_team,
+    _team_search_terms,
+)
 from app.services.odds_provider import NormalizedOdds, OddsIntelligence, default_provider_registry, OddsFreshness
 from app.services.evidence_engine import EvidenceEngine, PredictionClassification
 from app.services.match_intelligence import MatchIntelligenceProfile, PredictionReadinessGate, ValidationStatus
@@ -63,7 +68,12 @@ def _build_match_intelligence_profile(
     """Create a traceable, real-data intelligence snapshot for a match."""
     feature_block = features or {}
     completeness = float(feature_block.get("feature_completeness", 0.0) or 0.0)
+    football_without_odds = (match.sport or "").lower() == "football"
     freshness = getattr(reconciled_odds, "freshness", None)
+    if football_without_odds and not getattr(reconciled_odds, "consensus_odds", None):
+        freshness_status = "fresh_historical_form" if get_fresh_football_form(feature_block) else "unknown"
+    else:
+        freshness_status = getattr(freshness, "value", "unknown") if freshness else "unknown"
     profile = MatchIntelligenceProfile(
         fixture_id=str(match.external_id or match.id),
         home_team=match.home_team,
@@ -73,7 +83,7 @@ def _build_match_intelligence_profile(
         feature_completeness=completeness,
         data_quality_score=float(getattr(evidence, "total_score", 0.0) or 0.0),
         validation_status=ValidationStatus.PARTIAL,
-        freshness_status=getattr(freshness, "value", "unknown") if freshness else "unknown",
+        freshness_status=freshness_status,
         odds_source=(
             ",".join(getattr(reconciled_odds, "provider_sources", []) or [])
             or match.source
@@ -85,7 +95,7 @@ def _build_match_intelligence_profile(
 
     if not completeness:
         profile.mark_missing("feature completeness below threshold")
-    if not getattr(reconciled_odds, "consensus_odds", None):
+    if not getattr(reconciled_odds, "consensus_odds", None) and not football_without_odds:
         profile.mark_missing("Current market odds")
     if model_agreement_pct < 0.6:
         profile.mark_conflict("Model agreement below threshold")
@@ -1595,8 +1605,15 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
             evidence_score=float(evidence.total_score or 0.0),
             odds_available=bool(reconciled_odds and reconciled_odds.consensus_odds),
             historical_sample_size=int(features.get("history_sample_size", 0) or 0),
-            data_freshness_ok=(getattr(reconciled_odds, "freshness", None) in {OddsFreshness.LIVE, OddsFreshness.FRESH, OddsFreshness.ACCEPTABLE}) if reconciled_odds else False,
+            data_freshness_ok=(
+                bool(get_fresh_football_form(features))
+                if (match.sport or "").lower() == "football"
+                else bool(reconciled_odds and getattr(reconciled_odds, "freshness", None) in {
+                    OddsFreshness.LIVE, OddsFreshness.FRESH, OddsFreshness.ACCEPTABLE,
+                })
+            ),
             model_ready=model_ready,
+            odds_required=(match.sport or "").lower() != "football",
         )
 
         logger.info(

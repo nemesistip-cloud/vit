@@ -179,6 +179,45 @@ def _latest_match_date(matches: List[Any]) -> Optional[str]:
     return max(dates).isoformat() if dates else None
 
 
+def _merge_match_history(primary: List[Any], supplement: List[Any], limit: int) -> List[Any]:
+    """Merge provider history without double-counting the same dated result."""
+    merged: List[Any] = []
+    seen = set()
+
+    for match in primary + supplement:
+        kickoff = _as_utc(getattr(match, "kickoff_time", None))
+        if kickoff is None:
+            key = None
+        else:
+            def canonical_team_name(value: Any) -> str:
+                tokens = re.findall(r"[a-z0-9]+", str(value or "").lower())
+                return "".join(token for token in tokens if token not in _TEAM_NAME_IGNORED_TOKENS)
+
+            teams = sorted((
+                canonical_team_name(getattr(match, "home_team", "")),
+                canonical_team_name(getattr(match, "away_team", "")),
+            ))
+            key = (
+                kickoff.isoformat(),
+                teams[0],
+                teams[1],
+                getattr(match, "home_goals", None),
+                getattr(match, "away_goals", None),
+            )
+        if key is not None and key in seen:
+            continue
+        if key is not None:
+            seen.add(key)
+        merged.append(match)
+
+    merged.sort(
+        key=lambda match: _as_utc(getattr(match, "kickoff_time", None))
+        or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
+    return merged[:limit]
+
+
 def get_fresh_football_form(match_features: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Validate recent trusted football form and derive bounded model inputs."""
     trusted_sources = {
@@ -652,40 +691,36 @@ async def build_predict_features(
     else:
         try:
             home_recent_db = await _recent_matches_for(db, home_team, limit=10, before=before, sport=sport)
-            if home_recent_db:
-                home_recent = home_recent_db
-            else:
-                static_home = _static_history_for_team(home_team, limit=10, league=league, before=before, sport=sport)
-                if static_home:
-                    home_recent = static_home
-                    evidence_source = "mixed"
+            static_home = _static_history_for_team(
+                home_team, limit=10, league=league, before=before, sport=sport,
+            ) if len(home_recent_db) < 10 else []
+            home_recent = _merge_match_history(home_recent_db, static_home, limit=10)
+            if static_home:
+                evidence_source = "mixed"
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning(f"home recent fetch failed for {home_team}: {exc}")
             home_recent = []
 
         try:
             away_recent_db = await _recent_matches_for(db, away_team, limit=10, before=before, sport=sport)
-            if away_recent_db:
-                away_recent = away_recent_db
-            else:
-                static_away = _static_history_for_team(away_team, limit=10, league=league, before=before, sport=sport)
-                if static_away:
-                    away_recent = static_away
-                    if evidence_source != "mixed":
-                        evidence_source = "mixed"
+            static_away = _static_history_for_team(
+                away_team, limit=10, league=league, before=before, sport=sport,
+            ) if len(away_recent_db) < 10 else []
+            away_recent = _merge_match_history(away_recent_db, static_away, limit=10)
+            if static_away:
+                evidence_source = "mixed"
         except Exception as exc:  # pragma: no cover
             logger.warning(f"away recent fetch failed for {away_team}: {exc}")
             away_recent = []
 
         try:
             h2h_db = await _h2h_matches(db, home_team, away_team, limit=10, before=before, sport=sport)
-            if h2h_db:
-                h2h = h2h_db
-            else:
-                static_h2h = _static_history_for_pair(home_team, away_team, limit=10, league=league, before=before, sport=sport)
-                if static_h2h:
-                    h2h = static_h2h
-                    evidence_source = "mixed"
+            static_h2h = _static_history_for_pair(
+                home_team, away_team, limit=10, league=league, before=before, sport=sport,
+            ) if len(h2h_db) < 10 else []
+            h2h = _merge_match_history(h2h_db, static_h2h, limit=10)
+            if static_h2h:
+                evidence_source = "mixed"
         except Exception as exc:  # pragma: no cover
             logger.warning(f"h2h fetch failed for {home_team} vs {away_team}: {exc}")
             h2h = []
