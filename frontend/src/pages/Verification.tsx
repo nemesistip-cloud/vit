@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, ArrowRight, CheckCircle2, Clock3, ShieldCheck, Sparkles } from 'lucide-react'
 import { ENDPOINTS } from '@/lib/api'
+import { presentStoredPick } from '@/lib/pickPresentation'
 import { Spinner } from '@/components/ui/Spinner'
 
 function formatDate(value?: string | null) {
@@ -14,28 +15,6 @@ function formatDate(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date)
-}
-
-function getTopPick(match: any) {
-  const candidates = [
-    { label: 'Home win', prob: typeof match?.home_prob === 'number' ? match.home_prob : null },
-    { label: 'Draw', prob: typeof match?.draw_prob === 'number' ? match.draw_prob : null },
-    { label: 'Away win', prob: typeof match?.away_prob === 'number' ? match.away_prob : null },
-  ]
-
-  const best = candidates
-    .filter((entry) => entry.prob != null)
-    .sort((a, b) => (b.prob ?? 0) - (a.prob ?? 0))[0]
-
-  if (best) {
-    return { label: best.label, probability: `${Math.round((best.prob ?? 0) * 100)}%` }
-  }
-
-  if (match?.bet_side) {
-    return { label: match.bet_side, probability: match.confidence != null ? `${Math.round(match.confidence * 100)}%` : '—' }
-  }
-
-  return { label: 'See details', probability: '—' }
 }
 
 function useVerificationRecords() {
@@ -52,18 +31,25 @@ function useVerificationRecords() {
       const collection = [...Array.isArray(upcoming) ? upcoming : [], ...Array.isArray(recent) ? recent : []]
 
       return collection.slice(0, 6).map((match: any) => {
-        const pick = getTopPick(match)
-        const hasScore = match?.home_score != null && match?.away_score != null
-        const status = hasScore ? 'Verified' : (match?.status === 'live' || match?.status === 'in_play') ? 'Live' : 'Sealed'
+        const prediction = presentStoredPick(match)
+        const homeScore = match?.home_score ?? match?.home_goals
+        const awayScore = match?.away_score ?? match?.away_goals
+        const hasScore = homeScore != null && awayScore != null
+        const status = hasScore
+          ? 'Verified'
+          : match?.status === 'live' || match?.status === 'in_play'
+            ? 'Live'
+            : prediction.stateLabel
 
         return {
           id: match?.id ?? match?.match_id,
           match: `${match?.home_team ?? 'Home'} vs ${match?.away_team ?? 'Away'}`,
-          sealed: formatDate(match?.kickoff_time),
-          pick: pick.label,
-          prob: pick.probability,
+          kickoff: formatDate(match?.kickoff_time),
+          pick: prediction.pickLabel,
+          prob: prediction.probabilityLabel,
+          predictionMessage: prediction.message,
           status,
-          result: hasScore ? `Final score: ${match.home_score}-${match.away_score}` : 'Awaiting result',
+          result: hasScore ? `Final score: ${homeScore}-${awayScore}` : 'Awaiting result',
         }
       })
     },
@@ -120,7 +106,9 @@ export default function Verification() {
                       ? 'rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-300'
                       : entry.status === 'Live'
                         ? 'rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[10px] font-medium text-amber-300'
-                        : 'rounded-full border border-vit-500/25 bg-vit-500/10 px-2 py-1 text-[10px] font-medium text-vit-300'
+                        : entry.status === 'Unavailable'
+                          ? 'rounded-full border border-rose-500/25 bg-rose-500/10 px-2 py-1 text-[10px] font-medium text-rose-300'
+                          : 'rounded-full border border-vit-500/25 bg-vit-500/10 px-2 py-1 text-[10px] font-medium text-vit-300'
                   }>
                     {entry.status}
                   </span>
@@ -136,11 +124,18 @@ export default function Verification() {
                     <p className="mt-2 text-sm font-medium text-vit-300">{entry.prob}</p>
                   </div>
                 </div>
+                {entry.predictionMessage && (
+                  <p className="mb-4 text-xs leading-relaxed text-white/55">{entry.predictionMessage}</p>
+                )}
 
                 <div className="space-y-2 text-sm text-white/60">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-2"><Clock3 className="w-3.5 h-3.5 text-white/35" /> Sealed</span>
-                    <span className="text-white/75">{entry.sealed}</span>
+                    <span>Match ID</span>
+                    <span className="font-mono text-white/75">#{entry.id ?? '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2"><Clock3 className="w-3.5 h-3.5 text-white/35" /> Kickoff</span>
+                    <span className="text-white/75">{entry.kickoff}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span className="inline-flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Outcome</span>

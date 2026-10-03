@@ -1,0 +1,299 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Check basketball fix before commit",
+			"type": "shell",
+			"command": "git status --short && git diff --check && git --no-pager diff --stat",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Review basketball change summary",
+			"type": "shell",
+			"command": "git --no-pager diff -- backend/app/api/routes/matches.py backend/app/services/multi_sport_orchestrator.py backend/app/services/predict_features.py tests/test_odds_intelligence.py tests/test_predict_features.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Commit basketball prediction fix",
+			"type": "shell",
+			"command": "git add -- backend/app/api/routes/matches.py backend/app/services/multi_sport_orchestrator.py backend/app/services/predict_features.py tests/test_odds_intelligence.py tests/test_predict_features.py && git commit -m \"Fix basketball prediction readiness\" -m \"Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>\"",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify basketball commit",
+			"type": "shell",
+			"command": "git --no-pager log -1 --format='%h %s%n%b' && git status --short && git show --stat --oneline --summary HEAD",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect deployment setup safely",
+			"type": "shell",
+			"command": "git status --short && git --no-pager log -3 --oneline && find . -maxdepth 3 -type f \\( -iname '*render*' -o -path './.github/workflows/*' -o -name 'Procfile' \\) -print && printenv | cut -d= -f1 | grep -Ei 'render|deploy|service|api' | sort",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check remote commit and workflow access",
+			"type": "shell",
+			"command": "git status -sb && git rev-parse HEAD && git ls-remote origin refs/heads/main | cut -f1 && gh auth status",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect pending commits and deploy history",
+			"type": "shell",
+			"command": "git --no-pager log --oneline origin/main..HEAD && gh run list --workflow render-deploy.yml --limit 5",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check render deployment workflow metadata",
+			"type": "shell",
+			"command": "gh workflow view render-deploy.yml --yaml",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "test-bball-prediction-readiness",
+			"type": "shell",
+			"command": "python -m pytest -q tests/test_predict_features.py tests/test_odds_intelligence.py tests/test_match_intelligence_profile.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Test basketball and freshness regressions",
+			"type": "shell",
+			"command": "python -m pytest -q tests/test_predict_features.py tests/test_odds_intelligence.py -k 'fresh_verified_history or basketball_prediction_uses_verified_history_fallback_without_odds'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Confirm deploy commit target",
+			"type": "shell",
+			"command": "git status -sb && git rev-parse HEAD && git ls-remote origin refs/heads/main | cut -f1",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Publish deploy commits",
+			"type": "shell",
+			"command": "git push origin main",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check Render deployment workflow",
+			"type": "shell",
+			"command": "gh run list --workflow render-deploy.yml --branch main --limit 5",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Trigger Render API deployment",
+			"type": "shell",
+			"command": "gh workflow run render-deploy.yml --ref main && sleep 3 && gh run list --workflow render-deploy.yml --branch main --limit 3",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect recent GitHub Actions executions",
+			"type": "shell",
+			"command": "gh run list --limit 10 --json databaseId,name,event,status,conclusion,headSha,createdAt,htmlUrl",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check live Render readiness",
+			"type": "shell",
+			"command": "curl -sS -o /tmp/vit-render-ready-body -w 'ready HTTP %{http_code}\\n' --max-time 20 https://vitnetwork-nls4.onrender.com/ready && head -c 800 /tmp/vit-render-ready-body && printf '\\n'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "List GitHub deployment runs",
+			"type": "shell",
+			"command": "gh run list --limit 10 --json databaseId,name,event,status,conclusion,headSha,createdAt,url",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect Render deploy run result",
+			"type": "shell",
+			"command": "gh run view 37144827480 --json name,status,conclusion,headSha,jobs,url",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify deployed VIT endpoints",
+			"type": "shell",
+			"command": "curl -sS -o /tmp/vit-render-ping-body -w 'ping HTTP %{http_code}\\n' --max-time 20 https://vitnetwork-nls4.onrender.com/ping && cat /tmp/vit-render-ping-body && printf '\\n' && curl -sS -o /tmp/vit-render-ready-body -w 'ready HTTP %{http_code}\\n' --max-time 20 https://vitnetwork-nls4.onrender.com/ready && cat /tmp/vit-render-ready-body && printf '\\n'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify Render API deploy response",
+			"type": "shell",
+			"command": "gh run view 37144827480 --log",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Extract Render API action logs",
+			"type": "shell",
+			"command": "grep -E 'Triggering deploy|Status:|Body:|Deploy triggered:|autoDeploy|API auth failed|Polling|Attempt [0-9]+/20|Service is ready' /tmp/1791052931458-copilot-tool-output-8b0172b906af427b98aebffb70d01ca1.txt",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify public verification route",
+			"type": "shell",
+			"command": "curl -sS -o /tmp/vit-verification-page -w 'verification HTTP %{http_code} content-type %{content_type}\\n' --max-time 20 https://vitnetwork-nls4.onrender.com/verification && head -c 1000 /tmp/vit-verification-page && printf '\\n'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check current repository state",
+			"type": "shell",
+			"command": "git status --short && git --no-pager log -4 --oneline",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Trace sealed pick references",
+			"type": "shell",
+			"command": "grep -RInE 'sealed pick|Sealed Pick|seal id|seal_id|pick.*prob|prob.*pick|\\bseal\\b' frontend/src backend/app tests | head -300",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Locate sealed pick API models",
+			"type": "shell",
+			"command": "grep -RInE 'seal_id|sealId|sealed|verification|probability|pick' backend/app/api/routes backend/app/modules backend/app/db | head -350",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Read verification components",
+			"type": "shell",
+			"command": "sed -n '1,220p' frontend/src/pages/Verification.tsx && sed -n '225,270p' frontend/src/pages/Home.tsx",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Read verification data adapter",
+			"type": "shell",
+			"command": "sed -n '1,100p' frontend/src/pages/Verification.tsx; grep -RIn 'useVerificationRecords' frontend/src",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Trace backend match records",
+			"type": "shell",
+			"command": "grep -RInE 'seal_id|sealed_at|sealed|class.*Pick|probability|confidence' backend/app | grep -Ei 'pick|seal|verification|matches' | head -240",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect genesis sealed pick card",
+			"type": "shell",
+			"command": "sed -n '105,270p' frontend/src/pages/Home.tsx && sed -n '1,130p' frontend/src/hooks/useMatches.ts 2>/dev/null",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Trace top matches query mapping",
+			"type": "shell",
+			"command": "grep -RIn 'useTopMatches' frontend/src && grep -RInE 'def get_upcoming|@router.get\\(\"/upcoming|@router.get\\(\"/top|top_matches|home_prob' backend/app/api/routes/matches.py frontend/src/hooks frontend/src/lib | head -240",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Read top matches hook and card input",
+			"type": "shell",
+			"command": "sed -n '1,70p' frontend/src/pages/Home.tsx; sed -n '675,760p' backend/app/api/routes/matches.py; sed -n '390,480p' backend/app/api/routes/matches.py",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check live Genesis response",
+			"type": "shell",
+			"command": "curl -sS --max-time 20 'https://vitnetwork-nls4.onrender.com/api/matches/upcoming?limit=4' | python -c 'import json,sys; rows=json.load(sys.stdin); print(json.dumps([{k:r.get(k) for k in (\"id\",\"match_id\",\"home_team\",\"away_team\",\"sport\",\"kickoff_time\",\"home_prob\",\"draw_prob\",\"away_prob\",\"bet_side\",\"confidence\",\"prediction_status\",\"prediction_source\",\"source\",\"evidence\")} for r in rows], indent=2))'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect active frontend tests patterns",
+			"type": "shell",
+			"command": "find frontend -maxdepth 3 -type f \\( -name '*.test.*' -o -name '*.spec.*' \\) -print | head -80; find tests -maxdepth 2 -type f -iname '*verification*' -o -iname '*home*' | head -60",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect sealed NBA API record",
+			"type": "shell",
+			"command": "curl -sS --max-time 20 'https://vitnetwork-nls4.onrender.com/api/matches/upcoming' | python -c 'import json,sys; rows=json.load(sys.stdin); print(json.dumps([r for r in rows if \"Toronto Raptors\" in (r.get(\"home_team\",\"\")+r.get(\"away_team\", \"\")) and \"Miami Heat\" in (r.get(\"home_team\",\"\")+r.get(\"away_team\", \"\"))], indent=2))'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect verification feed live record",
+			"type": "shell",
+			"command": "curl -sS --max-time 20 'https://vitnetwork-nls4.onrender.com/api/matches/recent?limit=4' | python -c 'import json,sys; rows=json.load(sys.stdin); print(json.dumps([{k:r.get(k) for k in (\"id\",\"match_id\",\"home_team\",\"away_team\",\"sport\",\"kickoff_time\",\"home_prob\",\"draw_prob\",\"away_prob\",\"bet_side\",\"confidence\",\"prediction_status\",\"prediction_source\",\"source\",\"evidence\")} for r in rows], indent=2))'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check UI test dependencies",
+			"type": "shell",
+			"command": "cat frontend/package.json | grep -E 'vitest|playwright|jest|test'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect prediction failure details",
+			"type": "shell",
+			"command": "curl -sS --max-time 20 'https://vitnetwork-nls4.onrender.com/api/matches/986' | python -c 'import json,sys; r=json.load(sys.stdin); print(json.dumps({k:r.get(k) for k in (\"match_id\",\"home_team\",\"away_team\",\"prediction_status\",\"error_message\",\"home_prob\",\"draw_prob\",\"away_prob\",\"bet_side\",\"confidence\",\"evidence\",\"provenance\")}, indent=2))'",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect frontend validation commands",
+			"type": "shell",
+			"command": "grep -nE '\"(scripts|build|test|lint|typecheck|type-check)\"|vitest|jest|playwright' frontend/package.json package.json",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify clean target files",
+			"type": "shell",
+			"command": "git status --short && git --no-pager log -1 --oneline",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check sealed pick diff hygiene",
+			"type": "shell",
+			"command": "git diff --check && git status --short && git --no-pager diff --stat",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Build frontend sealed pick change",
+			"type": "shell",
+			"command": "cd frontend && npm run build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Review final sealed pick diff",
+			"type": "shell",
+			"command": "git diff --check && git --no-pager diff -- frontend/src/pages/Home.tsx frontend/src/pages/Verification.tsx frontend/src/lib/pickPresentation.ts",
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}
