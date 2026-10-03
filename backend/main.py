@@ -67,36 +67,34 @@ async def lifespan(app: FastAPI):
     _tachyon_worker = None
     _tachyon_worker_task = None
 
-    try:
-        from app.db.database import initialize_schema
-        await initialize_schema()
-        logging.getLogger(__name__).info("[lifespan] database schema initialized")
-    except Exception as _schema_exc:
-        logging.getLogger(__name__).warning(
-            "[lifespan] database schema initialization failed: %s",
-            _schema_exc,
-            exc_info=True,
-        )
-
-    try:
-        await bootstrap_default_admin()
-        logging.getLogger(__name__).info("[lifespan] default admin bootstrap complete")
-    except Exception as _bootstrap_exc:
-        logging.getLogger(__name__).warning(
-            "[lifespan] default admin bootstrap raised unexpectedly: %s",
-            _bootstrap_exc,
-            exc_info=True,
-        )
-
     async def _boot_and_setup() -> None:
         """
-        Runs kernel.boot() and all post-boot setup in a background task.
-
-        By doing this asynchronously, uvicorn can start serving /ping immediately
-        so Render's health check passes before the DB/Redis subsystems are ready.
-        Previously this ran synchronously before `yield`, blocking /ping for up to
-        60+ seconds (asyncpg default timeout) and causing consistent update_failed.
+        Runs database bootstrap, admin sync, kernel.boot(), and the remaining
+        subsystem startup in a background task so uvicorn can bind and /ping
+        respond immediately. Render's 5s health check will otherwise fail while
+        the DB/Redis and admin bootstrap are still running before `yield`.
         """
+        try:
+            from app.db.database import initialize_schema
+            await initialize_schema()
+            logging.getLogger(__name__).info("[lifespan] database schema initialized")
+        except Exception as _schema_exc:
+            logging.getLogger(__name__).warning(
+                "[lifespan] database schema initialization failed: %s",
+                _schema_exc,
+                exc_info=True,
+            )
+
+        try:
+            await bootstrap_default_admin()
+            logging.getLogger(__name__).info("[lifespan] default admin bootstrap complete")
+        except Exception as _bootstrap_exc:
+            logging.getLogger(__name__).warning(
+                "[lifespan] default admin bootstrap raised unexpectedly: %s",
+                _bootstrap_exc,
+                exc_info=True,
+            )
+
         try:
             await kernel.boot()
         except (KeyboardInterrupt, asyncio.CancelledError):
