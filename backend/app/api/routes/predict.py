@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import case, select, desc, func
+from sqlalchemy import case, select, desc, func, or_
 from datetime import datetime, timezone
 
 from app.config import APP_VERSION, MAX_STAKE, MIN_EDGE_THRESHOLD, MAX_PREDICTIONS_PER_DAY, PUBLIC_APP_URL
@@ -30,7 +30,7 @@ from app.services.multi_sport_orchestrator import MultiSportOrchestrator
 from app.tasks.clv import update_clv_task
 from app.tasks.edges import recalculate_edges_task
 from app.services.decision_logger import DecisionLogger
-from app.services.predict_features import build_predict_features
+from app.services.predict_features import build_predict_features, _recent_matches_for, _static_history_for_team, _team_search_terms
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +176,60 @@ def create_idempotency_key(match: MatchRequest, user_id: Optional[int] = None) -
         "user_id":      user_id,
     }
     return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()[:32]
+
+
+async def _build_recent_form_snapshot(db: AsyncSession, home_team: str, away_team: str, before: datetime, sport: str = "football") -> dict:
+    """Persist the recent form used to support the live prediction as structured provenance."""
+
+    def _summarize(team_name: str, matches: list) -> dict:
+        terms = _team_search_terms(team_name)
+        form = []
+        recent = []
+        for match in matches[:5]:
+            home_goals = getattr(match, "home_goals", None)
+            away_goals = getattr(match, "away_goals", None)
+            outcome = getattr(match, "actual_outcome", None)
+            if not outcome and home_goals is not None and away_goals is not None:
+                if home_goals > away_goals:
+                    outcome = "home"
+                elif home_goals < away_goals:
+                    outcome = "away"
+                else:
+                    outcome = "draw"
+            if outcome == "draw":
+                letter = "D"
+            elif outcome == "home":
+                letter = "W" if any(term.lower() in (getattr(match, "home_team", "") or "").lower() for term in terms) else "L"
+            elif outcome == "away":
+                letter = "W" if any(term.lower() in (getattr(match, "away_team", "") or "").lower() for term in terms) else "L"
+            else:
+                letter = "D"
+            form.append(letter)
+            recent.append({
+                "home": getattr(match, "home_team", None),
+                "away": getattr(match, "away_team", None),
+                "score": f"{home_goals}-{away_goals}" if home_goals is not None and away_goals is not None else None,
+                "outcome": outcome,
+                "date": getattr(match, "kickoff_time", None).isoformat() if getattr(match, "kickoff_time", None) else None,
+            })
+        return {
+            "matches_played": len(matches),
+            "results": form,
+            "form": "".join(form) if form else "N/A",
+            "matches": recent,
+        }
+
+    home_matches = await _recent_matches_for(db, home_team, limit=5, before=before, sport=sport)
+    if not home_matches:
+        home_matches = _static_history_for_team(home_team, limit=5, before=before, sport=sport)
+    away_matches = await _recent_matches_for(db, away_team, limit=5, before=before, sport=sport)
+    if not away_matches:
+        away_matches = _static_history_for_team(away_team, limit=5, before=before, sport=sport)
+    return {
+        "home": _summarize(home_team, home_matches),
+        "away": _summarize(away_team, away_matches),
+    }
+
 
 def _argmax_side(hp: float, dp: float, ap: float) -> str:
     return max((("home", hp), ("draw", dp), ("away", ap)), key=lambda x: x[1])[0]
@@ -465,6 +519,7 @@ async def predict(
 
         completeness = float(match_features.get("feature_completeness", 0.0)) if match_features else 0.0
         data_quality["feature_completeness"] = round(completeness, 3)
+        recent_form = await _build_recent_form_snapshot(db, match.home_team, match.away_team, naive_kickoff, sport=sport)
         if completeness < 0.3:
             logger.warning(
                 "PREDICT_FALLBACK low feature completeness=%.2f for %s vs %s — "
@@ -725,6 +780,8 @@ async def predict(
                 "fixture_id": match.fixture_id,
                 "market_probabilities": result.get("market_probabilities"),
                 "schedule_features": result.get("schedule_features"),
+                "recent_form": recent_form,
+                "feature_completeness": round(completeness, 3),
             },
             request_hash=idempotency_key,
             match_id=db_match.id,

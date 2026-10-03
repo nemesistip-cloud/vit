@@ -65,6 +65,18 @@ async def test_football_prediction_works_without_market_odds():
 
 
 @pytest.mark.asyncio
+async def test_predict_records_recent_form_in_provenance():
+    async with _client() as client:
+        resp = await client.post("/api/predict", json=_match_payload())
+    assert resp.status_code == 200
+    data = resp.json()
+    recent_form = data["provenance"].get("recent_form")
+    assert recent_form is not None
+    assert recent_form["home"]["matches_played"] >= 3
+    assert recent_form["away"]["matches_played"] >= 3
+
+
+@pytest.mark.asyncio
 async def test_predict_probabilities_sum_to_one():
     async with _client() as client:
         resp = await client.post("/api/predict", json=_match_payload())

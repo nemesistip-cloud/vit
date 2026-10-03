@@ -149,3 +149,93 @@ async def test_refresh_prediction_odds_includes_live_provider_markets(monkeypatc
     assert calls and calls[0][0] == "la_liga"
     assert calls[0][2] is True
     assert [item.fixture_id for item in result] == ["odds-api-live-123"] * 3
+
+
+@pytest.mark.asyncio
+async def test_recent_form_falls_back_to_static_history(monkeypatch):
+    class EmptyResult:
+        def scalars(self):
+            return self
+
+        def all(self):
+            return []
+
+    class EmptyDatabase:
+        async def execute(self, _statement):
+            return EmptyResult()
+
+    kickoff = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    history = [
+        SimpleNamespace(
+            home_team="Arsenal FC",
+            away_team="Chelsea FC",
+            home_goals=2,
+            away_goals=1,
+            kickoff_time=kickoff,
+        ),
+        SimpleNamespace(
+            home_team="Liverpool FC",
+            away_team="Arsenal FC",
+            home_goals=2,
+            away_goals=0,
+            kickoff_time=kickoff.replace(day=2),
+        ),
+    ]
+    monkeypatch.setattr(matches, "_static_history_for_team", lambda *args, **kwargs: history)
+
+    result = await matches._recent_form(
+        EmptyDatabase(),
+        "Arsenal FC",
+        before=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        sport="football",
+    )
+
+    assert result["matches_played"] == 2
+    assert result["form"] == "LW"
+    assert result["matches"][0]["outcome"] == "home"
+
+
+@pytest.mark.asyncio
+async def test_prediction_diagnostics_fills_missing_legacy_recent_form(monkeypatch):
+    kickoff = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    match = SimpleNamespace(
+        id=42,
+        external_id="fixture-42",
+        source="sportsdb",
+        home_team="Arsenal FC",
+        away_team="Chelsea FC",
+        sport="football",
+        kickoff_time=kickoff,
+    )
+    prediction = SimpleNamespace(
+        provenance={},
+        status="READY",
+        error_message=None,
+        home_prob=0.5,
+        draw_prob=0.25,
+        away_prob=0.25,
+    )
+
+    class Result:
+        def __init__(self, value):
+            self.value = value
+
+        def scalar_one_or_none(self):
+            return self.value
+
+    class FakeDatabase:
+        def __init__(self):
+            self.results = [Result(match), Result(prediction)]
+
+        async def execute(self, _statement):
+            return self.results.pop(0)
+
+    async def form_for_team(_db, team, _before, sport=None):
+        return {"form": "WDL", "matches_played": 3, "team": team, "sport": sport}
+
+    monkeypatch.setattr(matches, "_recent_form", form_for_team)
+
+    result = await matches.get_prediction_diagnostics(42, FakeDatabase())
+
+    assert result["recent_form"]["home"]["matches_played"] == 3
+    assert result["recent_form"]["away"]["team"] == "Chelsea FC"

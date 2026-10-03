@@ -20,7 +20,7 @@ from app.modules.wallet.models import PlatformConfig
 from app.core.cache import cache
 from app.modules.ai.models import AIPredictionAudit
 from app.services.deterministic_insights import generate_match_insights
-from app.services.predict_features import build_predict_features, _team_search_terms
+from app.services.predict_features import build_predict_features, _static_history_for_team, _team_search_terms
 from app.services.odds_provider import NormalizedOdds, OddsIntelligence, default_provider_registry, OddsFreshness
 from app.services.evidence_engine import EvidenceEngine, PredictionClassification
 from app.services.match_intelligence import MatchIntelligenceProfile, PredictionReadinessGate, ValidationStatus
@@ -705,7 +705,7 @@ async def get_upcoming_matches(
         ) from e
 
 
-async def _recent_form(db: AsyncSession, team: str, before: datetime) -> dict:
+async def _recent_form(db: AsyncSession, team: str, before: datetime, sport: Optional[str] = None) -> dict:
     terms = _team_search_terms(team)
     conditions = []
     for term in terms:
@@ -721,10 +721,42 @@ async def _recent_form(db: AsyncSession, team: str, before: datetime) -> dict:
         .limit(5)
     )
     res = await db.execute(stmt)
-    matches = res.scalars().all()
+    matches = list(res.scalars().all())
+    if len(matches) < 5:
+        seen = {
+            (
+                _normalise_provider_team_name(m.home_team),
+                _normalise_provider_team_name(m.away_team),
+                m.kickoff_time.isoformat() if m.kickoff_time else None,
+                m.home_goals,
+                m.away_goals,
+            )
+            for m in matches
+        }
+        for historical in _static_history_for_team(team, limit=5, before=before, sport=sport):
+            key = (
+                _normalise_provider_team_name(historical.home_team),
+                _normalise_provider_team_name(historical.away_team),
+                historical.kickoff_time.isoformat() if historical.kickoff_time else None,
+                historical.home_goals,
+                historical.away_goals,
+            )
+            if key not in seen:
+                matches.append(historical)
+                seen.add(key)
+        def _sort_timestamp(match):
+            kickoff = match.kickoff_time
+            if kickoff is None:
+                return float("-inf")
+            if kickoff.tzinfo is None:
+                kickoff = kickoff.replace(tzinfo=timezone.utc)
+            return kickoff.timestamp()
+
+        matches.sort(key=_sort_timestamp, reverse=True)
+    matches = matches[:5]
     form = []
     for m in matches:
-        outcome = m.actual_outcome
+        outcome = getattr(m, 'actual_outcome', None)
         if not outcome and m.home_goals is not None and m.away_goals is not None:
             if m.home_goals > m.away_goals:
                 outcome = 'home'
@@ -751,7 +783,7 @@ async def _recent_form(db: AsyncSession, team: str, before: datetime) -> dict:
                 'home': m.home_team,
                 'away': m.away_team,
                 'score': f'{m.home_goals}-{m.away_goals}' if m.home_goals is not None else None,
-                'outcome': m.actual_outcome,
+                'outcome': outcome,
                 'date': m.kickoff_time.isoformat() if m.kickoff_time else None
             }
             for m in matches
@@ -1298,8 +1330,8 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
         "predictions_count": len(preds),
         "enabled_markets": markets,
         "recent_form": {
-            "home": await _recent_form(db, team=match.home_team, before=match.kickoff_time),
-            "away": await _recent_form(db, team=match.away_team, before=match.kickoff_time),
+            "home": await _recent_form(db, team=match.home_team, before=match.kickoff_time, sport=match.sport),
+            "away": await _recent_form(db, team=match.away_team, before=match.kickoff_time, sport=match.sport),
         },
         "h2h": await _head_to_head(db, match),
     }
@@ -1409,8 +1441,8 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
 
         h2h = await _head_to_head(db, match)
         recent_form_data = {
-            "home": await _recent_form(db, team=match.home_team, before=match.kickoff_time),
-            "away": await _recent_form(db, team=match.away_team, before=match.kickoff_time),
+            "home": await _recent_form(db, team=match.home_team, before=match.kickoff_time, sport=match.sport),
+            "away": await _recent_form(db, team=match.away_team, before=match.kickoff_time, sport=match.sport),
         }
 
         # 2. Refresh odds for this provider fixture. Stored odds are only used
@@ -1600,6 +1632,8 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                     "model_agreement": evidence.model_agreement,
                 },
                 "checklist": evidence.checklist,
+                "recent_form": recent_form_data,
+                "h2h": h2h,
                 "missing_elements": evidence.missing_elements,
                 "rejection_reason": evidence.rejection_reason,
                 "feature_completeness": features.get("feature_completeness", 0.0),
@@ -1659,6 +1693,8 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                     "model_agreement": evidence.model_agreement,
                 },
                 "checklist": evidence.checklist,
+                "recent_form": recent_form_data,
+                "h2h": h2h,
                 "missing_elements": evidence.missing_elements,
                 "rejection_reason": evidence.rejection_reason,
                 "feature_completeness": features.get("feature_completeness", 0.0),
@@ -1865,6 +1901,12 @@ async def get_prediction_diagnostics(match_id: int, db: AsyncSession = Depends(g
         .order_by(Prediction.timestamp.desc()).limit(1)
     )).scalar_one_or_none()
     provenance = getattr(prediction, "provenance", None) or {}
+    recent_form = provenance.get("recent_form") if isinstance(provenance, dict) else None
+    if not isinstance(recent_form, dict) or not recent_form.get("home") or not recent_form.get("away"):
+        recent_form = {
+            "home": await _recent_form(db, match.home_team, match.kickoff_time, sport=match.sport),
+            "away": await _recent_form(db, match.away_team, match.kickoff_time, sport=match.sport),
+        }
     return {
         "match_id": str(match_id),
         "fixture": {
@@ -1875,7 +1917,7 @@ async def get_prediction_diagnostics(match_id: int, db: AsyncSession = Depends(g
             "sport": match.sport,
         },
         "feature_completeness": provenance.get("feature_completeness", 0.0),
-        "recent_form": provenance.get("recent_form", {}),
+        "recent_form": recent_form,
         "h2h": provenance.get("h2h", {}),
         "odds": {
             "freshness": provenance.get("odds_freshness"),
