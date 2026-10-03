@@ -360,8 +360,6 @@ async def get_genesis_status(db: AsyncSession = Depends(get_db)) -> Dict[str, An
     state["status"] = "verified" if state["verified"] else "bootstrapping"
     state["dependency_status"] = deps
     state["validation_results"] = validation_results
-    if state.get("updated_at") is None or state.get("status") == "bootstrapping":
-        state = await _persist_genesis_state(db, state)
     return state
 
 
