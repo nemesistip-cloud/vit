@@ -5,6 +5,8 @@ import pytest
 
 from app.api.routes import matches
 from app.services.odds_api import OddsData
+from app.services import sportsdb_api
+from app.services import public_football_data
 
 
 def test_provider_team_names_match_shortened_bookmaker_names():
@@ -239,3 +241,65 @@ async def test_prediction_diagnostics_fills_missing_legacy_recent_form(monkeypat
 
     assert result["recent_form"]["home"]["matches_played"] == 3
     assert result["recent_form"]["away"]["team"] == "Chelsea FC"
+
+
+@pytest.mark.asyncio
+async def test_scoped_historical_refresh_skips_global_day_scan(monkeypatch):
+    kickoff = datetime(2026, 9, 18, tzinfo=timezone.utc)
+    cutoff = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    event = {
+        "external_id": None,
+        "home_team": "Mainz",
+        "away_team": "Leverkusen",
+        "league": "bundesliga",
+        "kickoff_time": kickoff,
+        "status": "settled",
+        "home_goals": 0,
+        "away_goals": 2,
+        "actual_outcome": "away",
+        "source": "football-data-uk",
+    }
+
+    async def get_public_history(before, teams, league):
+        assert before == cutoff
+        assert teams == {"1. FSV Mainz 05", "Bayer 04 Leverkusen"}
+        assert league == "bundesliga"
+        return [event]
+
+    async def fail_global_scan(*args, **kwargs):
+        raise AssertionError("fixture refresh must not run the global date scan")
+
+    class EmptyResult:
+        def scalars(self):
+            return self
+
+        def all(self):
+            return []
+
+    class FakeDatabase:
+        def __init__(self):
+            self.added = []
+
+        async def execute(self, _statement):
+            return EmptyResult()
+
+        def add(self, row):
+            self.added.append(row)
+
+        async def commit(self):
+            return None
+
+    monkeypatch.setattr(public_football_data, "fetch_historical_matches", get_public_history)
+    monkeypatch.setattr(sportsdb_api, "fetch_historical_range", fail_global_scan)
+    db = FakeDatabase()
+
+    result = await sportsdb_api.sync_and_insert_historical(
+        db,
+        before=cutoff,
+        teams={"1. FSV Mainz 05", "Bayer 04 Leverkusen"},
+        league="bundesliga",
+    )
+
+    assert result["inserted"] == 1
+    assert db.added[0].home_goals == 0
+    assert db.added[0].away_goals == 2

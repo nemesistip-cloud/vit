@@ -8,6 +8,7 @@ from app.services.evidence_engine import EvidenceEngine, PredictionClassificatio
 from app.services.live_match_ingestion import _database_utc_now
 from app.services.odds_api import OddsAPIClient
 from app.services.odds_provider import NormalizedOdds, OddsIntelligence
+from app.services import predict_features
 from app.api.routes import matches as matches_route
 
 
@@ -18,6 +19,39 @@ def test_database_timestamp_is_utc_naive_for_postgres():
 
     assert normalized.tzinfo is None
     assert normalized == datetime(2026, 9, 15, 21, 40)
+
+
+def test_static_history_loader_reads_raw_bundesliga_results(tmp_path, monkeypatch):
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    (raw_dir / "D1.csv").write_text(
+        "Div,Date,HomeTeam,AwayTeam,FTHG,FTAG\n"
+        "D1,05/09/2026,Leverkusen,Mainz,2,0\n"
+        "D1,12/09/2026,Bayern Munich,Leverkusen,1,1\n"
+        "D1,19/09/2026,Leverkusen,Dortmund,3,2\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(predict_features, "_sports_history_dir", lambda: tmp_path / "sports")
+    monkeypatch.setattr(predict_features, "_raw_history_dir", lambda: raw_dir)
+    predict_features._static_history_rows.cache_clear()
+
+    try:
+        rows = predict_features._static_history_for_team(
+            "Bayer 04 Leverkusen",
+            limit=5,
+            before=datetime(2026, 10, 1, tzinfo=timezone.utc),
+            sport="football",
+        )
+    finally:
+        predict_features._static_history_rows.cache_clear()
+
+    assert len(rows) == 3
+    assert all(row.league == "bundesliga" for row in rows)
+    assert all(row.sport == "football" for row in rows)
+    assert not predict_features._match_team_name("Bayer 04 Leverkusen", "Bayern Munich")
+    assert not predict_features._match_team_name("West Ham United FC", "Birmingham City FC")
+    assert "Bayer" not in predict_features._team_search_terms("Bayer 04 Leverkusen")
+    assert "Ham" not in predict_features._team_search_terms("West Ham United FC")
 
 
 @pytest.mark.asyncio

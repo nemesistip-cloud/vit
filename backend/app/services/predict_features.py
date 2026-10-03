@@ -68,6 +68,7 @@ _LEAGUE_HOME_ADV: Dict[str, float] = {
     "argentina_liga_profesional": 0.49,
 }
 _DEFAULT_HOME_ADV = 0.40
+_TEAM_NAME_IGNORED_TOKENS = {"fc", "afc", "cf", "club", "the", "sc", "ac", "as", "fsv"}
 
 # Neutral fallbacks used only when there's no historical data at all.
 _FALLBACK_FEATURES: Dict[str, float] = {
@@ -97,17 +98,26 @@ def _normalise_league_name(value: str) -> str:
 def _match_team_name(team: str, candidate: str) -> bool:
     if not team or not candidate:
         return False
-    target = _normalise_team_name(team)
     other = _normalise_team_name(candidate)
-    if not target or not other:
+    if not other:
         return False
-    if target == other:
-        return True
-    if target in other or other in target:
-        return True
     for term in _team_search_terms(team):
-        norm_term = _normalise_team_name(term)
-        if norm_term and norm_term in other:
+        normalized_term = _normalise_team_name(term)
+        if not normalized_term:
+            continue
+        if normalized_term == other:
+            return True
+        term_tokens = {
+            token for token in re.findall(r"[a-z0-9]+", term.lower())
+            if token not in _TEAM_NAME_IGNORED_TOKENS and not token.isdigit()
+        }
+        other_tokens = {
+            token for token in re.findall(r"[a-z0-9]+", candidate.lower())
+            if token not in _TEAM_NAME_IGNORED_TOKENS and not token.isdigit()
+        }
+        if len(term_tokens) >= 2 and term_tokens.issubset(other_tokens):
+            return True
+        if len(other_tokens) >= 2 and other_tokens.issubset(term_tokens):
             return True
     return False
 
@@ -116,7 +126,23 @@ def _sports_history_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "data" / "sports"
 
 
-def _parse_date(value: Optional[str]) -> Optional[datetime]:
+def _raw_history_dir() -> Path:
+    return Path(__file__).resolve().parents[3] / "data" / "raw"
+
+
+_RAW_LEAGUES = {
+    "E0": "premier_league",
+    "E1": "championship",
+    "D1": "bundesliga",
+    "SP1": "la_liga",
+    "I1": "serie_a",
+    "F1": "ligue_1",
+    "N1": "eredivisie",
+    "P1": "primeira_liga",
+}
+
+
+def _parse_date(value: Optional[str], day_first: bool = False) -> Optional[datetime]:
     if not value:
         return None
     raw = str(value).strip()
@@ -126,7 +152,9 @@ def _parse_date(value: Optional[str]) -> Optional[datetime]:
     try:
         return datetime.fromisoformat(raw)
     except ValueError:
-        for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y", "%d/%m/%Y"):
+        day_first_formats = ("%d/%m/%Y", "%d/%m/%y", "%m/%d/%Y")
+        month_first_formats = ("%m/%d/%Y", "%d/%m/%Y", "%d/%m/%y")
+        for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", *(day_first_formats if day_first else month_first_formats)):
             try:
                 return datetime.strptime(raw, fmt)
             except ValueError:
@@ -239,21 +267,28 @@ def get_fresh_football_form(match_features: Dict[str, Any]) -> Optional[Dict[str
 def _static_history_rows() -> List[SimpleNamespace]:
     rows: List[SimpleNamespace] = []
     history_dir = _sports_history_dir()
-    if not history_dir.exists():
-        return rows
+    raw_dir = _raw_history_dir()
+    csv_paths = list(history_dir.glob("**/*_matches.csv")) if history_dir.exists() else []
+    if raw_dir.exists():
+        csv_paths.extend(
+            path for path in raw_dir.glob("*.csv")
+            if path.stem.split("_")[0].upper() in _RAW_LEAGUES
+        )
 
-    for csv_path in sorted(history_dir.glob("**/*_matches.csv")):
+    for csv_path in sorted(csv_paths):
+        raw_league_code = csv_path.stem.split("_")[0].upper()
+        is_raw_football = raw_league_code in _RAW_LEAGUES
         try:
             with csv_path.open("r", encoding="utf-8", newline="") as fh:
                 reader = csv.DictReader(fh)
                 for row in reader:
-                    home = (row.get("home_team") or row.get("home") or "").strip()
-                    away = (row.get("away_team") or row.get("away") or "").strip()
+                    home = (row.get("home_team") or row.get("home") or row.get("HomeTeam") or "").strip()
+                    away = (row.get("away_team") or row.get("away") or row.get("AwayTeam") or "").strip()
                     if not home or not away:
                         continue
 
-                    home_score = row.get("home_score") or row.get("home_goals") or row.get("home_points")
-                    away_score = row.get("away_score") or row.get("away_goals") or row.get("away_points")
+                    home_score = row.get("home_score") or row.get("home_goals") or row.get("home_points") or row.get("FTHG")
+                    away_score = row.get("away_score") or row.get("away_goals") or row.get("away_points") or row.get("FTAG")
                     try:
                         home_goals = int(float(str(home_score).strip())) if home_score not in (None, "") else None
                         away_goals = int(float(str(away_score).strip())) if away_score not in (None, "") else None
@@ -277,8 +312,8 @@ def _static_history_rows() -> List[SimpleNamespace]:
                     if home_goals is None or away_goals is None:
                         continue
 
-                    date_raw = row.get("date") or row.get("kickoff_time") or row.get("match_date") or row.get("datetime")
-                    match_date = _as_utc(_parse_date(date_raw))
+                    date_raw = row.get("date") or row.get("kickoff_time") or row.get("match_date") or row.get("datetime") or row.get("Date")
+                    match_date = _as_utc(_parse_date(date_raw, day_first=is_raw_football))
                     if match_date is not None and match_date > datetime.now(timezone.utc):
                         continue
                     rows.append(SimpleNamespace(
@@ -289,9 +324,9 @@ def _static_history_rows() -> List[SimpleNamespace]:
                         home_xg=home_xg,
                         away_xg=away_xg,
                         kickoff_time=match_date or datetime.min.replace(tzinfo=timezone.utc),
-                        league=(row.get("league") or csv_path.parent.name or "").strip() or "unknown",
-                        sport=csv_path.parent.name,
-                        source=(row.get("source") or "static_csv").strip(),
+                        league=(row.get("league") or (_RAW_LEAGUES.get(raw_league_code) if is_raw_football else csv_path.parent.name) or "").strip() or "unknown",
+                        sport="football" if is_raw_football else csv_path.parent.name,
+                        source=(row.get("source") or ("football-data-uk" if is_raw_football else "static_csv")).strip(),
                         source_file=str(csv_path),
                     ))
         except Exception as exc:  # pragma: no cover - defensive
@@ -389,6 +424,14 @@ def _team_search_terms(team: str) -> list[str]:
         ],
         'udinese calcio': ['udinese calcio', 'udinese'],
         'udinese': ['udinese calcio', 'udinese'],
+        'queens park rangers': ['queens park rangers', 'qpr'],
+        'qpr': ['qpr', 'queens park rangers'],
+        'west ham united fc': ['west ham united fc', 'west ham united', 'west ham'],
+        'west ham united': ['west ham united fc', 'west ham united', 'west ham'],
+        'west ham': ['west ham united fc', 'west ham united', 'west ham'],
+        'bayer 04 leverkusen': ['bayer 04 leverkusen', 'bayer leverkusen', 'leverkusen'],
+        'bayer leverkusen': ['bayer 04 leverkusen', 'bayer leverkusen', 'leverkusen'],
+        'leverkusen': ['bayer 04 leverkusen', 'bayer leverkusen', 'leverkusen'],
         'ararat-armenia-2': [
             'ararat-armenia-2', 'ararat armenia 2', 'ararat-armenia',
         ],

@@ -762,6 +762,7 @@ async def sync_and_insert_historical(
     include_sportsdb: bool = True,
     before=None,
     teams: set[str] | None = None,
+    league: str | None = None,
 ) -> Dict:
     """
     Fetch historical matches from TheSportsDB and upsert them into the DB.
@@ -772,14 +773,16 @@ async def sync_and_insert_historical(
 
     # Prefer public Football-Data.co.uk season CSVs for historical rows. They
     # cover the prior season when the authenticated API provider is unavailable.
-    from app.services.public_football_data import fetch_historical_matches
+    from app.services.public_football_data import fetch_historical_matches, supports_league
 
     events = []
     try:
-        events.extend(await fetch_historical_matches(before=before, teams=teams))
+        events.extend(await fetch_historical_matches(before=before, teams=teams, league=league))
     except Exception as public_exc:
         logger.warning("Public football CSV history failed: %s", type(public_exc).__name__)
-    if include_sportsdb:
+    # Request-time fixture refreshes must stay bounded; the day-by-day SportsDB
+    # scanner can take several minutes and is intended for scheduled backfills.
+    if include_sportsdb and not (teams and league and supports_league(league)):
         try:
             events.extend(await fetch_historical_range(days_back=days_back))
         except Exception as sportsdb_exc:

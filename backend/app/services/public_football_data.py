@@ -11,6 +11,8 @@ import asyncio
 import csv
 import io
 import logging
+import re
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any
 
@@ -19,6 +21,34 @@ import httpx
 logger = logging.getLogger(__name__)
 
 SOURCE_NAME = "football-data-uk"
+LEAGUE_CODES = {
+    "premierleague": "E0",
+    "e0": "E0",
+    "championship": "E1",
+    "e1": "E1",
+    "bundesliga": "D1",
+    "d1": "D1",
+    "laliga": "SP1",
+    "sp1": "SP1",
+    "seriea": "I1",
+    "i1": "I1",
+    "ligue1": "F1",
+    "f1": "F1",
+    "eredivisie": "N1",
+    "n1": "N1",
+    "primeiraliga": "P1",
+    "p1": "P1",
+}
+LEAGUE_NAMES = {
+    "E0": "premier_league",
+    "E1": "championship",
+    "D1": "bundesliga",
+    "SP1": "la_liga",
+    "I1": "serie_a",
+    "F1": "ligue_1",
+    "N1": "eredivisie",
+    "P1": "primeira_liga",
+}
 
 
 def _season_urls() -> tuple[str, ...]:
@@ -32,6 +62,56 @@ def _season_urls() -> tuple[str, ...]:
 
 
 SEASON_URLS = _season_urls()
+def _recent_season_urls(league_code: str, season_count: int = 2) -> tuple[str, ...]:
+    now = datetime.now(timezone.utc)
+    current_season_start = now.year if now.month >= 7 else now.year - 1
+    return tuple(
+        f"https://football-data.co.uk/mmz4281/{start % 100:02d}{(start + 1) % 100:02d}/{league_code}.csv"
+        for start in range(current_season_start, current_season_start - season_count, -1)
+    )
+
+
+def _league_code(league: str) -> str | None:
+    key = re.sub(r"[^a-z0-9]", "", league.lower())
+    return LEAGUE_CODES.get(key)
+
+
+def supports_league(league: str) -> bool:
+    return _league_code(league) is not None
+
+
+def _team_key(name: str) -> str:
+    folded = unicodedata.normalize("NFKD", name or "")
+    ascii_name = "".join(char for char in folded if not unicodedata.combining(char))
+    key = re.sub(r"[^a-z0-9]", "", ascii_name.lower())
+    aliases = {
+        "qpr": "queensparkrangers",
+        "queensparkrangersfc": "queensparkrangers",
+        "westhamunitedfc": "westham",
+        "1fsvmainz05": "mainz",
+        "bayer04leverkusen": "bayerleverkusen",
+        "ogcnice": "nice",
+        "rcstrasbourgalsace": "strasbourg",
+    }
+    return aliases.get(key, key)
+
+
+def _team_matches(candidate: str, requested: str) -> bool:
+    candidate_key = _team_key(candidate)
+    requested_key = _team_key(requested)
+    if not candidate_key or not requested_key:
+        return False
+    if candidate_key == requested_key:
+        return True
+    if min(len(candidate_key), len(requested_key)) >= 4 and (
+        candidate_key in requested_key or requested_key in candidate_key
+    ):
+        return True
+    candidate_tokens = set(re.findall(r"[a-z0-9]+", candidate_key))
+    requested_tokens = set(re.findall(r"[a-z0-9]+", requested_key))
+    return len(candidate_tokens & requested_tokens) >= 2
+
+
 PREMIER_LEAGUE_URLS = SEASON_URLS
 GITHUB_DATASET_URL = (
     "https://raw.githubusercontent.com/AnishKhetani/premier-league-data/"
@@ -91,7 +171,11 @@ def _normalise_team(name: str) -> str:
     return aliases.get(name.strip(), name.strip())
 
 
-def _row_to_event(row: dict[str, str], source_url: str) -> dict[str, Any] | None:
+def _row_to_event(
+    row: dict[str, str],
+    source_url: str,
+    league: str = "premier_league",
+) -> dict[str, Any] | None:
     kickoff = _parse_date(row.get("Date", ""))
     home = _normalise_team(row.get("HomeTeam", ""))
     away = _normalise_team(row.get("AwayTeam", ""))
@@ -128,7 +212,7 @@ def _row_to_event(row: dict[str, str], source_url: str) -> dict[str, Any] | None
         "external_id": None,
         "home_team": home,
         "away_team": away,
-        "league": "premier_league",
+        "league": league,
         "sport": "football",
         "kickoff_time": kickoff,
         "status": "settled",
@@ -207,19 +291,30 @@ def _github_row_to_event(row: dict[str, str]) -> dict[str, Any] | None:
 async def fetch_historical_matches(
     before: datetime | None = None,
     teams: set[str] | None = None,
+    league: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Fetch completed Premier League rows from public season CSVs."""
+    """Fetch completed rows from the relevant recent league-season CSVs."""
     cutoff = before or datetime.now(timezone.utc)
+    if league:
+        code = _league_code(league)
+        if not code:
+            logger.info("Public football CSV has no configured league mapping: %s", league)
+            return []
+        source_urls = _recent_season_urls(code)
+        sources = [(url, code) for url in source_urls]
+    else:
+        source_urls = (*PREMIER_LEAGUE_URLS, GITHUB_DATASET_URL)
+        sources = [(url, "E0") for url in PREMIER_LEAGUE_URLS]
+        sources.append((GITHUB_DATASET_URL, "GITHUB"))
     async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
         responses = await asyncio.gather(
-            *(client.get(url) for url in (*PREMIER_LEAGUE_URLS, GITHUB_DATASET_URL)),
+            *(client.get(url) for url, _ in sources),
             return_exceptions=True,
         )
 
     events: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
-    source_urls = (*PREMIER_LEAGUE_URLS, GITHUB_DATASET_URL)
-    for url, response in zip(source_urls, responses):
+    for (url, code), response in zip(sources, responses):
         if isinstance(response, Exception):
             logger.warning("Public football CSV unavailable source=%s error=%s", url, type(response).__name__)
             continue
@@ -235,15 +330,20 @@ async def fetch_historical_matches(
         except UnicodeDecodeError:
             csv_text = response.content.decode("latin-1")
         for row in csv.DictReader(io.StringIO(csv_text)):
-            event = _github_row_to_event(row) if url == GITHUB_DATASET_URL else _row_to_event(row, url)
+            event = (
+                _github_row_to_event(row)
+                if code == "GITHUB"
+                else _row_to_event(row, url, LEAGUE_NAMES[code])
+            )
             # The public CSV has no kickoff time. Exclude the entire cutoff
             # date so a result from later that day can never leak backward.
             if not event or event["kickoff_time"].date() >= cutoff.date():
                 continue
-            if teams and not {
-                event["home_team"].lower(),
-                event["away_team"].lower(),
-            }.intersection(team.lower() for team in teams):
+            if teams and not any(
+                _team_matches(event[side], team)
+                for team in teams
+                for side in ("home_team", "away_team")
+            ):
                 continue
             key = (
                 event["kickoff_time"].date().isoformat(),

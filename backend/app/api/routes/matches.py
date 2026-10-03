@@ -1417,6 +1417,7 @@ async def _execute_match_prediction(match_id: int, db: AsyncSession, force_refre
                         days_back=backfill_days,
                         before=match.kickoff_time,
                         teams={match.home_team, match.away_team},
+                        league=match.league,
                     ),
                     timeout=refresh_timeout,
                 )

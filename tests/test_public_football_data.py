@@ -99,3 +99,41 @@ async def test_public_provider_keeps_available_seasons_when_one_source_fails(mon
     rows = await fetch_historical_matches(before=datetime(2026, 9, 19, tzinfo=timezone.utc))
 
     assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_public_provider_fetches_scoped_league_and_matches_team_alias(monkeypatch):
+    class Response:
+        status_code = 200
+        content = (
+            b"Date,HomeTeam,AwayTeam,FTHG,FTAG\n"
+            b"18/09/2026,Queens Park Rangers,West Ham,1,0\n"
+            b"19/09/2026,Mainz,Leverkusen,0,2\n"
+        )
+
+    requested_urls = []
+
+    class Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url):
+            requested_urls.append(url)
+            return Response()
+
+    monkeypatch.setattr("app.services.public_football_data.httpx.AsyncClient", lambda **kwargs: Client())
+
+    rows = await fetch_historical_matches(
+        before=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        teams={"QPR"},
+        league="Championship",
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["league"] == "championship"
+    assert rows[0]["home_team"] == "Queens Park Rangers"
+    assert requested_urls
+    assert all(url.endswith("/E1.csv") for url in requested_urls)
