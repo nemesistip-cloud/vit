@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -111,19 +111,78 @@ function StatBlock({ icon: Icon, label, value, color }: {
 
 export default function AI() {
   const [tab, setTab] = useState<'overview' | 'models' | 'inference'>('overview')
+  const [selectedModel, setSelectedModel] = useState('')
+  const [promptInput, setPromptInput] = useState('')
+  const [inferenceState, setInferenceState] = useState<{ loading: boolean; error: string | null; result: string | null }>({
+    loading: false,
+    error: null,
+    result: null,
+  })
+
   const { data: service, isLoading: svcLoading, refetch } = useAiService()
   const { data: feed, isLoading: feedLoading, error: feedError } = useAiFeed()
   const { data: modelRegistry, isLoading: modelsLoading, error: modelsError } = useAiModels()
-  const { data: sources }                                  = useAiFeedSources()
-  const { data: modelConf }                                = useModelContribution()
+  const { data: sources } = useAiFeedSources()
+  const { data: modelConf } = useModelContribution()
 
   const modelsLoaded = service?.models_loaded ?? feed?.models_loaded ?? null
-  const version      = feed?.version ?? service?.version ?? null
-  const latency      = feed?.latency_ms ?? service?.latency_ms ?? null
-  const models       = Array.isArray(modelRegistry?.models) ? modelRegistry.models : []
-  const dbConnected   = feed?.db_connected ?? service?.db_connected
-  const clvEnabled    = feed?.clv_tracking_enabled ?? service?.clv_tracking_enabled
-  const feedStatus   = feed?.status ?? (feedLoading ? 'loading' : feedError ? 'unavailable' : 'unknown')
+  const version = feed?.version ?? service?.version ?? null
+  const latency = feed?.latency_ms ?? service?.latency_ms ?? null
+  const rawModels = Array.isArray(modelRegistry?.models) ? modelRegistry.models : []
+  const models = rawModels.filter((model: any) => model && (model.id || model.name || model.provider || model.status))
+  const dbConnected = feed?.db_connected ?? service?.db_connected
+  const clvEnabled = feed?.clv_tracking_enabled ?? service?.clv_tracking_enabled
+  const feedStatus = feed?.status ?? (feedLoading ? 'loading' : feedError ? 'unavailable' : 'unknown')
+  const serviceStatus = (feedError || modelsError || (modelsLoaded != null && modelsLoaded > 0 && models.length === 0))
+    ? 'degraded'
+    : (service?.status ?? feedStatus ?? 'unavailable')
+  const hasServiceData = Boolean(service || feed || modelRegistry)
+  const hasModels = models.length > 0
+
+  useEffect(() => {
+    if (!hasModels) {
+      setSelectedModel('')
+      return
+    }
+    setSelectedModel((current) => current || (models[0]?.id ?? models[0]?.name ?? ''))
+  }, [hasModels, models])
+
+  const handleInferenceRun = async () => {
+    if (!selectedModel) {
+      setInferenceState({ loading: false, error: 'Select a model from the registry before running inference.', result: null })
+      return
+    }
+    if (!promptInput.trim()) {
+      setInferenceState({ loading: false, error: 'Provide input before submitting a request.', result: null })
+      return
+    }
+
+    setInferenceState({ loading: true, error: null, result: null })
+    try {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/predict`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders(),
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          input: promptInput,
+          parameters: {},
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Inference request failed (${response.status})`)
+      }
+
+      const payload = await response.json()
+      setInferenceState({ loading: false, error: null, result: JSON.stringify(payload, null, 2) })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Inference request failed. Confirm the VIT AI endpoint is reachable and credentials are valid.'
+      setInferenceState({ loading: false, error: message, result: null })
+    }
+  }
 
   return (
     <div className="pt-16 min-h-screen">
@@ -151,7 +210,7 @@ export default function AI() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
         {/* Top stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatBlock icon={Activity} label="Service Status" value={svcLoading ? 'Loading' : (service?.status ?? 'Unavailable')} color="bg-emerald-500/20" />
+          <StatBlock icon={Activity} label="Service Status" value={svcLoading ? 'Loading' : (serviceStatus || 'Unavailable')} color="bg-emerald-500/20" />
           <StatBlock icon={Cpu}      label="Version"        value={version ?? 'Unavailable'}       color="bg-vit-500/20" />
           <StatBlock icon={Zap}      label="Latency"        value={latency != null ? `${latency}ms` : '—'} color="bg-amber-500/20" />
           <StatBlock icon={Brain}    label="Loaded Models"  value={modelsLoaded}  color="bg-purple-500/20" />
@@ -276,16 +335,16 @@ export default function AI() {
                 <p className="text-white/40">Model metadata is unavailable</p>
                 <p className="text-white/25 text-sm mt-1">The AI service may be temporarily unreachable.</p>
               </div>
-            ) : !service ? (
+            ) : !hasServiceData && models.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Brain className="w-12 h-12 text-white/10 mb-3" />
-                <p className="text-white/40">No models returned by vit-ai</p>
-                <p className="text-white/25 text-sm mt-1">Check the service logs for details.</p>
+                <p className="text-white/40">No model definitions are registered</p>
               </div>
             ) : models.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Brain className="w-12 h-12 text-white/10 mb-3" />
                 <p className="text-white/40">No model definitions are registered</p>
+                <p className="text-white/25 text-sm mt-1">The registry is empty even though the AI service reported {modelsLoaded ?? 0} loaded runtime model(s).</p>
               </div>
             ) : (
               <div className="divide-y divide-white/5">
@@ -311,23 +370,77 @@ export default function AI() {
         )}
 
         {tab === 'inference' && (
-          <div className="bg-surface-800/60 border border-white/8 rounded-xl p-8 text-center">
-            <Zap className="w-10 h-10 text-vit-400 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-white mb-2">Live Inference Panel</h2>
-            <p className="text-white/50 text-sm mb-6 max-w-md mx-auto">
-              Submit a match ID to receive real-time probability analysis across all 13+ loaded models with confidence intervals.
-            </p>
-            <div className="flex max-w-md mx-auto gap-3">
-              <input
-                type="text"
-                placeholder="Match ID or fixture name..."
-                className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-vit-500/50 transition-colors"
-              />
-              <button className="px-5 py-2.5 rounded-xl bg-vit-500 hover:bg-vit-400 text-white text-sm font-medium transition-colors flex items-center gap-2">
-                <Zap className="w-4 h-4" /> Run
-              </button>
+          <div className="bg-surface-800/60 border border-white/8 rounded-xl p-8">
+            <div className="max-w-3xl mx-auto">
+              <div className="flex items-center justify-center mb-4">
+                <Zap className="w-10 h-10 text-vit-400" />
+              </div>
+              <h2 className="text-lg font-semibold text-white text-center mb-2">Live Inference Panel</h2>
+              <p className="text-white/50 text-sm mb-6 text-center max-w-lg mx-auto">
+                Select a deployed model, submit a prompt or payload, and inspect the actual response returned by the service.
+              </p>
+
+              {hasModels ? (
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-[220px,1fr]">
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-wide text-white/40">Model</span>
+                      <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-vit-500/50"
+                      >
+                        {models.map((model: any) => (
+                          <option key={model.id ?? model.name} value={model.id ?? model.name} className="bg-surface-900 text-white">
+                            {model.name ?? model.id ?? 'Unnamed model'}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-wide text-white/40">Input</span>
+                      <input
+                        value={promptInput}
+                        onChange={(e) => setPromptInput(e.target.value)}
+                        type="text"
+                        placeholder="Enter a prompt or fixture context..."
+                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-vit-500/50 transition-colors"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <button
+                      onClick={handleInferenceRun}
+                      disabled={inferenceState.loading}
+                      className="px-5 py-2.5 rounded-xl bg-vit-500 hover:bg-vit-400 disabled:opacity-60 text-white text-sm font-medium transition-colors flex items-center gap-2"
+                    >
+                      <Zap className="w-4 h-4" /> {inferenceState.loading ? 'Running...' : 'Run'}
+                    </button>
+                    <span className="text-xs text-white/25">Uses <code className="text-vit-400/70">POST /api/predict</code> endpoint</span>
+                  </div>
+
+                  {inferenceState.error && (
+                    <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+                      {inferenceState.error}
+                    </div>
+                  )}
+
+                  {inferenceState.result && (
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-left">
+                      <p className="text-xs uppercase tracking-wide text-white/40 mb-2">Response</p>
+                      <pre className="text-xs whitespace-pre-wrap text-white/80 overflow-x-auto">{JSON.stringify(inferenceState.result, null, 2)}</pre>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <Brain className="w-12 h-12 text-white/10 mb-3" />
+                  <p className="text-white/40">No registered models are available for live inference</p>
+                  <p className="text-white/25 text-sm mt-1">The AI service registry is currently empty or unavailable.</p>
+                </div>
+              )}
             </div>
-            <p className="text-xs text-white/25 mt-4">Uses <code className="text-vit-400/70">POST /api/predict</code> endpoint</p>
           </div>
         )}
       </div>
