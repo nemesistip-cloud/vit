@@ -13,16 +13,21 @@ const PERKS = [
 ]
 
 export default function Login() {
-  const [tab, setTab]           = useState<'login' | 'register'>('login')
+  const navigate                = useNavigate()
+  const location                = useLocation()
+  const isRegisterPath           = location.pathname.replace(/\/+$/, '') === '/register'
+  const [tab, setTab]           = useState<'login' | 'register'>(isRegisterPath ? 'register' : 'login')
   const [email, setEmail]       = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw]     = useState(false)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
-  const navigate                = useNavigate()
-  const location                = useLocation()
   const redirectTarget          = (location.state as { from?: string } | null)?.from || '/workspace'
+
+  useEffect(() => {
+    setTab(isRegisterPath ? 'register' : 'login')
+  }, [isRegisterPath])
 
   useEffect(() => {
     if (getAuthToken()) {
