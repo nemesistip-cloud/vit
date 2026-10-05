@@ -1,3 +1,5 @@
+- 2026-10-05 `39bdcfe` fix(db): import vit_chain.storage.db in init_db and alembic env
+
 - 2026-10-05 `ce23c81` Fix vitnetwork ecosystem gaps in admin bootstrap, prediction features, and test dependencies
 
 - 2026-09-28 (unreleased) Fix external Chain read contracts, block timestamp rendering, AI model accuracy/health reporting, Swagger CSP docs, status routing, and Developer Hub contracts.
