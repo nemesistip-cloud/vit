@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Index, Integer,
+    Boolean, DateTime, ForeignKey, Index, Integer, JSON,
     Numeric, String, Text, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -93,3 +93,59 @@ class APIKeyPlan(Base):
     is_active       : Mapped[bool]     = mapped_column(Boolean, default=True)
 
     created_at      : Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WebhookEndpoint(Base):
+    """L4 — Developer registered webhook callback endpoint."""
+    __tablename__ = "dev_webhooks"
+
+    id              : Mapped[int]      = mapped_column(Integer, primary_key=True, index=True)
+    user_id         : Mapped[int]      = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    url             : Mapped[str]      = mapped_column(String(512), nullable=False)
+    description     : Mapped[str]      = mapped_column(String(255), nullable=True)
+    secret          : Mapped[str]      = mapped_column(String(128), nullable=False)       # HMAC signing secret
+    events          : Mapped[list]     = mapped_column(JSON, default=list)                # list of event strings, e.g. ["prediction.resolved", "match.started"]
+
+    is_active       : Mapped[bool]     = mapped_column(Boolean, default=True)
+    failure_count   : Mapped[int]      = mapped_column(Integer, default=0)
+    last_called_at  : Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at      : Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at      : Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    user          = relationship("User", foreign_keys=[user_id])
+    delivery_logs = relationship("WebhookDeliveryLog", back_populates="webhook", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("idx_dev_webhook_user_id",   "user_id"),
+        Index("idx_dev_webhook_is_active", "is_active"),
+    )
+
+
+class WebhookDeliveryLog(Base):
+    """L5 — Delivery history for developer webhooks."""
+    __tablename__ = "dev_webhook_logs"
+
+    id              : Mapped[int]      = mapped_column(Integer, primary_key=True, index=True)
+    webhook_id      : Mapped[int]      = mapped_column(Integer, ForeignKey("dev_webhooks.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id         : Mapped[int]      = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    event_type      : Mapped[str]      = mapped_column(String(64), nullable=False)
+    payload         : Mapped[dict]     = mapped_column(JSON, nullable=False)
+    status_code     : Mapped[int]      = mapped_column(Integer, nullable=True)
+    response_body   : Mapped[str]      = mapped_column(Text, nullable=True)
+    latency_ms      : Mapped[int]      = mapped_column(Integer, nullable=True)
+    success         : Mapped[bool]     = mapped_column(Boolean, default=False)
+    error_message   : Mapped[str]      = mapped_column(Text, nullable=True)
+
+    delivered_at    : Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    webhook = relationship("WebhookEndpoint", back_populates="delivery_logs")
+    user    = relationship("User", foreign_keys=[user_id])
+
+    __table_args__ = (
+        Index("idx_dev_wh_log_webhook_id",  "webhook_id"),
+        Index("idx_dev_wh_log_user_id",     "user_id"),
+        Index("idx_dev_wh_log_delivered_at","delivered_at"),
+    )

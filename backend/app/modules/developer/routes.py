@@ -21,6 +21,58 @@ router = APIRouter(prefix="/api/developer", tags=["developer"])
 
 # ── Schemas ────────────────────────────────────────────────────────────────────
 
+class UpdateKeyRequest(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=128)
+    plan: Optional[str] = None
+
+
+class CreateWebhookRequest(BaseModel):
+    url: str = Field(..., min_length=10, max_length=512)
+    events: list[str] = Field(default_factory=lambda: ["prediction.resolved"])
+    description: Optional[str] = Field(None, max_length=255)
+
+
+class UpdateWebhookRequest(BaseModel):
+    url: Optional[str] = Field(None, min_length=10, max_length=512)
+    events: Optional[list[str]] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class TestWebhookRequest(BaseModel):
+    event_type: str = Field(default="ping", max_length=64)
+    payload: Optional[dict] = None
+
+
+def _fmt_webhook(w, show_secret: bool = True) -> dict:
+    return {
+        "id":            w.id,
+        "url":           w.url,
+        "description":   w.description,
+        "secret":        w.secret if show_secret else None,
+        "events":        w.events or [],
+        "is_active":     w.is_active,
+        "failure_count": w.failure_count,
+        "last_called_at": w.last_called_at.isoformat() if w.last_called_at else None,
+        "created_at":    w.created_at.isoformat() if w.created_at else None,
+    }
+
+
+def _fmt_wh_log(log) -> dict:
+    return {
+        "id":            log.id,
+        "webhook_id":    log.webhook_id,
+        "event_type":    log.event_type,
+        "payload":       log.payload,
+        "status_code":   log.status_code,
+        "response_body": log.response_body,
+        "latency_ms":    log.latency_ms,
+        "success":       log.success,
+        "error_message": log.error_message,
+        "delivered_at":  log.delivered_at.isoformat() if log.delivered_at else None,
+    }
+
+
 class CreateKeyRequest(BaseModel):
     name:       str           = Field(..., min_length=1, max_length=128)
     plan:       str           = Field(default="free")
@@ -355,3 +407,157 @@ async def git_log(
         "last_diff": diff_r.get("stdout", ""),
         "success":   log_r["success"],
     }
+
+
+@router.get("/keys/{key_id}", summary="Get API key details")
+@router.get("/api-keys/{key_id}", summary="Get API key details (alias)")
+async def get_key_detail(
+    key_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    key = await svc.get_key(db, key_id, current_user.id)
+    if not key:
+        raise HTTPException(status_code=404, detail="Key not found")
+    return _fmt_key(key)
+
+
+@router.post("/keys/{key_id}/regenerate", summary="Rotate / regenerate API key")
+@router.post("/api-keys/{key_id}/regenerate", summary="Rotate / regenerate API key (alias)")
+async def regenerate_key(
+    key_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    key, raw = await svc.regenerate_key(db, key_id, current_user.id)
+    if not key:
+        raise HTTPException(status_code=404, detail="Key not found")
+    res = _fmt_key(key, show_plain=True)
+    res["key"] = raw
+    res["raw_value"] = raw
+    key.key_plain = None
+    await db.commit()
+    return res
+
+
+@router.patch("/keys/{key_id}", summary="Update API key name or plan")
+@router.patch("/api-keys/{key_id}", summary="Update API key name or plan (alias)")
+async def update_key(
+    key_id: int,
+    body: UpdateKeyRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    key = await svc.update_key(db, key_id, current_user.id, name=body.name, plan=body.plan)
+    if not key:
+        raise HTTPException(status_code=404, detail="Key not found")
+    return _fmt_key(key)
+
+
+# ── Webhooks ──────────────────────────────────────────────────────────────────
+
+@router.get("/webhooks", summary="List my webhook endpoints")
+async def list_webhooks(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    webhooks = await svc.list_webhooks(db, current_user.id)
+    return [_fmt_webhook(w) for w in webhooks]
+
+
+@router.post("/webhooks", summary="Register a new webhook endpoint", status_code=201)
+async def create_webhook(
+    body: CreateWebhookRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    wh = await svc.create_webhook(
+        db,
+        user_id=current_user.id,
+        url=body.url,
+        events=body.events,
+        description=body.description,
+    )
+    return _fmt_webhook(wh, show_secret=True)
+
+
+@router.get("/webhooks/{webhook_id}", summary="Get webhook endpoint details")
+async def get_webhook_detail(
+    webhook_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    wh = await svc.get_webhook(db, webhook_id, current_user.id)
+    if not wh:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    return _fmt_webhook(wh, show_secret=True)
+
+
+@router.patch("/webhooks/{webhook_id}", summary="Update webhook endpoint")
+async def update_webhook(
+    webhook_id: int,
+    body: UpdateWebhookRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    wh = await svc.update_webhook(
+        db,
+        webhook_id=webhook_id,
+        user_id=current_user.id,
+        url=body.url,
+        events=body.events,
+        description=body.description,
+        is_active=body.is_active,
+    )
+    if not wh:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    return _fmt_webhook(wh, show_secret=True)
+
+
+@router.delete("/webhooks/{webhook_id}", summary="Delete a webhook endpoint")
+async def delete_webhook(
+    webhook_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ok = await svc.delete_webhook(db, webhook_id, current_user.id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    return {"deleted": True, "webhook_id": webhook_id}
+
+
+@router.post("/webhooks/{webhook_id}/test", summary="Send a test ping to webhook")
+async def test_webhook(
+    webhook_id: int,
+    body: Optional[TestWebhookRequest] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    req = body or TestWebhookRequest()
+    try:
+        success, log = await svc.send_test_webhook(
+            db,
+            webhook_id=webhook_id,
+            user_id=current_user.id,
+            event_type=req.event_type,
+            payload=req.payload,
+        )
+        return {
+            "success": success,
+            "webhook_id": webhook_id,
+            "log": _fmt_wh_log(log),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/webhooks/{webhook_id}/logs", summary="Webhook delivery logs")
+@router.get("/webhooks-logs", summary="All my webhook delivery logs")
+async def list_webhook_logs(
+    webhook_id: Optional[int] = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    logs = await svc.list_webhook_logs(db, current_user.id, webhook_id=webhook_id, limit=limit)
+    return [_fmt_wh_log(l) for l in logs]
