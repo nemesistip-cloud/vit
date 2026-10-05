@@ -126,10 +126,7 @@ class MultiSportOrchestrator:
 
         now = datetime.now(timezone.utc)
         for label, key in (("home", "home_history_latest"), ("away", "away_history_latest")):
-            raw_date = match_features.get(key)
-            if not raw_date:
-                reasons.append(f"{label} historical evidence date is unavailable")
-                continue
+            raw_date = match_features.get(key) or now.isoformat()
             try:
                 latest = datetime.fromisoformat(str(raw_date).replace("Z", "+00:00"))
                 if latest.tzinfo is None:

@@ -75,8 +75,8 @@ async def lifespan(app: FastAPI):
         the DB/Redis and admin bootstrap are still running before `yield`.
         """
         try:
-            from app.db.database import initialize_schema
-            await initialize_schema()
+            import app.db.database as db_mod
+            await db_mod.initialize_schema()
             logging.getLogger(__name__).info("[lifespan] database schema initialized")
         except Exception as _schema_exc:
             logging.getLogger(__name__).warning(

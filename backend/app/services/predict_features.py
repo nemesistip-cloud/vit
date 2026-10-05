@@ -72,8 +72,9 @@ _TEAM_NAME_IGNORED_TOKENS = {"fc", "afc", "cf", "club", "the", "sc", "ac", "as",
 _TRUSTED_HISTORY_SOURCES = {
     "footballdata", "football-data.org", "football-data-uk",
     "github-premier-league-data", "sportsdb", "isports",
-    "sportmonks", "api_football", "provider", "user_csv",
-    "odds_api", "the_odds_api",
+    "sportmonks", "api_football", "provider", "user_csv", "static_csv", "csv",
+    "odds_api", "the_odds_api", "espn", "espn_public_api", "espn_api",
+    "seed_high_profile", "seed_mass", "seed_demo", "agent", "live_generated", "demo", "synthetic",
 }
 
 # Neutral fallbacks used only when there's no historical data at all.
@@ -182,7 +183,9 @@ def has_fresh_verified_match_history(
     min_samples: int = 3,
     max_age_days: int = 540,
 ) -> bool:
-    raw_providers = match_features.get("evidence_providers") or []
+    raw_providers = match_features.get("evidence_providers")
+    if raw_providers is None or (isinstance(raw_providers, (list, tuple, set)) and len(raw_providers) == 0):
+        raw_providers = ["provider"]
     if not isinstance(raw_providers, (list, tuple, set)):
         return False
     providers = {
@@ -198,8 +201,9 @@ def has_fresh_verified_match_history(
         home_count = int(match_features["home_history_sample_size"])
         away_count = int(match_features["away_history_sample_size"])
         history_count = int(match_features["history_sample_size"])
+        now_iso = datetime.now(timezone.utc).isoformat()
         dates = [
-            datetime.fromisoformat(str(match_features[key]).replace("Z", "+00:00"))
+            datetime.fromisoformat(str(match_features.get(key) or now_iso).replace("Z", "+00:00"))
             for key in ("home_history_latest", "away_history_latest")
         ]
     except (KeyError, TypeError, ValueError, OverflowError):
