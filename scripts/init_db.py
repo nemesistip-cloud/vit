@@ -57,6 +57,7 @@ try:
     import app.modules.governance.models         # noqa: F401
     import app.modules.rewards.models            # noqa: F401
     import app.modules.identity.models           # noqa: F401
+    import vit_chain.storage.db                  # noqa: F401  ChainBlock, ChainTransaction, ChainAccount
     # Best-effort imports — skip silently if the module has import issues
     for _mod in [
         "app.modules.ai.models",
