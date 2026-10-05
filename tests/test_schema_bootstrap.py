@@ -24,7 +24,7 @@ async def test_lifespan_bootstrap_creates_schema_for_new_sqlite_db(tmp_path, mon
         echo=False,
         future=True,
         poolclass=NullPool,
-        connect_args={"check_same_thread": False},
+        connect_args={"check_same_thread": False, "timeout": 30.0},
     )
     database_module.engine = new_engine
     database_module.AsyncSessionLocal = async_sessionmaker(
