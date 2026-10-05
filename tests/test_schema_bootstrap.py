@@ -33,7 +33,12 @@ async def test_lifespan_bootstrap_creates_schema_for_new_sqlite_db(tmp_path, mon
 
     try:
         async with main_module.lifespan(main_module.app):
-            pass
+            for _ in range(50):
+                await asyncio.sleep(0.1)
+                async with database_module.AsyncSessionLocal() as session:
+                    res = await session.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
+                    if res.scalar_one_or_none() == "users":
+                        break
 
         async with database_module.AsyncSessionLocal() as session:
             result = await session.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))

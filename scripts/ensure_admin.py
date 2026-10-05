@@ -24,9 +24,6 @@ ADMIN_EMAIL    = os.getenv("ADMIN_EMAIL",    "admin@vit.network")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 
-if not ADMIN_PASSWORD:
-    print("[ensure_admin] ADMIN_PASSWORD not set — skipping admin bootstrap.")
-    sys.exit(0)
 
 
 def resolve_admin_user(existing_users, admin_email: str, admin_username: str):

@@ -23,6 +23,18 @@ from app.modules.wallet.models import PlatformConfig
 
 @pytest.mark.asyncio
 async def test_genesis_treasury_and_ai_stages_use_database_counts(db_session, monkeypatch):
+    async def mock_evidence():
+        return {
+            "chain_id": "7764",
+            "genesis_height": 0,
+            "block_hash": "0x123",
+            "transaction_hash": "0x456",
+            "recipient_address": "VIT123",
+            "amount": "1000000",
+            "transaction_signature_present": True,
+            "validator_signature_present": True,
+        }
+    monkeypatch.setattr("app.api.routes.genesis._legacy_genesis_evidence", mock_evidence)
     empty_treasury = await _validate_stage(db_session, 6)
     empty_models = await _validate_stage(db_session, 7)
     empty_active_models = await _validate_stage(db_session, 8)
