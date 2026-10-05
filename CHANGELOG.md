@@ -1,3 +1,5 @@
+- 2026-10-05 `ce23c81` Fix vitnetwork ecosystem gaps in admin bootstrap, prediction features, and test dependencies
+
 - 2026-09-28 (unreleased) Fix external Chain read contracts, block timestamp rendering, AI model accuracy/health reporting, Swagger CSP docs, status routing, and Developer Hub contracts.
 
 - 2026-09-22 `40aa37f` Merge pull request #458 from nemesistip-cloud/main
