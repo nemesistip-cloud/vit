@@ -201,9 +201,8 @@ def has_fresh_verified_match_history(
         home_count = int(match_features["home_history_sample_size"])
         away_count = int(match_features["away_history_sample_size"])
         history_count = int(match_features["history_sample_size"])
-        now_iso = datetime.now(timezone.utc).isoformat()
         dates = [
-            datetime.fromisoformat(str(match_features.get(key) or now_iso).replace("Z", "+00:00"))
+            datetime.fromisoformat(str(match_features[key]).replace("Z", "+00:00"))
             for key in ("home_history_latest", "away_history_latest")
         ]
     except (KeyError, TypeError, ValueError, OverflowError):
