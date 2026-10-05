@@ -371,6 +371,7 @@ async def test_predict_surfaces_unavailable_evidence_reason(monkeypatch):
 
 
 def test_no_odds_basketball_prediction_uses_real_history_when_available():
+    now = datetime.now(timezone.utc).isoformat()
     orch = MultiSportOrchestrator()
     result = orch._predict_two_way_statistical({
         "match_features": {
@@ -382,8 +383,10 @@ def test_no_odds_basketball_prediction_uses_real_history_when_available():
             "away_form_pts_10": 2.2,
             "home_gf_pg_10": 112.0,
             "away_gf_pg_10": 105.0,
-            "home_ga_pg_10": 101.0,
             "away_ga_pg_10": 110.0,
+            "home_history_latest": now,
+            "away_history_latest": now,
+            "evidence_providers": ["sportsdb"],
         }
     }, "basketball")
     assert result["status"] == "ready"
