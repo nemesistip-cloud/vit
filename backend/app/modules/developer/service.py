@@ -12,7 +12,7 @@ from typing import Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.developer.models import APIKey, APIKeyPlan, APIUsageLog
+from app.modules.developer.models import APIKey, APIKeyPlan, APIUsageLog, WebhookEndpoint, WebhookDeliveryLog
 
 logger = logging.getLogger(__name__)
 
@@ -265,4 +265,217 @@ async def list_plans(db: AsyncSession) -> list[APIKeyPlan]:
     result = await db.execute(
         select(APIKeyPlan).where(APIKeyPlan.is_active == True).order_by(APIKeyPlan.id)
     )
+    return list(result.scalars().all())
+
+
+async def regenerate_key(db: AsyncSession, key_id: int, user_id: int) -> tuple[Optional[APIKey], Optional[str]]:
+    """Rotates a key: generates a new raw key, updates prefix and hash, resets active status."""
+    key = await get_key(db, key_id, user_id)
+    if not key:
+        return None, None
+
+    raw = _generate_raw_key()
+    prefix = raw[:12]
+    hashed = _hash_key(raw)
+
+    key.key_prefix = prefix
+    key.key_hash = hashed
+    key.key_plain = raw
+    key.is_active = True
+    await db.commit()
+    await db.refresh(key)
+    logger.info("Developer key rotated: id=%s user=%s prefix=%s", key_id, user_id, prefix)
+    return key, raw
+
+
+async def update_key(
+    db: AsyncSession,
+    key_id: int,
+    user_id: int,
+    name: Optional[str] = None,
+    plan: Optional[str] = None,
+) -> Optional[APIKey]:
+    """Updates name or plan on an existing API key."""
+    key = await get_key(db, key_id, user_id)
+    if not key:
+        return None
+
+    if name:
+        key.name = name
+    if plan and plan in PLAN_DEFAULTS:
+        cfg = PLAN_DEFAULTS[plan]
+        key.plan = plan
+        key.rate_limit_rpm = cfg["rpm"]
+        key.rate_limit_rpd = cfg["rpd"]
+
+    await db.commit()
+    await db.refresh(key)
+    return key
+
+
+# ── Webhooks CRUD & Dispatch ──────────────────────────────────────────────────
+
+async def list_webhooks(db: AsyncSession, user_id: int) -> list[WebhookEndpoint]:
+    result = await db.execute(
+        select(WebhookEndpoint)
+        .where(WebhookEndpoint.user_id == user_id)
+        .order_by(WebhookEndpoint.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def get_webhook(db: AsyncSession, webhook_id: int, user_id: int) -> Optional[WebhookEndpoint]:
+    result = await db.execute(
+        select(WebhookEndpoint).where(WebhookEndpoint.id == webhook_id, WebhookEndpoint.user_id == user_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def create_webhook(
+    db: AsyncSession,
+    user_id: int,
+    url: str,
+    events: list[str],
+    description: Optional[str] = None,
+) -> WebhookEndpoint:
+    secret = "whsec_" + secrets.token_hex(24)
+    webhook = WebhookEndpoint(
+        user_id=user_id,
+        url=url,
+        description=description,
+        secret=secret,
+        events=events or ["prediction.resolved"],
+        is_active=True,
+    )
+    db.add(webhook)
+    await db.commit()
+    await db.refresh(webhook)
+    logger.info("Developer webhook created: user=%s url=%s", user_id, url)
+    return webhook
+
+
+async def update_webhook(
+    db: AsyncSession,
+    webhook_id: int,
+    user_id: int,
+    url: Optional[str] = None,
+    events: Optional[list[str]] = None,
+    description: Optional[str] = None,
+    is_active: Optional[bool] = None,
+) -> Optional[WebhookEndpoint]:
+    webhook = await get_webhook(db, webhook_id, user_id)
+    if not webhook:
+        return None
+
+    if url is not None:
+        webhook.url = url
+    if events is not None:
+        webhook.events = events
+    if description is not None:
+        webhook.description = description
+    if is_active is not None:
+        webhook.is_active = is_active
+
+    await db.commit()
+    await db.refresh(webhook)
+    return webhook
+
+
+async def delete_webhook(db: AsyncSession, webhook_id: int, user_id: int) -> bool:
+    webhook = await get_webhook(db, webhook_id, user_id)
+    if not webhook:
+        return False
+    await db.delete(webhook)
+    await db.commit()
+    return True
+
+
+async def send_test_webhook(
+    db: AsyncSession,
+    webhook_id: int,
+    user_id: int,
+    event_type: str = "ping",
+    payload: Optional[dict] = None,
+) -> tuple[bool, WebhookDeliveryLog]:
+    import hmac
+    import json
+    import time
+    import httpx
+
+    webhook = await get_webhook(db, webhook_id, user_id)
+    if not webhook:
+        raise ValueError("Webhook endpoint not found")
+
+    test_payload = payload or {
+        "event": event_type,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "data": {
+            "message": "This is a test notification from the VIT Developer Platform.",
+            "webhook_id": webhook.id,
+            "url": webhook.url,
+        },
+    }
+
+    body_bytes = json.dumps(test_payload).encode("utf-8")
+    signature = hmac.new(webhook.secret.encode("utf-8"), body_bytes, hashlib.sha256).hexdigest()
+
+    headers = {
+        "Content-Type": "application/json",
+        "X-VIT-Signature": f"sha256={signature}",
+        "X-VIT-Event": event_type,
+        "User-Agent": "VIT-Webhook-Delivery/1.0",
+    }
+
+    start_time = time.time()
+    status_code = None
+    response_body = None
+    success = False
+    error_msg = None
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.post(webhook.url, content=body_bytes, headers=headers)
+            status_code = res.status_code
+            response_body = res.text[:1000]
+            success = (200 <= status_code < 300)
+    except Exception as exc:
+        error_msg = str(exc)
+        logger.warning("Webhook dispatch failed for id=%s url=%s: %s", webhook.id, webhook.url, exc)
+
+    latency_ms = int((time.time() - start_time) * 1000)
+
+    webhook.last_called_at = datetime.now(timezone.utc)
+    if not success:
+        webhook.failure_count += 1
+    else:
+        webhook.failure_count = 0
+
+    log = WebhookDeliveryLog(
+        webhook_id=webhook.id,
+        user_id=user_id,
+        event_type=event_type,
+        payload=test_payload,
+        status_code=status_code,
+        response_body=response_body,
+        latency_ms=latency_ms,
+        success=success,
+        error_message=error_msg,
+    )
+    db.add(log)
+    await db.commit()
+    await db.refresh(log)
+    return success, log
+
+
+async def list_webhook_logs(
+    db: AsyncSession,
+    user_id: int,
+    webhook_id: Optional[int] = None,
+    limit: int = 50,
+) -> list[WebhookDeliveryLog]:
+    stmt = select(WebhookDeliveryLog).where(WebhookDeliveryLog.user_id == user_id)
+    if webhook_id is not None:
+        stmt = stmt.where(WebhookDeliveryLog.webhook_id == webhook_id)
+    stmt = stmt.order_by(WebhookDeliveryLog.delivered_at.desc()).limit(limit)
+    result = await db.execute(stmt)
     return list(result.scalars().all())
