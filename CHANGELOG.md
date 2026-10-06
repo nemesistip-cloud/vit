@@ -1,3 +1,11 @@
+- 2026-10-06 `2c1a38b` fix(ai-assistant): handle sports prediction queries and response sche…
+
+- 2026-10-06 `20c51ad` docs: publish strategic analysis and P0 implementation blueprint for VIT ecosystem
+
+- 2026-10-06 `3ccb226` fix(ai-assistant): handle sports prediction queries and response schema contract
+
+- 2026-10-06 `606efab` Fix Registered Devices showing 'No devices registered' by adding auto-registration on login and request listing
+
 - 2026-10-06 `43c0ad6` docs: Add comprehensive VIT ecosystem gap analysis report
 
 - 2026-10-06 `2928650` fix(genesis): unblock stage 1 advancement and add initialize-stage AP…

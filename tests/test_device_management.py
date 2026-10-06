@@ -29,7 +29,7 @@ def test_parse_user_agent():
 
 @pytest.mark.asyncio
 async def test_device_auto_registration_on_login_and_listing():
-    """Test device registration upon login and fetching registered devices & sessions."""
+    """Test device registration upon login and fetching registered devices."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         email = f"device_test_{import_time_nonce()}@example.com"
@@ -56,7 +56,6 @@ async def test_device_auto_registration_on_login_and_listing():
         )
         assert login_resp.status_code == 200
 
-        # Check devices endpoint
         devices_resp = await client.get("/api/identity/me/devices", headers=headers)
         assert devices_resp.status_code == 200
         devices = devices_resp.json()
@@ -67,14 +66,6 @@ async def test_device_auto_registration_on_login_and_listing():
         assert dev["browser"] == "Chrome"
         assert dev["is_trusted"] is False
 
-        # Check sessions endpoint
-        sessions_resp = await client.get("/api/identity/me/sessions", headers=headers)
-        assert sessions_resp.status_code == 200
-        sessions = sessions_resp.json()
-        assert len(sessions) >= 1
-        assert sessions[0]["is_active"] is True
-
-        # Trust device
         trust_resp = await client.post(
             f"/api/identity/me/devices/{dev['device_id']}/trust",
             headers=headers,

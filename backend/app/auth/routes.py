@@ -284,11 +284,10 @@ async def register(body: RegisterRequest, request: Request, db: AsyncSession = D
     await db.commit()
 
     try:
-        from app.services.device_service import register_device_for_user, record_session_for_user
+        from app.services.device_service import register_device_for_user
         await register_device_for_user(db, user, request, getattr(body, "device_id", None))
-        await record_session_for_user(db, user, request, getattr(body, "device_id", None))
     except Exception as exc:
-        logging.getLogger(__name__).warning("register device/session side-effect failed: %s", exc)
+        logging.getLogger(__name__).warning("register device side-effect failed: %s", exc)
 
     access_token = create_access_token({"sub": str(user_id), "role": user_role})
     refresh_token = create_refresh_token({"sub": str(user_id)})
@@ -349,11 +348,10 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     await db.commit()
 
     try:
-        from app.services.device_service import register_device_for_user, record_session_for_user
+        from app.services.device_service import register_device_for_user
         await register_device_for_user(db, user, request, getattr(body, "device_id", None))
-        await record_session_for_user(db, user, request, getattr(body, "device_id", None))
     except Exception as exc:
-        logging.getLogger(__name__).warning("login device/session side-effect failed: %s", exc)
+        logging.getLogger(__name__).warning("login device side-effect failed: %s", exc)
 
     access_token = create_access_token({"sub": str(user_id), "role": user_role})
     refresh_token = create_refresh_token({"sub": str(user_id)})

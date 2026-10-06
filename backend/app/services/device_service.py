@@ -1,15 +1,13 @@
 import hashlib
 import logging
 import uuid
-from datetime import datetime, timezone
 from typing import Optional, Tuple
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.db.models import User
-from app.plugins.identity.models import TrustedDevice, GlobalIdentity, IdentityStatus, IdentityType, IdentitySession
+from app.plugins.identity.models import TrustedDevice, GlobalIdentity, IdentityStatus, IdentityType
 from app.plugins.identity.services.device_trust_manager import DeviceTrustManager
-from app.plugins.identity.services.session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -149,67 +147,3 @@ async def register_device_for_user(
     if not identity:
         return None
     return await register_device_for_request(db, identity, request, explicit_device_id)
-
-
-async def record_session_for_request(
-    db: AsyncSession,
-    identity: GlobalIdentity,
-    request: Optional[Request],
-    explicit_device_id: Optional[str] = None,
-) -> Optional[IdentitySession]:
-    """Create or touch an active IdentitySession for a given identity from a FastAPI Request."""
-    if not identity:
-        return None
-
-    try:
-        user_agent = request.headers.get("user-agent", "") if request else ""
-        ip_address = get_client_ip(request)
-
-        device_id = (
-            explicit_device_id
-            or (request.headers.get("x-device-id") if request else None)
-            or (request.headers.get("device-id") if request else None)
-        )
-
-        if not device_id:
-            raw_fingerprint = f"{identity.id}:{user_agent or 'unknown'}"
-            digest = hashlib.sha256(raw_fingerprint.encode("utf-8")).hexdigest()[:16]
-            device_id = f"dev_{digest}"
-
-        sm = SessionManager(db)
-        active_sessions = await sm.get_active_sessions(identity.id)
-        if not active_sessions:
-            session_obj = await sm.create_session(
-                identity=identity,
-                device_id=device_id,
-                ip_address=ip_address,
-                user_agent=user_agent,
-            )
-            return session_obj
-        else:
-            current_session = active_sessions[0]
-            current_session.last_activity = datetime.now(timezone.utc)
-            if ip_address:
-                current_session.ip_address = ip_address
-            if user_agent:
-                current_session.user_agent = user_agent
-            if device_id:
-                current_session.device_id = device_id
-            await db.commit()
-            return current_session
-    except Exception as exc:
-        logger.error("record_session_for_request failed: %s", exc)
-        return None
-
-
-async def record_session_for_user(
-    db: AsyncSession,
-    user: User,
-    request: Optional[Request],
-    explicit_device_id: Optional[str] = None,
-) -> Optional[IdentitySession]:
-    """Helper to resolve GlobalIdentity and record an active session for a User model."""
-    identity = await get_or_create_global_identity(db, user)
-    if not identity:
-        return None
-    return await record_session_for_request(db, identity, request, explicit_device_id)
