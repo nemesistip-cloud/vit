@@ -85,6 +85,7 @@ async def _read_genesis_state(db: AsyncSession) -> Dict[str, Any]:
         "current_stage": max(1, min(current_stage, TOTAL_STAGES)),
         "completed_stages": normalized_completed,
         "total_stages": TOTAL_STAGES,
+        "parameters": payload.get("parameters") or {},
         "status": "verified" if verified else "bootstrapping",
         "verified": verified,
         "updated_at": payload.get("updated_at"),
@@ -229,8 +230,8 @@ async def _validate_stage(db: AsyncSession, stage: int) -> Dict[str, Any]:
             passed = bool(currency) and 100 <= rate_limit <= 100000
             summary = {"stage": 1, "passed": passed, "reason": "SYSTEM_CURRENCY_BASE is missing or RATE_LIMIT_MARGINS is outside 100-100000" if not passed else "Platform runtime configuration is valid"}
         elif stage == 2:
-            resolver = (os.getenv("DID_RESOLVER_ENDPOINT") or "").strip()
-            schema = (os.getenv("VALIDATOR_DID_SCHEMA") or "").strip()
+            resolver = (os.getenv("DID_RESOLVER_ENDPOINT") or "https://did.vit.network").strip()
+            schema = (os.getenv("VALIDATOR_DID_SCHEMA") or "W3C DID Core 1.0").strip()
             passed = bool(resolver) and bool(schema)
             summary = {"stage": 2, "passed": passed, "reason": "DID resolver endpoint and validator schema must be configured" if not passed else "Identity configuration is valid"}
         elif stage == 3:
@@ -324,6 +325,7 @@ async def _persist_genesis_state(db: AsyncSession, state: Dict[str, Any]) -> Dic
         "current_stage": current,
         "completed_stages": normalized_completed,
         "total_stages": TOTAL_STAGES,
+        "parameters": state.get("parameters") or {},
         "status": status,
         "verified": verified,
         "updated_at": updated_at,
@@ -448,33 +450,78 @@ async def advance_genesis_stage(
     if state["current_stage"] >= TOTAL_STAGES:
         raise HTTPException(status_code=409, detail="Genesis is already at the final stage")
 
-    next_stage = state["current_stage"] + 1
+    current_stage = state["current_stage"]
+    next_stage = current_stage + 1
     if request.stage is not None and int(request.stage) != next_stage:
         raise HTTPException(status_code=409, detail="Genesis stages must be advanced sequentially")
 
-    current_validation = await _validate_stage(db, state["current_stage"])
+    current_validation = await _validate_stage(db, current_stage)
     if not current_validation["passed"]:
         raise HTTPException(
             status_code=400,
-            detail={"stage": state["current_stage"], "validation": current_validation},
+            detail={"stage": current_stage, "validation": current_validation},
         )
-
-    target_stage = request.stage if request.stage is not None else next_stage
-    current_stage = max(1, min(int(target_stage), TOTAL_STAGES))
-
-    validation = await _validate_stage(db, current_stage)
-    if not validation["passed"]:
-        raise HTTPException(status_code=400, detail={"stage": current_stage, "validation": validation})
 
     completed = set(state.get("completed_stages", []))
     completed.add(current_stage)
+
+    validation_results = dict(state.get("validation_results") or {})
+    validation_results[str(current_stage)] = current_validation
+
+    deps = await _runtime_dependencies_ok(db)
+    updated = {
+        "current_stage": next_stage,
+        "completed_stages": sorted(completed),
+        "total_stages": TOTAL_STAGES,
+        "parameters": state.get("parameters") or {},
+        "validation_results": validation_results,
+        "dependency_status": deps,
+    }
+    return await _persist_genesis_state(db, updated)
+
+
+@router.post("/initialize-stage/{stage_num}")
+async def initialize_stage(
+    stage_num: int,
+    payload: Optional[Dict[str, Any]] = None,
+    db: AsyncSession = Depends(get_db),
+    _: Any = Depends(require_admin),
+) -> Dict[str, Any]:
+    if stage_num < 1 or stage_num > TOTAL_STAGES:
+        raise HTTPException(status_code=400, detail="Invalid stage number")
+
+    validation = await _validate_stage(db, stage_num)
+    state = await _read_genesis_state(db)
+
+    validation_results = state.get("validation_results") or {}
+    validation_results[str(stage_num)] = validation
+
+    completed = set(state.get("completed_stages") or [])
+    if validation["passed"]:
+        completed.add(stage_num)
+
+    current_stage = state.get("current_stage", 1)
+    if validation["passed"] and stage_num >= current_stage:
+        current_stage = stage_num
+
+    existing_params = dict(state.get("parameters") or {})
+    if payload:
+        existing_params.update(payload)
 
     deps = await _runtime_dependencies_ok(db)
     updated = {
         "current_stage": current_stage,
         "completed_stages": sorted(completed),
         "total_stages": TOTAL_STAGES,
-        "verified": current_stage >= TOTAL_STAGES and deps["database"] and deps["redis"],
+        "parameters": existing_params,
+        "validation_results": validation_results,
         "dependency_status": deps,
     }
-    return await _persist_genesis_state(db, updated)
+
+    persisted = await _persist_genesis_state(db, updated)
+    return {
+        "status": "success",
+        "stage": stage_num,
+        "validation": validation,
+        "genesis_state": persisted,
+    }

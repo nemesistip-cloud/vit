@@ -13,6 +13,7 @@ from app.api.routes.genesis import (
     _validate_stage,
     accept_existing_genesis_mint,
     advance_genesis_stage,
+    initialize_stage,
 )
 from app.modules.ai.models import ModelMetadata
 from app.db.models import AuditLog, User
@@ -303,3 +304,44 @@ async def test_legacy_mint_acceptance_is_super_admin_attributed_and_audited(db_s
     assert stored.value["evidence"] == evidence
     assert audit.actor == str(admin.id)
     assert audit.status == "warning"
+
+@pytest.mark.asyncio
+async def test_initialize_stage_endpoint_validation_and_persistence(db_session):
+    with pytest.raises(HTTPException) as err_zero:
+        await initialize_stage(0, None, db_session, object())
+    assert err_zero.value.status_code == 400
+    assert err_zero.value.detail == "Invalid stage number"
+
+    with pytest.raises(HTTPException) as err_eleven:
+        await initialize_stage(11, None, db_session, object())
+    assert err_eleven.value.status_code == 400
+    assert err_eleven.value.detail == "Invalid stage number"
+
+    res = await initialize_stage(1, {"NODE_LABEL": "validator-1"}, db_session, object())
+    assert res["status"] == "success"
+    assert res["stage"] == 1
+    assert res["validation"]["passed"] is True
+    assert res["genesis_state"]["current_stage"] >= 1
+    assert res["genesis_state"]["parameters"]["NODE_LABEL"] == "validator-1"
+
+    res2 = await initialize_stage(2, {"DID_RESOLVER_ENDPOINT": "https://did.example.test"}, db_session, object())
+    assert res2["genesis_state"]["parameters"]["NODE_LABEL"] == "validator-1"
+    assert res2["genesis_state"]["parameters"]["DID_RESOLVER_ENDPOINT"] == "https://did.example.test"
+
+@pytest.mark.asyncio
+async def test_genesis_advance_from_stage_1_to_stage_2(db_session):
+    db_session.add(PlatformConfig(
+        key=GENESIS_STATE_KEY,
+        value={
+            "current_stage": 1,
+            "completed_stages": [],
+            "verified": False,
+            "dependency_status": {"database": True, "redis": True},
+        },
+    ))
+    await db_session.commit()
+
+    state = await advance_genesis_stage(GenesisAdvanceRequest(stage=2), db_session, object())
+
+    assert state["current_stage"] == 2
+    assert 1 in state["completed_stages"]
