@@ -41,10 +41,23 @@ export function storeUser(user: AuthUser) {
   }
 }
 
+export function getDeviceId(): string {
+  if (typeof window === 'undefined') return 'dev_server'
+  let devId = localStorage.getItem('vit_device_id')
+  if (!devId) {
+    devId = 'dev_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36)
+    localStorage.setItem('vit_device_id', devId)
+  }
+  return devId
+}
+
 /** Returns auth header object ready for fetch, or {} if not logged in. */
 export function authHeaders(): Record<string, string> {
   const t = getAuthToken()
-  return t ? { Authorization: `Bearer ${t}` } : {}
+  const devId = getDeviceId()
+  const headers: Record<string, string> = { 'X-Device-Id': devId }
+  if (t) headers.Authorization = `Bearer ${t}`
+  return headers
 }
 
 /**
@@ -62,6 +75,8 @@ export async function fetchWithAuth(
   const headers = new Headers(init.headers)
   const token = getAuthToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
+  const devId = getDeviceId()
+  if (devId) headers.set('X-Device-Id', devId)
 
   const res = await fetch(input, { ...init, headers })
 
