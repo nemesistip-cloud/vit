@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_optional_user
 from app.db.database import get_db
 from app.modules.ai.copilot import AICopilot
 from app.modules.ai.models import ModelMetadata
@@ -487,7 +487,7 @@ async def platform_assistant_status(_current_user=Depends(get_current_user)):
 
 
 @router.post("/chat")
-async def assistant_chat(body: ChatRequest, db: AsyncSession = Depends(get_db), _user=Depends(get_current_user)):
+async def assistant_chat(body: ChatRequest, db: AsyncSession = Depends(get_db), _user=Depends(get_optional_user)):
     try:
         return await _handle_agentic_query(body.message, db, history=body.history, context=body.context)
     except Exception as e:
@@ -500,7 +500,7 @@ async def assistant_chat(body: ChatRequest, db: AsyncSession = Depends(get_db), 
         }
 
 @router.get("/status")
-async def assistant_status(db: AsyncSession = Depends(get_db), _user=Depends(get_current_user)):
+async def assistant_status(db: AsyncSession = Depends(get_db), _user=Depends(get_optional_user)):
     health = await _get_system_health_internal(db)
     return {
         "available": True,
