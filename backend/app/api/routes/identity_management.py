@@ -27,36 +27,8 @@ router = APIRouter(prefix="/api/identity/me", tags=["Identity Management"])
 
 async def _get_or_create_global_identity(db: AsyncSession, user: User):
     """Fetch the GlobalIdentity for this user, creating one if absent."""
-    try:
-        from app.plugins.identity.models import GlobalIdentity, IdentityStatus, IdentityType
-        import uuid, re
-
-        result = await db.execute(
-            select(GlobalIdentity).where(GlobalIdentity.email == user.email)
-        )
-        identity = result.scalar_one_or_none()
-        if not identity:
-            def _gid():
-                raw = uuid.uuid4().hex.upper()
-                return f"VIT-ID-{raw[:4]}-{raw[4:8]}"
-
-            identity = GlobalIdentity(
-                gid=_gid(),
-                type=IdentityType.ADMIN if user.role == "admin" else IdentityType.INDIVIDUAL,
-                status=IdentityStatus.ACTIVE,
-                username=user.username,
-                email=user.email,
-                auth_methods=["password"],
-                security_metadata={},
-                profile={},
-            )
-            db.add(identity)
-            await db.commit()
-            await db.refresh(identity)
-        return identity
-    except Exception as exc:
-        logger.error("_get_or_create_global_identity failed: %s", exc)
-        return None
+    from app.services.device_service import get_or_create_global_identity
+    return await get_or_create_global_identity(db, user)
 
 # ── Sessions ──────────────────────────────────────────────────────────────────
 
@@ -75,6 +47,7 @@ class SessionOut(BaseModel):
 
 @router.get("/sessions", response_model=List[SessionOut])
 async def list_sessions(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -82,6 +55,12 @@ async def list_sessions(
     identity = await _get_or_create_global_identity(db, current_user)
     if not identity:
         return []
+
+    try:
+        from app.services.device_service import record_session_for_request
+        await record_session_for_request(db, identity, request)
+    except Exception as exc:
+        logger.error("list_sessions auto-session: %s", exc)
 
     try:
         from app.plugins.identity.models import IdentitySession
@@ -98,7 +77,7 @@ async def list_sessions(
                 device_id=s.device_id,
                 ip_address=s.ip_address,
                 user_agent=s.user_agent,
-                is_active=s.is_active and s.expires_at > datetime.now(timezone.utc),
+                is_active=s.is_active and ((s.expires_at.replace(tzinfo=timezone.utc) if s.expires_at and s.expires_at.tzinfo is None else s.expires_at) > datetime.now(timezone.utc)),
                 created_at=s.created_at,
                 last_activity=s.last_activity,
                 expires_at=s.expires_at,

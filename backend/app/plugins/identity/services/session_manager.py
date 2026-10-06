@@ -95,7 +95,13 @@ class SessionManager:
             select(IdentitySession).where(
                 IdentitySession.identity_id == identity_id,
                 IdentitySession.is_active == True,
-                IdentitySession.expires_at > datetime.now(timezone.utc)
             )
         )
-        return list(result.scalars().all())
+        rows = result.scalars().all()
+        now = datetime.now(timezone.utc)
+        res = []
+        for s in rows:
+            exp = s.expires_at.replace(tzinfo=timezone.utc) if s.expires_at and s.expires_at.tzinfo is None else s.expires_at
+            if exp and exp > now:
+                res.append(s)
+        return res
