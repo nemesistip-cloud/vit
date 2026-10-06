@@ -2,7 +2,7 @@ import pytest
 from vit_chain.crypto.hash import sha256_hex, hash_block_header, keccak256_hex
 from vit_chain.crypto.merkle import MerkleTree, build_transaction_merkle
 from vit_chain.crypto.ecdsa import generate_keypair, sign_transaction, verify_signature, recover_public_key
-from vit_chain.crypto.address import public_key_to_address, validate_address, ZERO_ADDRESS
+from vit_chain.crypto.address import public_key_to_address, validate_address, ZERO_ADDRESS, clean_hex_key
 
 @pytest.mark.asyncio
 async def test_hashing():
@@ -63,3 +63,12 @@ async def test_zero_address():
 async def test_invalid_address():
     assert not validate_address("0x123")
     assert not validate_address("VIT" + "1" * 39)
+
+@pytest.mark.asyncio
+async def test_clean_hex_key():
+    assert clean_hex_key("0x123456") == "123456"
+    assert clean_hex_key("0X123456") == "123456"
+    assert clean_hex_key("'0x123456'") == "123456"
+    assert clean_hex_key('"0x123456"') == "123456"
+    assert clean_hex_key("  123456  \n") == "123456"
+    assert clean_hex_key(None) == ""

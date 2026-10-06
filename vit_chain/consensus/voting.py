@@ -101,7 +101,9 @@ class VoteCollector:
 async def cast_vote(node_key: str, block_hash: str, epoch: int) -> str:
     """Signs proposed_block_hash with node private key and publishes to Redis."""
     from coincurve import PrivateKey
+    from ..crypto.address import clean_hex_key
 
+    node_key = clean_hex_key(node_key)
     pk = PrivateKey.from_hex(node_key)
     h_bytes = bytes.fromhex(block_hash.replace("0x", ""))
     # Use recoverable signature so collector can verify identity without knowing pubkey beforehand

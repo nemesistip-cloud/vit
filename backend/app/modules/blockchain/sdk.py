@@ -39,9 +39,10 @@ class BlockchainSDK:
         # 1. Determine nonce (should be handled by a higher-level wallet service,
         # but for SDK we can try to fetch current nonce + 1)
         # Note: This is simplified; real systems need careful nonce management.
-        from vit_chain.crypto.address import public_key_to_address
+        from vit_chain.crypto.address import public_key_to_address, clean_hex_key
         from coincurve import PrivateKey
 
+        from_key = clean_hex_key(from_key)
         priv = PrivateKey.from_hex(from_key)
         from_address = public_key_to_address(priv.public_key.format(compressed=False).hex())
 

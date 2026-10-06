@@ -147,6 +147,8 @@ def build_block(prev_block: Optional["VITBlock"],
     total_fees = sum(tx.gas_fee for tx in transactions)
 
     from coincurve import PrivateKey
+    from ..crypto.address import clean_hex_key
+    validator_key = clean_hex_key(validator_key)
     priv = PrivateKey.from_hex(validator_key)
     validator_id = public_key_to_address(priv.public_key.format(compressed=False).hex())
 

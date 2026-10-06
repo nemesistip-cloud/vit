@@ -131,9 +131,10 @@ class WalletChainBridge:
             )
 
             # ── Build and submit on-chain tx ───────────────────────────────
-            from vit_chain.crypto.address import public_key_to_address
+            from vit_chain.crypto.address import public_key_to_address, clean_hex_key
             try:
                 from coincurve import PrivateKey
+                private_key = clean_hex_key(private_key)
                 priv = PrivateKey.from_hex(private_key)
                 pub_hex = priv.public_key.format(compressed=False).hex()
                 bridge_source_addr = public_key_to_address(pub_hex)

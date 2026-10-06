@@ -3,6 +3,15 @@ from .hash import keccak256_hex
 VIT_ADDRESS_PREFIX = "VIT"
 ZERO_ADDRESS = VIT_ADDRESS_PREFIX + "0" * 40
 
+def clean_hex_key(key: str | None) -> str:
+    """Strips whitespace, quotes, and '0x'/'0X' prefix from a hex private/public key string."""
+    if not key:
+        return ""
+    s = str(key).strip().strip("'").strip('"')
+    if s.startswith("0x") or s.startswith("0X"):
+        s = s[2:]
+    return s
+
 def public_key_to_address(public_key_hex: str) -> str:
     """
     1. Keccak-256 hash of public key bytes (skip leading 0x04 if present)
@@ -10,6 +19,7 @@ def public_key_to_address(public_key_hex: str) -> str:
     3. Encode as hex
     4. Prefix with "VIT" → e.g. "VIT3a4b5c6d..."
     """
+    public_key_hex = clean_hex_key(public_key_hex)
     pub_bytes = bytes.fromhex(public_key_hex)
     if pub_bytes[0] == 0x04:
         pub_bytes = pub_bytes[1:]
