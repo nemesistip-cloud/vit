@@ -1,3 +1,5 @@
+- 2026-10-06 `4d1e344` fix(settings): complete full-system Account Settings audit and implementation
+
 - 2026-10-06 `cfb412c` feat: production upgrade for developer platform and sdk
 
 - 2026-10-06 `ecab1f9` fix: auto-register accessing devices and record active sessions durin…
