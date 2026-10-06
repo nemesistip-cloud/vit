@@ -1,3 +1,5 @@
+- 2026-10-06 `3c6fb08` Fix system uptime and genesis block key sanitization
+
 - 2026-10-06 `4d1e344` fix(settings): complete full-system Account Settings audit and implementation
 
 - 2026-10-06 `cfb412c` feat: production upgrade for developer platform and sdk
