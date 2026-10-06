@@ -1,3 +1,5 @@
+- 2026-10-06 `3ccb226` fix(ai-assistant): handle sports prediction queries and response schema contract
+
 - 2026-10-06 `606efab` Fix Registered Devices showing 'No devices registered' by adding auto-registration on login and request listing
 
 - 2026-10-06 `43c0ad6` docs: Add comprehensive VIT ecosystem gap analysis report
