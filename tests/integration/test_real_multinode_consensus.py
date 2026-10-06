@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db.database import Base
+import vit_chain.storage.db
 from app.db.models import IoTEvent, User
 from app.modules.wallet.models import Wallet
 from vit_chain.core.block import build_block
