@@ -4,7 +4,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { Mail, Lock, User, Eye, EyeOff, AlertCircle, Layers, Brain, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
-import { getAuthToken, setAuthToken, storeUser } from '@/hooks/useAuth'
+import { getAuthToken, setAuthToken, storeUser, getDeviceId } from '@/hooks/useAuth'
 
 const PERKS = [
   { icon: Brain,  label: 'AI Predictions',  desc: '13+ ML models across 50+ leagues' },
@@ -56,13 +56,14 @@ export default function Login() {
           throw new Error('Password must be 10+ characters with uppercase, lowercase, a number, and a special character.')
         }
       }
+      const devId = getDeviceId()
       const body = tab === 'login'
-        ? { email: trimmedEmail, password }
-        : { email: trimmedEmail, username: trimmedUsername, password }
+        ? { email: trimmedEmail, password, device_id: devId }
+        : { email: trimmedEmail, username: trimmedUsername, password, device_id: devId }
 
       const res = await fetch(`${ENDPOINTS.gateway}${path}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Device-Id': devId },
         body: JSON.stringify(body),
       })
 

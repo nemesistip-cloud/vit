@@ -27,36 +27,8 @@ router = APIRouter(prefix="/api/identity/me", tags=["Identity Management"])
 
 async def _get_or_create_global_identity(db: AsyncSession, user: User):
     """Fetch the GlobalIdentity for this user, creating one if absent."""
-    try:
-        from app.plugins.identity.models import GlobalIdentity, IdentityStatus, IdentityType
-        import uuid, re
-
-        result = await db.execute(
-            select(GlobalIdentity).where(GlobalIdentity.email == user.email)
-        )
-        identity = result.scalar_one_or_none()
-        if not identity:
-            def _gid():
-                raw = uuid.uuid4().hex.upper()
-                return f"VIT-ID-{raw[:4]}-{raw[4:8]}"
-
-            identity = GlobalIdentity(
-                gid=_gid(),
-                type=IdentityType.ADMIN if user.role == "admin" else IdentityType.INDIVIDUAL,
-                status=IdentityStatus.ACTIVE,
-                username=user.username,
-                email=user.email,
-                auth_methods=["password"],
-                security_metadata={},
-                profile={},
-            )
-            db.add(identity)
-            await db.commit()
-            await db.refresh(identity)
-        return identity
-    except Exception as exc:
-        logger.error("_get_or_create_global_identity failed: %s", exc)
-        return None
+    from app.services.device_service import get_or_create_global_identity
+    return await get_or_create_global_identity(db, user)
 
 # ── Sessions ──────────────────────────────────────────────────────────────────
 

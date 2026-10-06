@@ -1,3 +1,4 @@
+from typing import Optional
 # app/auth/routes.py
 import uuid
 import time
@@ -203,6 +204,7 @@ async def _run_auth_side_effects(
 
 class RegisterRequest(BaseModel):
     email: EmailStr
+    device_id: Optional[str] = None
     username: str
     password: str
 
@@ -224,6 +226,7 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+    device_id: Optional[str] = None
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -252,7 +255,7 @@ class TelegramAuthRequest(BaseModel):
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(body: RegisterRequest, request: Request, db: AsyncSession = Depends(get_db)):
     # Check if user exists
     stmt = select(User).where(or_(User.email == body.email.lower(), User.username == body.username))
     result = await db.execute(stmt)
@@ -279,6 +282,12 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     db.add(wallet)
 
     await db.commit()
+
+    try:
+        from app.services.device_service import register_device_for_user
+        await register_device_for_user(db, user, request, getattr(body, "device_id", None))
+    except Exception as exc:
+        logging.getLogger(__name__).warning("register device side-effect failed: %s", exc)
 
     access_token = create_access_token({"sub": str(user_id), "role": user_role})
     refresh_token = create_refresh_token({"sub": str(user_id)})
@@ -337,6 +346,12 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     user_username = user.username
     user_role = user.role
     await db.commit()
+
+    try:
+        from app.services.device_service import register_device_for_user
+        await register_device_for_user(db, user, request, getattr(body, "device_id", None))
+    except Exception as exc:
+        logging.getLogger(__name__).warning("login device side-effect failed: %s", exc)
 
     access_token = create_access_token({"sub": str(user_id), "role": user_role})
     refresh_token = create_refresh_token({"sub": str(user_id)})
