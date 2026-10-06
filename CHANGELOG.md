@@ -1,3 +1,5 @@
+- 2026-10-06 `606efab` Fix Registered Devices showing 'No devices registered' by adding auto-registration on login and request listing
+
 - 2026-10-06 `43c0ad6` docs: Add comprehensive VIT ecosystem gap analysis report
 
 - 2026-10-06 `2928650` fix(genesis): unblock stage 1 advancement and add initialize-stage AP…
