@@ -1,3 +1,5 @@
+- 2026-10-06 `c3a3bbc` feat(storage): upgrade VIT Storage v2.0.0 Swarm UI and provider node management
+
 - 2026-10-06 `3c6fb08` Fix system uptime and genesis block key sanitization
 
 - 2026-10-06 `4d1e344` fix(settings): complete full-system Account Settings audit and implementation
