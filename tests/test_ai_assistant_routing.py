@@ -105,3 +105,62 @@ async def test_call_ai_uses_aiml_fallback_when_gateway_fails():
         assert response == "AIML live response"
         mock_gemini.assert_awaited_once_with("Launch check")
         mock_aiml.assert_awaited_once_with("Launch check")
+
+
+from app.api.routes.ai_assistant import _handle_agentic_query
+from datetime import datetime, timezone
+from app.db.models import Match, Prediction
+
+@pytest.mark.asyncio
+async def test_agentic_query_highest_confidence_today():
+    mock_db = AsyncMock()
+    now_utc = datetime.now(timezone.utc)
+
+    mock_match = Match(
+        id=1,
+        home_team="Arsenal",
+        away_team="Chelsea",
+        league="Premier League",
+        kickoff_time=now_utc.replace(tzinfo=None),
+        sport="football",
+        status="scheduled"
+    )
+    mock_pred = Prediction(
+        id=10,
+        match_id=1,
+        home_prob=0.65,
+        draw_prob=0.20,
+        away_prob=0.15,
+        confidence=0.88,
+        bet_side="home"
+    )
+
+    mock_execute_res = MagicMock()
+    mock_execute_res.all.return_value = [(mock_match, mock_pred)]
+    mock_db.execute.return_value = mock_execute_res
+
+    res = await _handle_agentic_query("What matches have the highest AI confidence today?", mock_db)
+    assert res["available"] is True
+    assert "response" in res
+    assert "reply" in res
+    assert res["response"] == res["reply"]
+    assert "Arsenal vs Chelsea" in res["response"]
+    assert "88.0%" in res["response"]
+
+
+@pytest.mark.asyncio
+async def test_agentic_query_general_conversational():
+    mock_db = AsyncMock()
+
+    mock_scalar_res = MagicMock()
+    mock_scalar_res.scalar.return_value = 0.75
+    mock_db.execute.return_value = mock_scalar_res
+
+    with patch("app.api.routes.ai_assistant.call_ai", new_callable=AsyncMock) as mock_call_ai:
+        mock_call_ai.return_value = "VIT AI is the intelligence network powering forecasts."
+
+        res = await _handle_agentic_query("What is VIT AI?", mock_db)
+        assert res["available"] is True
+        assert "response" in res
+        assert "reply" in res
+        assert res["response"] == "VIT AI is the intelligence network powering forecasts."

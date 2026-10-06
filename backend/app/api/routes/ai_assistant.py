@@ -100,7 +100,7 @@ async def _handle_agentic_query(
                 "**Consensus Status:** 100% synchronized. Block height validated at root. "
                 "Storage challenges are scheduled and dispatched dynamically every epoch."
             )
-            return {"available": True, "reply": reply, "thoughts": thoughts}
+            return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
         except Exception as e:
             logger.error(f"Blockchain telemetry check failed: {e}")
 
@@ -116,7 +116,7 @@ async def _handle_agentic_query(
                 "- **Ecosystem Pricing Engine:** Native VITCoin hybrid formula is online.\n\n"
                 "**Audit Note:** Financial settlements are fully secured, and double-spend attempts are dynamically caught at the db constraints level."
             )
-            return {"available": True, "reply": reply, "thoughts": thoughts}
+            return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
         except Exception as e:
             logger.error(f"Wallet telemetry check failed: {e}")
 
@@ -131,7 +131,7 @@ async def _handle_agentic_query(
                 "- **Splitting Rule Engine**: Idempotent database-secured transactions.\n\n"
                 "**Rule Audit**: Standard splits occur automatically at the moment of match result settlement."
             )
-            return {"available": True, "reply": reply, "thoughts": thoughts}
+            return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
         except Exception as e:
             logger.error(f"Contract splitting check failed: {e}")
 
@@ -146,7 +146,7 @@ async def _handle_agentic_query(
                 "- **Database pool timeouts**: If the database is marked degraded, check for open connection leaks in sub-routers or non-async ORM commands (ensure all DB commands are async-awaited).\n\n"
                 "If you need manual intervention, check the logs or request the operator to trigger a provider restart."
             )
-            return {"available": True, "reply": reply, "thoughts": thoughts}
+            return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
         except Exception as e:
             logger.error(f"Troubleshooting assist failed: {e}")
 
@@ -161,7 +161,7 @@ async def _handle_agentic_query(
                 "- **Documentation Endpoints**: Swaggers are mounted directly under `/docs` and fallback directly onto standard React SPA.\n\n"
                 "Check `/api/ai-engine/status` for live orchestrator and directory pathways."
             )
-            return {"available": True, "reply": reply, "thoughts": thoughts}
+            return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
         except Exception as e:
             logger.error(f"Developer helper check failed: {e}")
 
@@ -186,11 +186,11 @@ async def _handle_agentic_query(
                 if trends and "overall_avg_clv" in trends:
                     reply += f"\n**Network CLV:** {trends['overall_avg_clv']:.4f} | **Tracked Events:** {trends['total_bets']}"
 
-            return {"available": True, "reply": reply, "thoughts": thoughts}
+            return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
         except Exception as e:
             logger.error(f"SVI tool error: {e}")
             reply = "Market intelligence engine is re-calibrating. Please try again in a moment."
-            return {"available": True, "reply": reply, "thoughts": thoughts}
+            return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
 
     # 1.5 Accuracy & Performance
     if any(k in msg for k in ["accuracy", "performance", "track record", "success rate", "correct"]):
@@ -212,7 +212,7 @@ async def _handle_agentic_query(
                 f"**Verified Samples:** {total_samples} predictions\n\n"
                 f"The VIT Native Ensemble (v5.5.0) continuously optimizes weights based on CLV (Closing Line Value)."
             )
-            return {"available": True, "reply": reply, "thoughts": thoughts}
+            return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
         except Exception as e:
             logger.error(f"Accuracy tool error: {e}")
 
@@ -237,11 +237,109 @@ async def _handle_agentic_query(
                 if active_agents:
                     reply += f"\n**Critical Systems:** {', '.join(active_agents[:4])} are online."
 
-        return {"available": True, "reply": reply, "thoughts": thoughts}
+        return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
 
-    # 3. Sports Analysis
-    if any(k in msg for k in ["match", "game", "soccer", "football", "prediction", "odds", "scores", "fixture"]):
+    # 3. Sports Analysis & Predictions
+    if any(k in msg for k in ["match", "game", "soccer", "football", "basketball", "tennis", "prediction", "confidence", "odds", "scores", "fixture", "highest", "today"]):
         thoughts.append("Executing Sports Intelligence Toolset")
+
+        is_highest = any(k in msg for k in ["highest", "top", "best", "most confident"])
+        is_today = "today" in msg
+        is_prediction_query = any(k in msg for k in ["prediction", "confidence", "highest", "best", "top", "explain"])
+
+        sport_filter = None
+        if "football" in msg or "soccer" in msg:
+            sport_filter = "football"
+        elif "basketball" in msg:
+            sport_filter = "basketball"
+        elif "tennis" in msg:
+            sport_filter = "tennis"
+
+        if is_today or is_highest or (is_prediction_query and any(k in msg for k in ["match", "game", "fixture", "show", "list", "prediction", "explain"])):
+            thoughts.append("Querying database for matches & predictions")
+            try:
+                from sqlalchemy import select, desc
+                from datetime import datetime, timezone, timedelta
+                from app.db.models import Match, Prediction
+
+                now_utc = datetime.now(timezone.utc)
+                start_of_day = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+                end_of_day = start_of_day + timedelta(days=1)
+
+                query = select(Match, Prediction).join(Prediction, Match.id == Prediction.match_id, isouter=True)
+
+                if is_today:
+                    query = query.where(Match.kickoff_time >= start_of_day.replace(tzinfo=None), Match.kickoff_time < end_of_day.replace(tzinfo=None))
+                else:
+                    query = query.where(Match.kickoff_time >= now_utc.replace(tzinfo=None) - timedelta(hours=6))
+
+                if sport_filter:
+                    query = query.where(Match.sport.ilike(f"%{sport_filter}%"))
+
+                query = query.order_by(desc(Prediction.confidence), Match.kickoff_time.asc()).limit(10)
+
+                result = await db.execute(query)
+                rows = result.all()
+
+                if not rows and is_today:
+                    fallback_query = select(Match, Prediction).join(Prediction, Match.id == Prediction.match_id, isouter=True)                         .where(Match.kickoff_time >= now_utc.replace(tzinfo=None) - timedelta(hours=12))                         .order_by(desc(Prediction.confidence), Match.kickoff_time.asc()).limit(10)
+                    if sport_filter:
+                        fallback_query = fallback_query.where(Match.sport.ilike(f"%{sport_filter}%"))
+                    fallback_res = await db.execute(fallback_query)
+                    rows = fallback_res.all()
+
+                if not rows:
+                    all_matches_query = select(Match, Prediction).join(Prediction, Match.id == Prediction.match_id, isouter=True)                         .order_by(desc(Prediction.confidence), Match.kickoff_time.desc()).limit(10)
+                    if sport_filter:
+                        all_matches_query = all_matches_query.where(Match.sport.ilike(f"%{sport_filter}%"))
+                    all_res = await db.execute(all_matches_query)
+                    rows = all_res.all()
+
+                if rows:
+                    lines = []
+                    for idx, (m, p) in enumerate(rows, 1):
+                        sport_str = (m.sport or "sports").capitalize()
+                        league_str = m.league or "Unknown League"
+                        kickoff_str = m.kickoff_time.strftime("%Y-%m-%d %H:%M UTC") if m.kickoff_time else "TBD"
+
+                        conf_pct = f"{round(p.confidence * 100, 1)}%" if (p and p.confidence is not None) else "N/A"
+
+                        pred_desc = "Pending calculation"
+                        if p:
+                            if p.bet_side:
+                                pred_desc = p.bet_side.capitalize()
+                            elif p.home_prob >= p.draw_prob and p.home_prob >= p.away_prob:
+                                pred_desc = f"Home Win ({m.home_team})"
+                            elif p.away_prob >= p.home_prob and p.away_prob >= p.draw_prob:
+                                pred_desc = f"Away Win ({m.away_team})"
+                            else:
+                                pred_desc = "Draw"
+
+                        lines.append(
+                            f"{idx}. **{m.home_team} vs {m.away_team}**\n" +
+                            f"   - **Sport:** {sport_str} ({league_str})\n" +
+                            f"   - **Kickoff:** {kickoff_str}\n" +
+                            f"   - **Prediction:** {pred_desc}\n" +
+                            f"   - **AI Confidence:** {conf_pct}"
+                        )
+
+                    header_title = "Highest AI Confidence Matches" if is_highest else "Matches & AI Predictions"
+                    if is_today:
+                        header_title += " Today"
+                    if sport_filter:
+                        header_title += f" ({sport_filter.capitalize()})"
+
+                    reply = f"### {header_title}\n\n" + "\n\n".join(lines)
+                    return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
+                else:
+                    sport_suffix = f" for {sport_filter.capitalize()}" if sport_filter else ""
+                    reply = f"I couldn't find any scheduled matches or verified AI confidence scores{sport_suffix} in the database."
+                    return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
+
+            except Exception as e:
+                logger.error(f"Error fetching predictions for assistant query: {e}", exc_info=True)
+                reply = "I encountered an error retrieving predictions from the database."
+                return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
 
         match_id_search = re.search(r"(?:id\s*[:#]?\s*|match\s+)(\d+)", msg)
         found_matches = []
@@ -277,7 +375,7 @@ async def _handle_agentic_query(
                     reply += f"- **Confidence:** {p.get('confidence', 0)*100:.1f}%\n\n"
                 else:
                     reply += "AI Models are currently processing this match. No prediction recorded yet.\n\n"
-            return {"available": True, "reply": reply.strip(), "thoughts": thoughts}
+            return {"available": True, "reply": reply.strip(), "response": reply.strip(), "thoughts": thoughts}
 
         upcoming = await TOOL_MAP["get_upcoming_matches"](limit=5)
         if upcoming:
@@ -290,7 +388,7 @@ async def _handle_agentic_query(
                 f"I found the following matches in the VIT database:\n\n{match_list}\n\n"
                 f"Ask me for 'insight on match [ID]' for a deep dive analysis."
             )
-            return {"available": True, "reply": reply, "thoughts": thoughts}
+            return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
 
     # 4. Native Natural Language Generation
     thoughts.append("Generating response via VIT Native NLP layer")
@@ -305,7 +403,7 @@ async def _handle_agentic_query(
         "accuracy": ens_acc
     }
     reply = await call_ai(message, context=ctx)
-    return {"available": True, "reply": reply, "thoughts": thoughts}
+    return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
 
 def _platform_context(body: PlatformAssistantRequest, user: Any) -> AssistantConversationContext:
     role = getattr(user, "role", None)
@@ -397,6 +495,7 @@ async def assistant_chat(body: ChatRequest, db: AsyncSession = Depends(get_db), 
         return {
             "available": True,
             "reply": "The VIT Bot is temporarily unavailable. Please try again later.",
+            "response": "The VIT Bot is temporarily unavailable. Please try again later.",
             "thoughts": ["Error encountered"],
         }
 
