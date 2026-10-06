@@ -1,4 +1,5 @@
 from coincurve import PrivateKey, PublicKey
+from .address import clean_hex_key
 
 def generate_keypair() -> tuple[str, str]:
     """Returns (private_key_hex, public_key_hex) — secp256k1 uncompressed."""
@@ -8,6 +9,7 @@ def generate_keypair() -> tuple[str, str]:
 
 def sign_transaction(private_key_hex: str, tx_hash: bytes) -> str:
     """Returns DER-encoded signature as hex string."""
+    private_key_hex = clean_hex_key(private_key_hex)
     priv = PrivateKey.from_hex(private_key_hex)
     return priv.sign(tx_hash).hex()
 
@@ -16,6 +18,8 @@ def verify_signature(public_key_hex: str,
                    signature_hex: str) -> bool:
     """Returns True if signature is valid. Supports both DER and recoverable formats."""
     try:
+        public_key_hex = clean_hex_key(public_key_hex)
+        signature_hex = clean_hex_key(signature_hex)
         pub = PublicKey(bytes.fromhex(public_key_hex))
         sig_bytes = bytes.fromhex(signature_hex)
         if len(sig_bytes) == 65:
@@ -32,6 +36,7 @@ def verify_signature(public_key_hex: str,
 def recover_public_key(tx_hash: bytes, signature_hex: str) -> str:
     """Recovers public key from 65-byte recoverable signature + hash."""
     try:
+        signature_hex = clean_hex_key(signature_hex)
         sig_bytes = bytes.fromhex(signature_hex)
         pub = PublicKey.from_signature_and_message(sig_bytes, tx_hash)
         return pub.format(compressed=False).hex()

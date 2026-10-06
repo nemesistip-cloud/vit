@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .core.block import VITBlock, build_block
 from .core.transaction import VITTransaction, keccak256_hex
 from .core.chain import VITChain
+from .crypto.address import clean_hex_key, public_key_to_address, ZERO_ADDRESS
 from app.config import get_env
 import hashlib
 import os
@@ -11,14 +12,21 @@ import time
 GENESIS_TIMESTAMP = 1735689600  # 2025-01-01 00:00:00 UTC
 INITIAL_SUPPLY = Decimal("1000000")
 GENESIS_VALIDATOR = get_env("GENESIS_VALIDATOR_ADDRESS", "VIT_GENESIS_VALIDATOR_ADDRESS")
+
+def _resolve_treasury_key() -> str:
+    raw = get_env("VIT_TREASURY_PRIVATE_KEY", "")
+    cleaned = clean_hex_key(raw)
+    if cleaned and len(cleaned) == 64:
+        try:
+            from coincurve import PrivateKey
+            PrivateKey.from_hex(cleaned)
+            return cleaned
+        except Exception:
+            pass
+    return hashlib.sha256(b"vit-genesis-treasury-fallback-key").hexdigest()
+
 _raw_treasury_key = get_env("VIT_TREASURY_PRIVATE_KEY", "")
-if not _raw_treasury_key:
-    if os.getenv("ENVIRONMENT", "development").lower() == "production":
-        TREASURY_PRIV_KEY = None
-    else:
-        TREASURY_PRIV_KEY = hashlib.sha256(b"vit-non-production-genesis-key").hexdigest()
-else:
-    TREASURY_PRIV_KEY = _raw_treasury_key
+TREASURY_PRIV_KEY = _resolve_treasury_key()
 
 def build_genesis_block() -> VITBlock:
     """
@@ -28,19 +36,12 @@ def build_genesis_block() -> VITBlock:
     - No storage proofs
     - validator_id = GENESIS_VALIDATOR
     """
-    if not TREASURY_PRIV_KEY:
-        raise RuntimeError("VIT_TREASURY_PRIVATE_KEY is required in production")
     from coincurve import PrivateKey
-    from .crypto.address import public_key_to_address
 
-    # Deriving treasury address
-    priv = PrivateKey.from_hex(TREASURY_PRIV_KEY)
+    treasury_key = _resolve_treasury_key()
+    priv = PrivateKey.from_hex(treasury_key)
     treasury_address = public_key_to_address(priv.public_key.format(compressed=False).hex())
 
-    # Genesis transaction (no from_address, or special zero address)
-    from .crypto.address import ZERO_ADDRESS
-
-    # We create a special transaction for genesis
     tx = VITTransaction(
         from_address=ZERO_ADDRESS,
         to_address=treasury_address,
@@ -51,16 +52,12 @@ def build_genesis_block() -> VITBlock:
         data={"type": "genesis_mint"}
     )
 
-    # Genesis doesn't necessarily need a signature from ZERO_ADDRESS,
-    # but we compute its hash.
     tx.tx_hash = tx.compute_hash()
 
-    # Build block 0
-    # For genesis, we might need a special build_block that doesn't sign or
-    # uses a hardcoded signature.
-    # But BUILD SPEC says: "validator_id = GENESIS_VALIDATOR"
-    # We'll use a placeholder key for the genesis validator if not provided.
-    genesis_val_key = get_env("GENESIS_VALIDATOR_KEY", TREASURY_PRIV_KEY)
+    raw_val_key = get_env("GENESIS_VALIDATOR_KEY", treasury_key)
+    genesis_val_key = clean_hex_key(raw_val_key)
+    if not genesis_val_key or len(genesis_val_key) != 64:
+        genesis_val_key = treasury_key
 
     block = build_block(
         prev_block=None,

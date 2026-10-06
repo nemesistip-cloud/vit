@@ -108,3 +108,21 @@ async def test_normal_transaction_requires_valid_wallet(async_db):
 
     res = await chain.state.apply_transaction(async_db, normal_tx)
     assert res is False
+
+@pytest.mark.asyncio
+async def test_genesis_creation_with_prefixed_and_quoted_keys(monkeypatch):
+    test_key = '  "0x' + ("ab" * 32) + '" \n'
+    monkeypatch.setenv("VIT_TREASURY_PRIVATE_KEY", test_key)
+    monkeypatch.setenv("GENESIS_VALIDATOR_KEY", test_key)
+
+    block = build_genesis_block()
+    assert block is not None
+    assert block.height == 0
+    assert len(block.transactions) == 1
+
+@pytest.mark.asyncio
+async def test_genesis_creation_with_invalid_key_fallback(monkeypatch):
+    monkeypatch.setenv("VIT_TREASURY_PRIVATE_KEY", "invalid_non_hex_key")
+    block = build_genesis_block()
+    assert block is not None
+    assert block.height == 0

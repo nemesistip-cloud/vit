@@ -56,6 +56,8 @@ def create_transaction(from_key: str, to_address: str,
         timestamp = int(time.time())
 
     from coincurve import PrivateKey
+    from ..crypto.address import clean_hex_key
+    from_key = clean_hex_key(from_key)
     priv = PrivateKey.from_hex(from_key)
     pub_hex = priv.public_key.format(compressed=False).hex()
     from_address = public_key_to_address(pub_hex)
