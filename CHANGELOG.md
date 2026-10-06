@@ -1,3 +1,5 @@
+- 2026-10-06 `2928650` fix(genesis): unblock stage 1 advancement and add initialize-stage AP…
+
 - 2026-10-06 `cb6f956` Comprehensive VIT Ecosystem Gap Analysis & Next-Level Roadmap
 
 - 2026-10-06 `762bf51` feat(genesis): add initialize-stage API endpoint
