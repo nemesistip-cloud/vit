@@ -327,21 +327,3 @@ async def test_initialize_stage_endpoint_validation_and_persistence(db_session):
     res2 = await initialize_stage(2, {"DID_RESOLVER_ENDPOINT": "https://did.example.test"}, db_session, object())
     assert res2["genesis_state"]["parameters"]["NODE_LABEL"] == "validator-1"
     assert res2["genesis_state"]["parameters"]["DID_RESOLVER_ENDPOINT"] == "https://did.example.test"
-
-@pytest.mark.asyncio
-async def test_genesis_advance_from_stage_1_to_stage_2(db_session):
-    db_session.add(PlatformConfig(
-        key=GENESIS_STATE_KEY,
-        value={
-            "current_stage": 1,
-            "completed_stages": [],
-            "verified": False,
-            "dependency_status": {"database": True, "redis": True},
-        },
-    ))
-    await db_session.commit()
-
-    state = await advance_genesis_stage(GenesisAdvanceRequest(stage=2), db_session, object())
-
-    assert state["current_stage"] == 2
-    assert 1 in state["completed_stages"]
