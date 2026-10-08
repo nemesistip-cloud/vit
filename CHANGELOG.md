@@ -1,3 +1,5 @@
+- 2026-10-08 `52f424c` Implement sleep-resilient VIT Runtime Manager for Render Free Plan
+
 - 2026-10-06 `5ec55ff` ci: verify storage build and test suite integrity
 
 - 2026-10-06 `82dcded` Fix DB table initialization for validator network integration tests
