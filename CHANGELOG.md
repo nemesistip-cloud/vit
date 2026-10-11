@@ -1,3 +1,5 @@
+- 2026-10-11 `2fc03b7` fix(frontend): remove genesis blocking route guard
+
 - 2026-10-08 `52f424c` Implement sleep-resilient VIT Runtime Manager for Render Free Plan
 
 - 2026-10-06 `5ec55ff` ci: verify storage build and test suite integrity
