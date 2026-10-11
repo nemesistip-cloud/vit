@@ -25,14 +25,24 @@ APP_NAME = "VIT Network"
 
 def _get_qr_data_url(provisioning_uri: str) -> str:
     try:
-        import qrcode, qrcode.image.svg
+        import qrcode
         img = qrcode.make(provisioning_uri)
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         b64 = base64.b64encode(buf.getvalue()).decode()
         return f"data:image/png;base64,{b64}"
     except Exception:
-        return ""
+        try:
+            import qrcode
+            import qrcode.image.svg
+            factory = qrcode.image.svg.SvgImage
+            img = qrcode.make(provisioning_uri, image_factory=factory)
+            buf = io.BytesIO()
+            img.save(buf)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            return f"data:image/svg+xml;base64,{b64}"
+        except Exception:
+            return ""
 
 
 class Enable2FARequest(BaseModel):
@@ -62,7 +72,7 @@ async def setup_2fa(
     secret = pyotp.random_base32()
     totp = pyotp.TOTP(secret)
     uri = totp.provisioning_uri(name=user.email, issuer_name=APP_NAME)
-    qr = _get_qr_data_url(uri)
+    qr = _get_qr_data_url(uri) or uri
 
 
 
