@@ -298,10 +298,20 @@ function SecurityTab({ profile }: { profile: any }) {
   async function getQR() {
     setLoadingQR(true)
     try {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/auth/2fa/setup`, { headers: authHeaders() })
+      const r = await fetch(`${ENDPOINTS.gateway}/api/auth/2fa/setup`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
       const d = await r.json()
-      if (r.ok) setTotpQR(d.qr_code || d.qr_code_url || d.otpauth_url || null)
-      else toast.error(d.detail ?? 'Could not fetch QR code')
+      if (r.ok) {
+        const qr = d.qr_code || d.qr_code_url || d.otpauth_url || d.provisioning_uri || d.secret
+        if (qr) setTotpQR(qr)
+        else toast.error('Could not fetch QR code')
+      } else {
+        toast.error(d.detail ?? 'Could not fetch QR code')
+      }
+    } catch {
+      toast.error('Could not fetch QR code')
     } finally { setLoadingQR(false) }
   }
 
