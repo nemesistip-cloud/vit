@@ -1,3 +1,5 @@
+- 2026-10-11 `31cf5fd` Make Validators Portal Publicly Accessible & Enhance Node Controls
+
 - 2026-10-11 `4f2f49e` Fix timezone handling in match prediction initialization and backfill
 
 - 2026-10-11 `de87a50` fix: support cross-league team history fallback in predict_features
