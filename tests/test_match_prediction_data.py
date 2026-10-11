@@ -303,3 +303,15 @@ async def test_scoped_historical_refresh_skips_global_day_scan(monkeypatch):
     assert result["inserted"] == 1
     assert db.added[0].home_goals == 0
     assert db.added[0].away_goals == 2
+
+@pytest.mark.asyncio
+async def test_static_history_for_team_falls_back_cross_league():
+    from app.services.predict_features import _static_history_for_team, build_predict_features
+    before = datetime(2026, 10, 11, 11, 0, tzinfo=timezone.utc)
+
+    history = _static_history_for_team('Southampton FC', limit=10, league='championship', before=before, sport='football')
+    assert len(history) > 0, 'Expected cross-league static history fallback for Southampton FC'
+
+    features = await build_predict_features(None, 'Southampton FC', 'Portsmouth FC', league='championship', before=before, sport='football')
+    assert features['home_history_sample_size'] > 0
+    assert features['feature_completeness'] >= 0.8

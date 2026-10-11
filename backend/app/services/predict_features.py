@@ -442,6 +442,7 @@ def _static_history_for_team(
     sport: Optional[str] = None,
 ) -> List[SimpleNamespace]:
     team_matches: List[SimpleNamespace] = []
+    seen = set()
     for match in _static_history_rows():
         if (
             league
@@ -455,8 +456,24 @@ def _static_history_for_team(
             continue
         if _match_team_name(team, match.home_team) or _match_team_name(team, match.away_team):
             team_matches.append(match)
+            seen.add(id(match))
         if len(team_matches) >= limit:
             break
+
+    if league and len(team_matches) < limit:
+        for match in _static_history_rows():
+            if id(match) in seen:
+                continue
+            if not _is_before_cutoff(match, before):
+                continue
+            if sport and match.sport not in {sport.lower(), "sports"}:
+                continue
+            if _match_team_name(team, match.home_team) or _match_team_name(team, match.away_team):
+                team_matches.append(match)
+                seen.add(id(match))
+            if len(team_matches) >= limit:
+                break
+
     return team_matches
 
 
@@ -469,6 +486,7 @@ def _static_history_for_pair(
     sport: Optional[str] = None,
 ) -> List[SimpleNamespace]:
     pair_matches: List[SimpleNamespace] = []
+    seen = set()
     for match in _static_history_rows():
         if (
             league
@@ -485,8 +503,27 @@ def _static_history_for_pair(
             (_match_team_name(home, match.away_team) and _match_team_name(away, match.home_team))
         ):
             pair_matches.append(match)
+            seen.add(id(match))
         if len(pair_matches) >= limit:
             break
+
+    if league and len(pair_matches) < limit:
+        for match in _static_history_rows():
+            if id(match) in seen:
+                continue
+            if not _is_before_cutoff(match, before):
+                continue
+            if sport and match.sport not in {sport.lower(), "sports"}:
+                continue
+            if (
+                (_match_team_name(home, match.home_team) and _match_team_name(away, match.away_team)) or
+                (_match_team_name(home, match.away_team) and _match_team_name(away, match.home_team))
+            ):
+                pair_matches.append(match)
+                seen.add(id(match))
+            if len(pair_matches) >= limit:
+                break
+
     return pair_matches
 
 
