@@ -1,10 +1,9 @@
 import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { AppShell, PublicShell } from '@/components/shell/AppShell'
-import { authHeaders, getAuthToken } from '@/hooks/useAuth'
+import { getAuthToken } from '@/hooks/useAuth'
 import { RouteErrorBoundary } from '@/components/ErrorBoundary'
 import { Spinner } from '@/components/ui/Spinner'
-import { ENDPOINTS } from '@/lib/api'
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 
@@ -57,70 +56,6 @@ function RequireGuest() {
   return <Outlet />
 }
 
-const GENESIS_INDEPENDENT_PATHS = new Set(['/odds', '/predictions'])
-
-function RequireGenesisVerified() {
-  const location = useLocation()
-
-  if (
-    location.pathname === '/genesis' ||
-    location.pathname.startsWith('/admin') ||
-    location.pathname === '/matches' ||
-    location.pathname.startsWith('/matches/') ||
-    GENESIS_INDEPENDENT_PATHS.has(location.pathname)
-  ) {
-    return <Outlet />
-  }
-
-  const [isReady, setIsReady] = React.useState(false)
-  const [isLoading, setIsLoading] = React.useState(true)
-
-  React.useEffect(() => {
-    let isMounted = true
-
-    async function checkGenesisState() {
-      try {
-        const res = await fetch(`${ENDPOINTS.gateway}/api/genesis/status`, {
-          headers: authHeaders(),
-        })
-
-        if (!res.ok) {
-          if (isMounted) {
-            setIsReady(false)
-            setIsLoading(false)
-          }
-          return
-        }
-
-        const payload = await res.json().catch(() => ({ verified: false }))
-        if (isMounted) {
-          setIsReady(Boolean(payload.verified))
-          setIsLoading(false)
-        }
-      } catch {
-        if (isMounted) {
-          setIsReady(false)
-          setIsLoading(false)
-        }
-      }
-    }
-
-    checkGenesisState()
-    return () => {
-      isMounted = false
-    }
-  }, [location.pathname])
-
-  if (isLoading) {
-    return <PageLoader />
-  }
-
-  if (!isReady) {
-    return <Navigate to="/genesis" replace state={{ from: location.pathname }} />
-  }
-
-  return <Outlet />
-}
 
 function PublicHomeGate() {
   return getAuthToken() ? <Navigate to="/dashboard" replace /> : <Home />
@@ -232,8 +167,7 @@ export default function App() {
 
       {/* ── Authenticated app ──────────────────────────────────────────────── */}
       <Route element={<RequireAuth />}>
-        <Route element={<RequireGenesisVerified />}>
-          <Route element={<AppShell />}>
+        <Route element={<AppShell />}>
             <Route path="/dashboard"        element={wrap(<Dashboard />)}       />
             <Route path="/workspace"        element={wrap(<Workspace />)}       />
             <Route path="/settings"         element={wrap(<Settings />)}        />
@@ -266,7 +200,6 @@ export default function App() {
             <Route path="/admin/:tab"       element={wrap(<Admin />)}           />
             <Route path="*"                 element={wrap(<NotFound />)}        />
           </Route>
-        </Route>
       </Route>
     </Routes>
   )
