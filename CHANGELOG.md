@@ -1,3 +1,5 @@
+- 2026-10-11 `3bf9659` fix: remove genesis blocking route guard and fix 2fa qr setup
+
 - 2026-10-11 `2fc03b7` fix(frontend): remove genesis blocking route guard
 
 - 2026-10-08 `52f424c` Implement sleep-resilient VIT Runtime Manager for Render Free Plan
