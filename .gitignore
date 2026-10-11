@@ -57,3 +57,7 @@ models/**/*.pkl
 
 # Generated test output
 test-results/
+
+# Build outputs
+build/
+dist/
