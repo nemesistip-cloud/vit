@@ -1,21 +1,5 @@
 import { useSyncExternalStore } from 'react'
 
-type Theme = 'dark' | 'light'
-type Density = 'comfortable' | 'compact'
-type LayoutMode = 'grid' | 'list'
-
-type WindowStateValue = 'normal' | 'minimized' | 'maximized'
-
-export interface WorkspaceWidgetState {
-  id: string
-  visible: boolean
-  collapsed: boolean
-  position: number
-  size: 'sm' | 'md' | 'lg'
-  zIndex: number
-  lastActive: number
-}
-
 export interface WorkspaceSidebarState {
   collapsed: boolean
   selectedPath: string
@@ -27,16 +11,26 @@ export interface WorkspaceDockState {
   pinned: string[]
 }
 
+export interface WorkspaceWidgetState {
+  id: string
+  visible: boolean
+  collapsed: boolean
+  position: number
+  size: 'sm' | 'md' | 'lg' | 'full'
+  zIndex: number
+  lastActive: number
+}
+
 export interface WorkspacePanelState {
   open: string[]
   closed: string[]
-  activeTab: string | null
+  activeTab: string
 }
 
 export interface WorkspacePreferences {
-  theme: Theme
-  density: Density
-  layoutMode: LayoutMode
+  theme: 'dark' | 'light' | 'system'
+  density: 'compact' | 'comfortable' | 'spacious'
+  layoutMode: 'grid' | 'freeform' | 'split'
   language: string
 }
 
@@ -53,13 +47,8 @@ export interface WorkspaceWindowState {
   maximized: boolean
   visible: boolean
   zIndex: number
-  lastState: WindowStateValue
-  restoreBounds?: {
-    x: number
-    y: number
-    width: number
-    height: number
-  }
+  lastState?: 'normal' | 'minimized' | 'maximized'
+  restoreBounds?: { x: number; y: number; width: number; height: number }
 }
 
 export interface WorkspaceState {
@@ -131,10 +120,6 @@ const defaultState = (): WorkspaceState => ({
   activeWindowId: null,
 })
 
-function cloneState(state: WorkspaceState): WorkspaceState {
-  return JSON.parse(JSON.stringify(state)) as WorkspaceState
-}
-
 function getNextWindowZIndex(windows: Record<string, WorkspaceWindowState>) {
   return Object.values(windows).reduce((max, window) => Math.max(max, window.zIndex), 10) + 1
 }
@@ -167,7 +152,17 @@ class WorkspacePersistenceService {
 
   save(state: WorkspaceState) {
     if (typeof window === 'undefined') return
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    window.localStorage.getItem // no-op check
+    try {
+      // Clean sensitive application state prior to persistence
+      const sanitized = {
+        ...state,
+        processes: undefined,
+      }
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized))
+    } catch {
+      // Ignore quota errors
+    }
   }
 }
 
@@ -192,7 +187,6 @@ class WorkspaceStore {
 
   getState() {
     if (!this.initialized) this.initialize()
-    // useSyncExternalStore requires a cached snapshot between emissions.
     return this.state
   }
 
@@ -210,6 +204,11 @@ class WorkspaceStore {
     this.state = next
     this.service.save(this.state)
     this.emit()
+  }
+
+  resetLayout() {
+    const next = defaultState()
+    this.commit(next)
   }
 
   setCurrentRoute(route: string) {
@@ -296,10 +295,10 @@ class WorkspaceStore {
       appKey,
       title: patch.title ?? appKey,
       path: patch.path ?? `/${appKey}`,
-      x: patch.x ?? 48 + (state.windowOrder.length % 4) * 28,
-      y: patch.y ?? 48 + (state.windowOrder.length % 4) * 28,
-      width: patch.width ?? 460,
-      height: patch.height ?? 360,
+      x: patch.x ?? 20 + (state.windowOrder.length % 4) * 24,
+      y: patch.y ?? 20 + (state.windowOrder.length % 4) * 24,
+      width: patch.width ?? 480,
+      height: patch.height ?? 380,
       minimized: false,
       maximized: false,
       visible: true,
@@ -404,21 +403,27 @@ class WorkspaceStore {
     })
   }
 
-  maximizeWindow(id: string) {
+  maximizeWindow(id: string, containerWidth = 1000, containerHeight = 650) {
     const state = this.getState()
     const window = state.windows[id]
     if (!window) return
+
+    if (window.maximized) {
+      // Toggle back to restored
+      this.restoreWindow(id)
+      return
+    }
 
     const nextWindow: WorkspaceWindowState = {
       ...window,
       minimized: false,
       maximized: true,
       lastState: 'maximized',
-      restoreBounds: window.maximized ? window.restoreBounds : { x: window.x, y: window.y, width: window.width, height: window.height },
+      restoreBounds: { x: window.x, y: window.y, width: window.width, height: window.height },
       x: 0,
       y: 0,
-      width: 1000,
-      height: 700,
+      width: containerWidth,
+      height: containerHeight,
     }
 
     const windows: Record<string, WorkspaceWindowState> = {
