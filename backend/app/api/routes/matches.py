@@ -34,6 +34,24 @@ from app.core.dependencies import get_data_loader
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 logger = logging.getLogger(__name__)
+
+def _compute_match_data_status(m: Match, now: Optional[datetime] = None) -> str:
+    if not now:
+        now = datetime.now(timezone.utc)
+    if not m.source or m.source in {"unverified", "malformed", "unknown"}:
+        return "UNAVAILABLE"
+    if m.source in {"seed_demo", "demo", "synthetic"}:
+        return "DEMO"
+    ts = getattr(m, "updated_at", None) or getattr(m, "created_at", None)
+    if not ts:
+        return "UNAVAILABLE"
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    age_seconds = (now - ts).total_seconds()
+    if age_seconds <= 900:  # 15 minutes policy
+        return "LIVE"
+    return "DELAYED"
+
 _TWO_WAY_SPORTS = {
     "basketball", "tennis", "cricket", "american_football", "rugby",
     "rugby_union", "baseball", "ice_hockey", "mma", "boxing",
@@ -590,7 +608,7 @@ def _fmt_match(m: Match, pred: Optional[Prediction] = None, markets: Optional[li
         # Match rows are database snapshots. They are provider-sourced, but
         # must not be labelled LIVE unless a request-time provider refresh
         # actually occurred.
-        "data_status": "CACHED" if m.source in {"isports", "sportsdb", "footballdata", "football-data.org", "the_odds_api", "seed_high_profile", "seed_mass", "seed_demo", "user_csv", "provider", "agent", "live_generated"} else "UNAVAILABLE",
+        "data_status": _compute_match_data_status(m, datetime.now(timezone.utc)),
         "data_provenance": {
             "data_source": m.source or "unknown",
             "source_type": "provider_cache" if m.source in {"isports", "sportsdb", "footballdata", "football-data.org", "the_odds_api", "seed_high_profile", "seed_mass", "seed_demo", "user_csv", "provider", "agent", "live_generated"} else "unverified",

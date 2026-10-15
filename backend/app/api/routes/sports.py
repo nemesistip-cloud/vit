@@ -172,72 +172,119 @@ async def sync_sports_fixtures(
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}. Use 'isports' or 'footballdata'.")
 
 
+def _norm_team(name: Optional[str]) -> str:
+    if not name:
+        return ""
+    import unicodedata, re
+    cleaned = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii").lower()
+    cleaned = re.sub(r"[^\w\s]", " ", cleaned)
+    tokens = [
+        t for t in cleaned.split()
+        if t not in {"fc", "afc", "cf", "club", "sc", "ac", "as", "fsv", "the"}
+    ]
+    return " ".join(tokens)
+
+
+def _match_teams(h1: str, a1: str, h2: str, a2: str) -> bool:
+    nh1, na1 = _norm_team(h1), _norm_team(a1)
+    nh2, na2 = _norm_team(h2), _norm_team(a2)
+    if not nh1 or not na1 or not nh2 or not na2:
+        return False
+    h_match = (nh1 == nh2 or nh1 in nh2 or nh2 in nh1)
+    a_match = (na1 == na2 or na1 in na2 or na2 in na1)
+    return h_match and a_match
+
+
 # ── Odds metadata sync ────────────────────────────────────────────────────────
 
 @router.post("/sync/odds-metadata")
 async def sync_odds_metadata(
-    league: str = Query(..., description="League slug e.g. soccer_epl"),
+    league: str = Query("all", description="League slug e.g. soccer_epl or all"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Sync market mapping metadata from The Odds API for a given league."""
+    """Sync market mapping metadata from The Odds API for a given league or all leagues."""
     api_key = os.getenv("ODDS_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="ODDS_API_KEY not configured")
 
+    leagues_to_sync = [league]
+    if league == "all":
+        leagues_to_sync = [
+            "soccer_epl", "soccer_spain_la_liga", "soccer_italy_serie_a",
+            "soccer_germany_bundesliga", "soccer_france_ligue_one", "soccer_efl_champ"
+        ]
+
     client = OddsAPIClient(api_key)
+    mappings_created = 0
+    odds_updated = 0
+    errors: List[str] = []
+
     try:
-        odds_list = await client.get_odds_for_competition(league)
-        mappings_created = 0
-        odds_updated = 0
+        stmt = select(Match).where(
+            Match.actual_outcome.is_(None)
+        ).limit(500)
+        db_matches = (await db.execute(stmt)).scalars().all()
 
-        for odds in odds_list:
-            stmt = select(Match).where(
-                func.lower(Match.home_team) == odds.home_team.lower(),
-                func.lower(Match.away_team) == odds.away_team.lower(),
-            )
-            match = (await db.execute(stmt)).scalars().first()
-            if not match:
-                continue
+        for lg in leagues_to_sync:
+            try:
+                odds_list = await client.get_odds_for_competition(lg)
+                for odds in odds_list:
+                    match = None
+                    for m in db_matches:
+                        if _match_teams(m.home_team, m.away_team, odds.home_team, odds.away_team):
+                            match = m
+                            break
 
-            if not all(value > 1 for value in (odds.home_odds, odds.draw_odds, odds.away_odds)):
-                logger.warning("Skipping invalid odds for %s vs %s", odds.home_team, odds.away_team)
-                continue
+                    if not match:
+                        continue
 
-            match.opening_odds_home = odds.home_odds
-            match.opening_odds_draw = odds.draw_odds
-            match.opening_odds_away = odds.away_odds
-            odds_updated += 1
+                    if not all(isinstance(value, (int, float)) and value > 1.0 for value in (odds.home_odds, odds.draw_odds, odds.away_odds)):
+                        logger.warning("Skipping invalid odds for %s vs %s", odds.home_team, odds.away_team)
+                        continue
 
-            for selection, price in [("home", odds.home_odds), ("draw", odds.draw_odds), ("away", odds.away_odds)]:
-                map_stmt = select(MarketMapping).where(
-                    MarketMapping.match_id == match.id,
-                    MarketMapping.provider_name == "theoddsapi",
-                    MarketMapping.market_type == "1x2",
-                    MarketMapping.selection_name == selection,
-                )
-                if not (await db.execute(map_stmt)).scalar_one_or_none():
-                    db.add(MarketMapping(
-                        match_id=match.id,
-                        provider_name="theoddsapi",
-                        external_match_id=odds.match_id,
-                        external_selection_id=selection,
-                        market_type="1x2",
-                        selection_name=selection,
-                    ))
-                    mappings_created += 1
+                    match.opening_odds_home = float(odds.home_odds)
+                    match.opening_odds_draw = float(odds.draw_odds)
+                    match.opening_odds_away = float(odds.away_odds)
+                    match.updated_at = datetime.now(timezone.utc)
+                    odds_updated += 1
+
+                    for selection, price in [("home", odds.home_odds), ("draw", odds.draw_odds), ("away", odds.away_odds)]:
+                        map_stmt = select(MarketMapping).where(
+                            MarketMapping.match_id == match.id,
+                            MarketMapping.provider_name == "theoddsapi",
+                            MarketMapping.market_type == "1x2",
+                            MarketMapping.selection_name == selection,
+                        )
+                        if not (await db.execute(map_stmt)).scalar_one_or_none():
+                            db.add(MarketMapping(
+                                match_id=match.id,
+                                provider_name="theoddsapi",
+                                external_match_id=odds.match_id,
+                                external_selection_id=selection,
+                                market_type="1x2",
+                                selection_name=selection,
+                            ))
+                            mappings_created += 1
+            except Exception as exc:
+                logger.warning("Error fetching odds for %s: %s", lg, exc)
+                errors.append(f"{lg}: {exc}")
 
         await db.commit()
         return {
             "status": "success",
             "mappings_created": mappings_created,
             "odds_updated": odds_updated,
-            "league": league,
+            "leagues_synced": leagues_to_sync,
+            "errors": errors,
             "synced_at": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as exc:
-        logger.error("Failed syncing odds metadata for %s: %s", league, exc)
+        logger.error("Failed syncing odds metadata: %s", exc)
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        await client.close()
+
 
 
 # ── Meta ──────────────────────────────────────────────────────────────────────
