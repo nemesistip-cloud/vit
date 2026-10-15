@@ -58,7 +58,7 @@ export default function Storage() {
   const [isDarkMode, setIsDarkMode] = useState(true)
 
   const { data: health, isLoading: healthLoading } = useStorageHealth()
-  const { data: listData, isLoading: listLoading } = useStorageList()
+  const { data: listData, isLoading: listLoading, isError: listError, error: listErrorObj } = useStorageList()
   const uploadMutation = useStorageUpload()
   const deleteMutation = useStorageDelete()
   const qc = useQueryClient()
@@ -506,6 +506,27 @@ export default function Storage() {
         </div>
 
         {/* Global Feedback Banner */}
+        {listError && !uploadMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-between mb-6 px-4 py-3 rounded-lg border text-xs bg-amber-500/10 border-amber-500/20 text-amber-400"
+          >
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>
+                Unable to load storage objects from Tachyon swarm ({(listErrorObj as any)?.message ?? 'Connection error'}).
+              </span>
+            </div>
+            <button
+              onClick={() => qc.invalidateQueries({ queryKey: ['storage'] })}
+              className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 rounded text-[11px] font-semibold text-amber-300 transition-all"
+            >
+              Retry
+            </button>
+          </motion.div>
+        )}
+
         {uploadMsg && (
           <motion.div
             initial={{ opacity: 0, y: -8 }}

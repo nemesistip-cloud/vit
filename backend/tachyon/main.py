@@ -31,13 +31,22 @@ try:
 except ImportError:
     pass
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from tachyon.api import router as api_router
 from tachyon.core.worker import TachyonVerificationWorker
 from app.db.database import AsyncSessionLocal
 
-app = FastAPI(title="Storage System Coordination Service", version="1.0.0")
+app = FastAPI(title="Storage System Coordination Service", version="2.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 async def root():
@@ -71,7 +80,20 @@ async def metrics():
         "disk": status_data.get("disk", {}),
     }
 
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
+
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router, prefix="/api/tachyon")
+app.include_router(api_router)
 
 if __name__ == "__main__":
     import uvicorn
