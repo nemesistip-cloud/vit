@@ -126,6 +126,11 @@ class FraudReviewAgent(BaseAgent):
                 evidence["_ai_risk_score"] = risk_score
                 flag.evidence_json = json.dumps(evidence)
 
+                # LLM verdict cannot dismiss high or critical severity flags; escalate to manual review
+                if verdict == "dismiss" and severity in ("high", "critical"):
+                    logger.warning("[fraud-review] Escalating high/critical flag %d to manual review despite LLM dismiss verdict", flag.id)
+                    verdict = "review"
+
                 if verdict == "dismiss":
                     flag.status = "dismissed"
                     flag.reviewed_at = now
