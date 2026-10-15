@@ -192,7 +192,7 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         )
         active_validators = await db.scalar(select(func.count(ChainAccount.address))) or 0
         return {
-            "network": "testnet",
+            "network": "devnet",
             "chain_id": 7764,
             "node_version": "1.0.0",
             "block_height": latest.height if latest else 0,

@@ -275,10 +275,10 @@ async def verify_node(
     challenge_fragment = (
         fragment_names[0] if isinstance(fragment_names, list) else list(fragment_names)[0]
     )
-    challenge_hash = hashlib.blake2b(
+    expected_hash = hashlib.blake2b(
         challenge_fragment.encode() + str(node.config_key).encode(), digest_size=16
     ).hexdigest()
-    passed = len(challenge_hash) == 32
+    passed = bool(node.config_key) and len(str(node.config_key).strip()) > 8 and node.status in ("active", "connected", "pending")
     challenge_detail = f"fragment_check:{challenge_fragment[:12]}"
 
     node.verification_count += 1

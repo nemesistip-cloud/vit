@@ -64,9 +64,11 @@ class VITNodeDaemon:
         public_key = self.keystore.get_public_key(self.password)
         private_key = self.keystore.get_private_key(self.password)
 
-        # Set up database for consensus state persistence
-        db_path = Path("/tmp") / f"vit_node_consensus_{node_id[:8]}.db"
-        self.db_engine = await create_async_engine(
+        # Set up database for consensus state persistence (durable node data dir)
+        data_dir = Path(os.environ.get("VIT_NODE_DATA_DIR", Path.home() / ".vit_node"))
+        data_dir.mkdir(parents=True, exist_ok=True)
+        db_path = data_dir / f"vit_node_consensus_{node_id[:8]}.db"
+        self.db_engine = create_async_engine(
             f"sqlite+aiosqlite:///{db_path}",
             connect_args={"check_same_thread": False},
         )

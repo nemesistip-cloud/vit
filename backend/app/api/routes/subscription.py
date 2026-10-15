@@ -396,6 +396,7 @@ async def create_checkout_session(
 async def upgrade_plan(
     body: UpgradePlanRequest,
     request: Request,
+    current_admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
