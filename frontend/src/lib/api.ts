@@ -291,7 +291,20 @@ export const aiApi = {
 
 export const storageApi = {
   health:  (signal?: AbortSignal) => get<StorageHealth>(`${ENDPOINTS.storage}/health`, signal),
-  list:    (signal?: AbortSignal) => get<StorageList>(`${ENDPOINTS.storage}/api/v1/files`, signal),
+  list:    async (signal?: AbortSignal) => {
+    try {
+      return await get<StorageList>(`${ENDPOINTS.storage}/api/v1/files`, signal)
+    } catch (err: any) {
+      if (err?.status === 405 || err?.status === 404) {
+        try {
+          return await get<StorageList>(`${ENDPOINTS.storage}/api/tachyon/files`, signal)
+        } catch {
+          // preserve original error
+        }
+      }
+      throw err
+    }
+  },
   metrics: (signal?: AbortSignal) => get<unknown>(`${ENDPOINTS.storage}/metrics`, signal),
   /** Upload a file — POST multipart/form-data to /api/v1/files */
   upload:  (file: File, signal?: AbortSignal) => {
