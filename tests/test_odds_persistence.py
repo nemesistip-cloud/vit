@@ -38,6 +38,9 @@ async def test_odds_sync_persists_valid_provider_prices(db_session, monkeypatch)
                 match_id="odds-event-1",
             )]
 
+        async def close(self):
+            pass
+
     monkeypatch.setenv("ODDS_API_KEY", "configured-test-key")
     monkeypatch.setattr(sports, "OddsAPIClient", FakeOddsClient)
 
