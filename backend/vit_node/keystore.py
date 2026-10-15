@@ -13,21 +13,18 @@ try:
     from vit_chain.crypto.address import public_key_to_address
     from vit_chain.crypto.hash import keccak256_hex
     CRYPTO_AVAILABLE = True
-except ImportError:
+except ImportError as exc:
     CRYPTO_AVAILABLE = False
-    # Stubs for pre-merge 1.1
-    def generate_keypair(): return "0"*64, "0"*130
-    def sign_transaction(priv, h): return "0"*130
-    def public_key_to_address(pub): return "VIT" + "0"*40
-    def keccak256_hex(data): return "0"*64
+    def _raise_crypto_error(*args, **kwargs):
+        raise AppError(f"Cryptographic primitives unavailable: {exc}", code="crypto_unavailable")
+    generate_keypair = _raise_crypto_error
+    sign_transaction = _raise_crypto_error
+    public_key_to_address = _raise_crypto_error
+    keccak256_hex = _raise_crypto_error
     class PrivateKey:
         @classmethod
-        def from_hex(cls, hex_str): return cls()
-        @property
-        def public_key(self):
-            class PubKey:
-                def format(self, **kwargs): return b"\x00"*65
-            return PubKey()
+        def from_hex(cls, hex_str):
+            raise AppError(f"Cryptographic primitives unavailable: {exc}", code="crypto_unavailable")
 
 class Keystore:
     def __init__(self, keystore_path: Path = KEYSTORE_FILE):

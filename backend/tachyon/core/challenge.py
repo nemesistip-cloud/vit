@@ -239,10 +239,10 @@ class ChallengeScheduler:
 
         rec = issue_challenge(manifest.file_id, shard_index, simulated_shard)
 
-        # Simulate node response (in a real deployment, the node endpoint would be called)
-        # Here we compute the correct digest to model an honest node
-        correct_digest = _compute_expected_digest(simulated_shard, rec.nonce)
-        passed = verify_challenge_response(rec.challenge_id, correct_digest)
+        # In production/live consensus, challenges must be submitted and responded to by active nodes via standard storage verification channels.
+        # Mark challenge record created; do not auto-verify locally with self-generated simulated proofs.
+        node_response_digest = getattr(rec, 'response_digest', None)
+        passed = bool(node_response_digest and verify_challenge_response(rec.challenge_id, node_response_digest))
 
         if passed:
             stats["passed"] += 1
