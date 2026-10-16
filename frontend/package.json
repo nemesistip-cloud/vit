@@ -27,7 +27,7 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.1",
     "typescript": "^5.9.3",
-    "vite": "^7.3.6"
+    "vite": "^5.4.11"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

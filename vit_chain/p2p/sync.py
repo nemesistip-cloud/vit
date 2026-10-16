@@ -99,7 +99,10 @@ class ChainSyncer:
                 logger.warning(f"Fork detected at height {ancestor+1}. Reorg needed.")
 
             our_height = await self.chain.get_height(db)
-            peer_height = connection_manager.connections[peer_node_id].chain_height
+            peer_conn = connection_manager.connections.get(peer_node_id)
+            if not peer_conn:
+                return
+            peer_height = peer_conn.chain_height
 
             logger.info(f"Starting sync from {peer_node_id} (our height: {our_height}, peer height: {peer_height})")
 
