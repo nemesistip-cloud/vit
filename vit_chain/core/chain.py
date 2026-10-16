@@ -94,12 +94,8 @@ class VITChain:
             db, block = arg1, arg2
         elif isinstance(arg1, VITBlock) and isinstance(arg2, AsyncSession):
             block, db = arg1, arg2
-        elif isinstance(arg1, AsyncSession):
-            db, block = arg1, arg2
-        elif isinstance(arg1, VITBlock):
-            block, db = arg1, arg2
         else:
-            raise TypeError("add_block requires AsyncSession and VITBlock arguments")
+            raise TypeError("add_block requires both an AsyncSession and a VITBlock instance")
 
         latest = await self.get_latest_block(db)
         # 1. Validate block structure, signature and consensus rules
