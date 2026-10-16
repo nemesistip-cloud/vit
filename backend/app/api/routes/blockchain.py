@@ -254,7 +254,7 @@ async def get_recent_transactions(
         raise HTTPException(status_code=503, detail="Blockchain database unavailable")
 
     from sqlalchemy import desc, func, select
-    from vit_chain.models import ChainTransaction
+    from vit_chain.storage.db import ChainTransaction
     total_result = await db.execute(select(func.count()).select_from(ChainTransaction))
     result = await db.execute(
         select(ChainTransaction)
@@ -265,14 +265,19 @@ async def get_recent_transactions(
     txs = result.scalars().all()
     tx_list = [
         {
+            "hash": tx.tx_hash,
             "tx_hash": tx.tx_hash,
             "sender": tx.from_address,
+            "from_address": tx.from_address,
             "recipient": tx.to_address,
+            "to_address": tx.to_address,
             "amount": str(tx.amount),
             "fee": str(tx.gas_fee),
             "payload": tx.data,
             "timestamp": tx.timestamp,
             "block_height": tx.block_height,
+            "type": tx.tx_type,
+            "status": tx.status,
         }
         for tx in txs
     ]
