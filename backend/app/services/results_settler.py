@@ -322,45 +322,43 @@ async def fetch_live_matches() -> list:
 
     live = []
     async with httpx.AsyncClient(timeout=8) as client:
-        for league, code in COMPETITIONS.items():
-            if league in _FORBIDDEN_LEAGUES:
-                continue
-            try:
-                r = await client.get(
-                    f"https://api.football-data.org/v4/competitions/{code}/matches",
-                    headers={"X-Auth-Token": key},
-                    params={"status": "IN_PLAY"},
-                )
-                if r.status_code == 200:
-                    for m in r.json().get("matches", []):
-                        from app.services.live_match_ingestion import extract_live_score
-                        home_score, away_score = extract_live_score(m.get("score"))
-                        live.append({
-                            "home_team":    m["homeTeam"]["name"],
-                            "away_team":    m["awayTeam"]["name"],
-                            "league":       league,
-                            "kickoff_time": m.get("utcDate", ""),
-                            "status":       "live",
-                            "home_score":   home_score,
-                            "away_score":   away_score,
-                            "minute":       m.get("minute"),
-                            "market_odds":  {},
-                            "provider": "footballdata",
-                            "provider_match_id": str(m.get("id") or ""),
-                            "provider_timestamp": m.get("lastUpdated") or m.get("utcDate"),
-                        })
-                elif r.status_code in (401, 403):
-                    _FORBIDDEN_LEAGUES.add(league)
-            except httpx.ConnectTimeout:
-                _API_UNREACHABLE = True
-                _API_UNREACHABLE_UNTIL = _lt.time() + 600  # backoff 10 min
-                logger.warning(
-                    "[live] Football-Data API unreachable (ConnectTimeout on %s) — "
-                    "circuit open for 10 min, skipping remaining leagues", league
-                )
-                break
-            except Exception as e:
-                logger.warning(f"Live-match fetch failed for {league}: {e}")
+        try:
+            r = await client.get(
+                "https://api.football-data.org/v4/matches",
+                headers={"X-Auth-Token": key},
+                params={"status": "IN_PLAY"},
+            )
+            if r.status_code == 200:
+                for m in r.json().get("matches", []):
+                    from app.services.live_match_ingestion import extract_live_score
+                    home_score, away_score = extract_live_score(m.get("score"))
+                    league_code = m.get("competition", {}).get("code", "")
+                    league_name = next(
+                        (k for k, v in COMPETITIONS.items() if v == league_code),
+                        m.get("competition", {}).get("name", "Football")
+                    )
+                    live.append({
+                        "home_team":    m["homeTeam"]["name"],
+                        "away_team":    m["awayTeam"]["name"],
+                        "league":       league_name,
+                        "kickoff_time": m.get("utcDate", ""),
+                        "status":       "live",
+                        "home_score":   home_score,
+                        "away_score":   away_score,
+                        "minute":       m.get("minute"),
+                        "market_odds":  {},
+                        "provider": "footballdata",
+                        "provider_match_id": str(m.get("id") or ""),
+                        "provider_timestamp": m.get("lastUpdated") or m.get("utcDate"),
+                    })
+            elif r.status_code == 429:
+                logger.warning("[live] Football-Data API rate limit hit (429) on /matches")
+        except httpx.ConnectTimeout:
+            _API_UNREACHABLE = True
+            _API_UNREACHABLE_UNTIL = _lt.time() + 600  # backoff 10 min
+            logger.warning("[live] Football-Data API unreachable (ConnectTimeout) — circuit open for 10 min")
+        except Exception as e:
+            logger.warning(f"Live-match fetch failed: {e}")
 
     live_candidates.extend(live)
     if not live_candidates:
