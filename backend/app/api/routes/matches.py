@@ -913,7 +913,7 @@ async def get_live_matches(
 ):
     try:
         from app.services.live_match_ingestion import live_ingestion_service
-        ingested = await live_ingestion_service.fetch_and_normalize_all(force_refresh=True)
+        ingested = await live_ingestion_service.fetch_and_normalize_all(force_refresh=False)
         live_list = ingested.get("live", [])
 
         if sport and sport.lower() != "all":
@@ -1171,7 +1171,7 @@ async def get_match_detail(match_id: int, db: AsyncSession = Depends(get_db)):
         try:
             from app.services.live_match_ingestion import live_ingestion_service
 
-            await live_ingestion_service.fetch_and_normalize_all(force_refresh=True)
+            await live_ingestion_service.fetch_and_normalize_all(force_refresh=False)
             await db.refresh(match)
             logger.info(
                 "LIVE_DETAIL_REFRESH match=%s fixture=%s persisted_score=%s-%s source=%s",
@@ -2234,6 +2234,7 @@ async def sync_fixtures(
                         elif r.status_code == 429:
                             logger.warning(f"Rate limit hit for {league}")
                             rate_limited_leagues.append(league)
+                        await asyncio.sleep(1.2)
                     except Exception as e:
                         logger.error(f"Sync failed for {league}: [{type(e).__name__}] {e!r}")
                 try:
