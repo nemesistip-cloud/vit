@@ -162,6 +162,15 @@ async def lifespan(app: FastAPI):
         except Exception as _reg_err:
             logging.getLogger(__name__).warning("[lifespan] Model registry bootstrap failed (dashboard model-confidence may return empty): %s", _reg_err, exc_info=True)
 
+        try:
+            from app.services.ensure_forecasts import ensure_upcoming_forecasts
+            async for _db_f in get_db():
+                _f_res = await ensure_upcoming_forecasts(_db_f)
+                logging.getLogger(__name__).info("[lifespan] Ensure upcoming forecasts complete — %s", _f_res)
+                break
+        except Exception as _forecast_err:
+            logging.getLogger(__name__).warning("[lifespan] Ensure upcoming forecasts failed: %s", _forecast_err, exc_info=True)
+
         logging.getLogger(__name__).info(
             "[lifespan] Background boot complete — VIT Network v%s fully operational.", APP_VERSION
         )
