@@ -57,7 +57,7 @@ FROM python:3.11-slim
     COPY frontend/ frontend/
     RUN cd frontend && pnpm run build
 
-    COPY explorer/package.json explorer/
+    COPY explorer/package*.json explorer/
     RUN cd explorer && npm install
 
     COPY explorer/ explorer/
