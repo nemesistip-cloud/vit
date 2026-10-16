@@ -155,6 +155,10 @@ export default function App() {
         <Route path="/governance"      element={wrap(<Governance />)}     />
         <Route path="/marketplace"     element={wrap(<Marketplace />)}    />
         <Route path="/chain"           element={wrap(<Explorer />)}       />
+        <Route path="/validators"                  element={wrap(<Validators />)} />
+        <Route path="/validators/:validatorId"     element={wrap(<Validators />)} />
+        <Route path="/validators/:validatorId/:tab" element={wrap(<Validators />)} />
+        <Route path="/network/validators"          element={wrap(<Validators />)} />
         <Route path="/explorer"        element={<Navigate to="/chain" replace />} />
         <Route element={<RequireGuest />}>
           <Route path="/login"           element={wrap(<Login />)}          />
