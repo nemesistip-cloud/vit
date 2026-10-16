@@ -15,7 +15,7 @@ from sqlalchemy import select
 
 from app.db.database import get_db
 from app.db.models import UserSubscription, AuditLog
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_admin
 
 logger = logging.getLogger(__name__)
 
