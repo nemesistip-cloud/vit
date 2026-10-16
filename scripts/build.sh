@@ -37,8 +37,14 @@ fi
 
 echo "[build] Executing explorer build..."
 cd "$ROOT_DIR/explorer"
-npm install --prefer-offline --no-audit --no-fund
-npm run build
+if [ -f "pnpm-lock.yaml" ] || [ -f "../pnpm-lock.yaml" ]; then
+    echo "[build] Using pnpm for explorer build"
+    $PNPM_CMD install --no-frozen-lockfile --production=false
+    $PNPM_CMD run build
+else
+    npm install --prefer-offline --no-audit --no-fund
+    npm run build
+fi
 
 # Database Schema Sync
 echo "[build] Synchronizing database schema..."
