@@ -149,3 +149,105 @@ class WebhookDeliveryLog(Base):
         Index("idx_dev_wh_log_user_id",     "user_id"),
         Index("idx_dev_wh_log_delivered_at","delivered_at"),
     )
+
+
+class DeveloperApp(Base):
+    """L6 — Registered Developer Application."""
+    __tablename__ = "dev_apps"
+
+    id                  : Mapped[int]      = mapped_column(Integer, primary_key=True, index=True)
+    app_id              : Mapped[str]      = mapped_column(String(64), unique=True, nullable=False, index=True)
+    user_id             : Mapped[int]      = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    name                : Mapped[str]      = mapped_column(String(128), nullable=False)
+    description         : Mapped[str]      = mapped_column(Text, nullable=True)
+    icon                : Mapped[str]      = mapped_column(String(512), nullable=True)
+    category            : Mapped[str]      = mapped_column(String(64), default="General")
+
+    dev_url             : Mapped[str]      = mapped_column(String(512), nullable=True)
+    prod_url            : Mapped[str]      = mapped_column(String(512), nullable=True)
+
+    requested_scopes    : Mapped[list]     = mapped_column(JSON, default=list)
+    status              : Mapped[str]      = mapped_column(String(32), default="draft")  # draft | sandbox_testing | review_pending | approved | published | rejected | suspended
+
+    created_at          : Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at          : Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    user                = relationship("User", foreign_keys=[user_id])
+    sandbox_config      = relationship("AppSandboxConfig", back_populates="app", uselist=False, cascade="all, delete-orphan")
+    releases            = relationship("AppRelease", back_populates="app", cascade="all, delete-orphan")
+    audit_logs          = relationship("AppAuditLog", back_populates="app", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("idx_dev_apps_user_id", "user_id"),
+        Index("idx_dev_apps_status",  "status"),
+    )
+
+
+class AppSandboxConfig(Base):
+    """L7 — Sandbox configuration & test fixture parameters for a developer application."""
+    __tablename__ = "dev_app_sandbox_configs"
+
+    id                  : Mapped[int]      = mapped_column(Integer, primary_key=True, index=True)
+    app_id              : Mapped[int]      = mapped_column(Integer, ForeignKey("dev_apps.id", ondelete="CASCADE"), unique=True, nullable=False)
+
+    is_sandbox_enabled  : Mapped[bool]     = mapped_column(Boolean, default=True)
+    sandbox_api_key_id  : Mapped[int]      = mapped_column(Integer, ForeignKey("dev_api_keys.id", ondelete="SET NULL"), nullable=True)
+    endpoint_url        : Mapped[str]      = mapped_column(String(512), nullable=True)
+    test_fixtures       : Mapped[dict]     = mapped_column(JSON, default=dict)
+    last_tested_at      : Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at          : Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at          : Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    app                 = relationship("DeveloperApp", back_populates="sandbox_config")
+    sandbox_api_key     = relationship("APIKey", foreign_keys=[sandbox_api_key_id])
+
+
+class AppRelease(Base):
+    """L8 — Application releases, metadata snapshots & review decisions."""
+    __tablename__ = "dev_app_releases"
+
+    id                  : Mapped[int]      = mapped_column(Integer, primary_key=True, index=True)
+    app_id              : Mapped[int]      = mapped_column(Integer, ForeignKey("dev_apps.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    version             : Mapped[str]      = mapped_column(String(32), nullable=False, default="1.0.0")
+    changelog           : Mapped[str]      = mapped_column(Text, nullable=True)
+    metadata_snapshot   : Mapped[dict]     = mapped_column(JSON, default=dict)
+
+    review_status       : Mapped[str]      = mapped_column(String(32), default="pending")  # pending | approved | rejected
+    reviewer_notes      : Mapped[str]      = mapped_column(Text, nullable=True)
+    reviewed_by_id      : Mapped[int]      = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    submitted_at        : Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reviewed_at         : Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    app                 = relationship("DeveloperApp", back_populates="releases")
+    reviewed_by         = relationship("User", foreign_keys=[reviewed_by_id])
+
+    __table_args__ = (
+        Index("idx_dev_releases_app_id",        "app_id"),
+        Index("idx_dev_releases_review_status", "review_status"),
+    )
+
+
+class AppAuditLog(Base):
+    """L9 — Developer application audit events."""
+    __tablename__ = "dev_app_audit_logs"
+
+    id                  : Mapped[int]      = mapped_column(Integer, primary_key=True, index=True)
+    app_id              : Mapped[int]      = mapped_column(Integer, ForeignKey("dev_apps.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id             : Mapped[int]      = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    event_type          : Mapped[str]      = mapped_column(String(64), nullable=False)
+    details             : Mapped[dict]     = mapped_column(JSON, default=dict)
+
+    created_at          : Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    app                 = relationship("DeveloperApp", back_populates="audit_logs")
+    user                = relationship("User", foreign_keys=[user_id])
+
+    __table_args__ = (
+        Index("idx_dev_app_audit_app_id", "app_id"),
+        Index("idx_dev_app_audit_created", "created_at"),
+    )
