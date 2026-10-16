@@ -135,15 +135,19 @@ class GossipHandler:
     async def _handle_new_block(self, block_data: dict,
                                  from_node: str, db: AsyncSession):
         """Deserialize block, validate, add to chain, and forward if new."""
-        block = VITBlock.deserialize(block_data)
+        try:
+            block = VITBlock.deserialize(block_data)
+        except Exception as exc:
+            logger.warning("Dropping malformed block gossip: %s", exc)
+            return
+
         block_hash = block.block_hash
 
         if await self._is_seen(f"block:{block_hash}"):
             return
 
-        previous_block = await self.chain.get_latest_block(db)
-        if validate_block(block, previous_block):
-            await self.chain.add_block(db, block)
+        success = await self.chain.add_block(db, block)
+        if success:
             await db.commit()
             # Update peer height in memory
             if from_node in self.connection_manager.connections:
@@ -168,9 +172,11 @@ class GossipHandler:
     async def _handle_blocks_response(self, blocks_data: list, from_node: str, db: AsyncSession):
         """Process blocks received during sync."""
         for b_data in blocks_data:
-            block = VITBlock.deserialize(b_data)
-            if block.validate():
+            try:
+                block = VITBlock.deserialize(b_data)
                 await self.chain.add_block(db, block)
+            except Exception as exc:
+                logger.warning(f"Error processing synced block from {from_node}: {exc}")
         await db.commit()
 
     async def _handle_get_peers(self, from_node: str, db: AsyncSession):

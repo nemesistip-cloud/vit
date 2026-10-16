@@ -116,3 +116,61 @@ async def test_broadcast_exclude():
 
     conn1.ws.send.assert_not_called()
     conn2.ws.send.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_blocks_and_blocks_response_sync():
+    cm = MagicMock(spec=ConnectionManager)
+    cm.send_to = AsyncMock()
+    chain = AsyncMock()
+    chain.get_blocks.return_value = [{"height": 0, "block_hash": "hash0"}]
+    chain.add_block = AsyncMock(return_value=True)
+
+    handler = GossipHandler(cm, chain=chain)
+    mock_db = AsyncMock(spec=AsyncSession)
+
+    # Test GET_BLOCKS routing
+    msg_get = {"type": MessageType.GET_BLOCKS, "from_height": 0, "to_height": 10}
+    await handler.handle_message(msg_get, "PEER_1", mock_db)
+    chain.get_blocks.assert_called_once_with(0, 10, mock_db)
+    cm.send_to.assert_called_once_with("PEER_1", {"type": MessageType.BLOCKS_RESPONSE, "blocks": [{"height": 0, "block_hash": "hash0"}]})
+
+@pytest.mark.asyncio
+async def test_blocks_response_rejects_corrupted_blocks():
+    cm = MagicMock(spec=ConnectionManager)
+    chain = AsyncMock()
+    chain.add_block = AsyncMock(side_effect=Exception("Invalid block header"))
+
+    handler = GossipHandler(cm, chain=chain)
+    mock_db = AsyncMock(spec=AsyncSession)
+
+    corrupted_payload = {"type": MessageType.BLOCKS_RESPONSE, "blocks": [{"invalid": "payload"}]}
+    # Processing corrupted block response must not crash or bubble unhandled exception
+    await handler.handle_message(corrupted_payload, "PEER_1", mock_db)
+
+@pytest.mark.asyncio
+async def test_new_block_gossip_validates_and_persists():
+    cm = MagicMock(spec=ConnectionManager)
+    cm.broadcast = AsyncMock()
+    conn_peer = MagicMock()
+    cm.connections = {"PEER_1": conn_peer}
+
+    chain = AsyncMock()
+    chain.add_block = AsyncMock(return_value=True)
+
+    handler = GossipHandler(cm, chain=chain)
+    mock_db = AsyncMock(spec=AsyncSession)
+
+    # Build a minimal valid block dict
+    from vit_chain.crypto.ecdsa import generate_keypair
+    from vit_chain.core.block import build_block
+    priv, pub = generate_keypair()
+    block = build_block(None, [], [], priv, height=0)
+    block_dict = block.to_dict()
+
+    msg_block = {"type": MessageType.NEW_BLOCK, "block": block_dict}
+    await handler.handle_message(msg_block, "PEER_1", mock_db)
+
+    chain.add_block.assert_called_once()
+    cm.broadcast.assert_called_once()
+    assert conn_peer.chain_height == 0

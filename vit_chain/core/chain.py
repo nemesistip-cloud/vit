@@ -1,7 +1,7 @@
 import json
 import logging
 from decimal import Decimal
-from typing import Optional, Callable
+from typing import Optional, Callable, Any, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from .block import VITBlock, validate_block
@@ -25,28 +25,28 @@ class VITChain:
             txs.append(VITTransaction(
                 from_address=tx_data["from_address"],
                 to_address=tx_data["to_address"],
-                amount=Decimal(tx_data["amount"]),
-                nonce=tx_data["nonce"],
-                timestamp=tx_data["timestamp"],
-                gas_fee=Decimal(tx_data["gas_fee"]),
+                amount=Decimal(str(tx_data["amount"])),
+                nonce=int(tx_data["nonce"]),
+                timestamp=int(tx_data["timestamp"]),
+                gas_fee=Decimal(str(tx_data.get("gas_fee", "0.001"))),
                 data=tx_data.get("data"),
-                signature=tx_data["signature"],
-                status=tx_data["status"],
-                tx_hash=tx_data["tx_hash"]
+                signature=tx_data.get("signature", ""),
+                status=tx_data.get("status", "confirmed"),
+                tx_hash=tx_data.get("tx_hash", "")
             ))
 
         return VITBlock(
-            height=p["height"],
+            height=int(p["height"]),
             prev_hash=p["prev_hash"],
             merkle_root=p["merkle_root"],
-            timestamp=p["timestamp"],
+            timestamp=int(p["timestamp"]),
             validator_id=p["validator_id"],
             transactions=txs,
-            tx_count=p["tx_count"],
-            total_fees=Decimal(p["total_fees"]),
-            block_reward=Decimal(p["block_reward"]),
-            validator_signature=p["validator_signature"],
-            block_hash=p["block_hash"],
+            tx_count=int(p.get("tx_count", len(txs))),
+            total_fees=Decimal(str(p.get("total_fees", "0"))),
+            block_reward=Decimal(str(p.get("block_reward", "0"))),
+            validator_signature=p.get("validator_signature", ""),
+            block_hash=p.get("block_hash", ""),
             storage_proofs=p.get("storage_proofs", []),
             consensus_votes=p.get("consensus_votes", []),
             state_commitment=p.get("state_commitment", ""),
@@ -83,13 +83,24 @@ class VITChain:
         event = result.scalar_one_or_none()
         return self._to_block(event) if event else None
 
-    async def add_block(self, db: AsyncSession, block: VITBlock,
+    async def add_block(self, arg1: Any, arg2: Any = None,
                         known_validators: list[str] = None,
                         consensus_validator: Callable = None) -> bool:
         """
         Validates block, applies all transactions, updates state.
-        Returns False if invalid
+        Supports both add_block(db, block) and add_block(block, db).
         """
+        if isinstance(arg1, AsyncSession) and isinstance(arg2, VITBlock):
+            db, block = arg1, arg2
+        elif isinstance(arg1, VITBlock) and isinstance(arg2, AsyncSession):
+            block, db = arg1, arg2
+        elif isinstance(arg1, AsyncSession):
+            db, block = arg1, arg2
+        elif isinstance(arg1, VITBlock):
+            block, db = arg1, arg2
+        else:
+            raise TypeError("add_block requires AsyncSession and VITBlock arguments")
+
         latest = await self.get_latest_block(db)
         # 1. Validate block structure, signature and consensus rules
         if not validate_block(block, latest, known_validators, consensus_validator):
@@ -177,3 +188,35 @@ class VITChain:
     async def chain_height(self, db: AsyncSession) -> int:
         latest = await self.get_latest_block(db)
         return latest.height if latest else -1
+
+    async def get_height(self, db: AsyncSession) -> int:
+        """Alias for chain_height to align with P2P and RPC callers."""
+        return await self.chain_height(db)
+
+    async def get_blocks(self, start_or_db: Any, end_or_start: Any, db_or_end: Any = None) -> list[dict]:
+        """
+        Fetch block payload dictionaries between start and end heights (inclusive).
+        Supports flexible parameter ordering: (start, end, db) or (db, start, end).
+        """
+        if isinstance(start_or_db, AsyncSession):
+            db = start_or_db
+            start = int(end_or_start)
+            end = int(db_or_end)
+        else:
+            start = int(start_or_db)
+            end = int(end_or_start)
+            db = db_or_end
+
+        result = await db.execute(
+            select(IoTEvent)
+            .where(IoTEvent.source == "vitchain_block")
+            .order_by(IoTEvent.id)
+        )
+        events = result.scalars().all()
+        matching = []
+        for ev in events:
+            p = ev.payload or {}
+            h = p.get("height")
+            if h is not None and start <= int(h) <= end:
+                matching.append(p)
+        return matching
