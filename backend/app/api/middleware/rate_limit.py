@@ -149,9 +149,9 @@ end
         return True, limit, 0
 
 class RateLimitMiddleware:
-    ANON_LIMIT           = 60
-    APIKEY_LIMIT         = 180
-    JWT_LIMIT            = 300
+    ANON_LIMIT           = 180
+    APIKEY_LIMIT         = 360
+    JWT_LIMIT            = 600
     PREDICT_ANON_LIMIT   = 20
     PREDICT_APIKEY_LIMIT = 80
     PREDICT_JWT_LIMIT    = 120
@@ -215,7 +215,8 @@ class RateLimitMiddleware:
         elif api_key:
             key, limit = f"key:{api_key}", (self.PREDICT_APIKEY_LIMIT if is_predict else self.APIKEY_LIMIT)
         else:
-            key, limit = f"ip:{ip}", (self.PREDICT_ANON_LIMIT if is_predict else self.ANON_LIMIT)
+            base_limit = 240 if path.startswith("/api/matches") else self.ANON_LIMIT
+            key, limit = f"ip:{ip}", (self.PREDICT_ANON_LIMIT if is_predict else base_limit)
 
         redis = _get_redis()
         now   = time.time()

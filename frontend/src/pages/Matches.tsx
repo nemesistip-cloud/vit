@@ -95,7 +95,12 @@ function useMatches(tab: Tab, sport: Sport) {
         }))
         .filter((row) => Number.isFinite(row.id) && row.id > 0) as Match[]
     },
-    retry: 1,
+    retry: (failureCount, error) => {
+      // Don't retry if client error except rate limit (429)
+      if (error?.message?.includes('HTTP 40') && !error?.message?.includes('429')) return false
+      return failureCount < 3
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     staleTime: tab === 'live' ? 15_000 : 60_000,
     refetchInterval: tab === 'live' ? 20_000 : false,
   })
