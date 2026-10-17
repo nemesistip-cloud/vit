@@ -4,6 +4,7 @@
 .vit_jwt_secret
 
 # Python
+.venv/
 __pycache__/
 *.py[cod]
 *$py.class

@@ -61,6 +61,10 @@ function PublicHomeGate() {
   return getAuthToken() ? <Navigate to="/dashboard" replace /> : <Home />
 }
 
+function ValidatorsShell() {
+  return getAuthToken() ? <AppShell /> : <PublicShell />
+}
+
 // ── Public / marketing (lazy) ─────────────────────────────────────────────────
 const Home          = lazy(() => import('@/pages/Home'))
 const Platform      = lazy(() => import('@/pages/Platform'))
@@ -155,7 +159,6 @@ export default function App() {
         <Route path="/governance"      element={wrap(<Governance />)}     />
         <Route path="/marketplace"     element={wrap(<Marketplace />)}    />
         <Route path="/chain"           element={wrap(<Explorer />)}       />
-        <Route path="/validators"                  element={wrap(<Validators />)} />
         <Route path="/validators/:validatorId"     element={wrap(<Validators />)} />
         <Route path="/validators/:validatorId/:tab" element={wrap(<Validators />)} />
         <Route path="/network/validators"          element={wrap(<Validators />)} />
@@ -167,6 +170,10 @@ export default function App() {
         <Route path="/forgot-password" element={wrap(<ForgotPassword />)} />
         <Route path="/reset-password"  element={wrap(<ResetPassword />)}  />
         <Route path="/verify-email"    element={wrap(<VerifyEmail />)}    />
+      </Route>
+
+      <Route element={<ValidatorsShell />}>
+        <Route path="/validators" element={wrap(<Validators />)} />
       </Route>
 
       {/* ── Authenticated app ──────────────────────────────────────────────── */}
@@ -188,7 +195,6 @@ export default function App() {
             <Route path="/genesis"          element={wrap(<Genesis />)}         />
             <Route path="/referral"         element={wrap(<Referral />)}        />
             <Route path="/treasury"         element={wrap(<Treasury />)}        />
-            <Route path="/validators"       element={wrap(<Validators />)}      />
             <Route path="/social"           element={wrap(<Social />)}          />
             <Route path="/ecosystem"        element={wrap(<Ecosystem />)}       />
             <Route path="/enterprise"       element={wrap(<Enterprise />)}      />
