@@ -224,3 +224,46 @@ The audit removed the disposable SQLite databases and two SQL backup artifacts c
 - Local three-node consensus test coverage does not prove production Byzantine safety, validator-set independence, or finality under adversarial failures.
 - The complete Python suite was run before the two source repairs; the affected API/schema modules and regression tests were rerun after repair (31 passed plus the focused 2-test run). The live browser suite remains blocked.
 - Dedicated security scanning, real PostgreSQL integration, external payment sandbox flows, and actual deployment/cache invalidation checks were not run.
+
+## Continuation Audit — 2026-10-18
+
+This continuation verifies selected API wiring, CI configuration, and backend test reliability. It is not a line-by-line audit of every tracked file or a production end-to-end signoff. The repository currently contains 51 top-level frontend page files, 74 backend API route modules, 141 Python test files, and 1,735 tracked files.
+
+### Findings and repairs
+
+#### VIT-006: Subscription-related routers are absent from production
+
+- Severity: P1 user-facing availability defect.
+- Evidence: the production OpenAPI document reports 834 paths and omits `/api/subscription/*`, `/api/config/public*`, and `/api/paystack/webhook`; `GET /api/subscription/plans` returns 404. The local OpenAPI document reports 845 paths and contains these routes. Production and local both report version `1.2.0`.
+- Root cause: `origin/main`'s `subscription.py` did not import `User`, but the module evaluates `current_admin: User` while defining a route. The import raises `NameError`; router registration catches the import error and starts the application without the subscription router. The config and Paystack webhook routers also import subscription definitions and are affected by the same module import failure.
+- Repair: `User` is imported by the local source in commit `eae15ff`; local OpenAPI contains the routes and `test_subscription_plans_listing` returns non-empty plan data. This repair is **not deployed**: the branch is ahead of `origin/main`, and GitHub CLI reports no authenticated session. The connected-accounts route is also local-only by design until its code is deployed.
+- Verification: local OpenAPI assertions and the subscription endpoint regression test pass; the production route is still absent. No production mutation or authenticated sign-in was attempted.
+- Required follow-up: deploy the reviewed branch through the authorized release process, then verify the public plan/config responses and authenticated current-plan endpoint. The webhook must be verified in the payment provider's test mode.
+
+#### VIT-007: CI supplies an invalid environment name and migration gate hides test failures
+
+- Severity: P2 validation/configuration gap.
+- Evidence: `AppConfig` accepts `development`, `testing`, `staging`, or `production`; CI workflows supplied `ENVIRONMENT=test`, causing configuration validation to fail and fall back to defaults. The migration-gate workflow also piped pytest through `head` and `|| true`, making test failures non-blocking.
+- Repair: CI, deploy-test, and migration-gate workflows now supply `ENVIRONMENT=testing`; migration-gate pytest now returns its actual exit status.
+- Verification: `AppConfig` accepts the corrected value, all workflow files contain only the supported test environment value, and `git diff --check` passes. The remote workflows have not yet run.
+
+#### VIT-008: Resource-allocation test depended on host load
+
+- Severity: P3 test reliability.
+- Evidence: the broad suite produced 714 passes and 3 skips, but `test_resource_allocation` failed because the shared host reported 97.3% CPU. The production allocator intentionally denies work above its pressure threshold; the test incorrectly assumed an idle host.
+- Repair: the success-path test now stubs CPU and memory measurements to safe deterministic values, preserving production load-shedding behavior.
+- Verification: the resource test, subscription endpoint regression, and connected-accounts regression pass together (3 passed); Ruff passes for the changed test file. The full suite has not been rerun after this test-only repair.
+
+### Continuation validation snapshot
+
+| Check | Result |
+| --- | --- |
+| Frontend production build, TypeScript, and asset check | Passed before this continuation's workflow/test-only edits |
+| Focused backend regressions after edits | 3 passed |
+| CI-selected backend suite before deterministic test repair | 714 passed, 3 skipped, 16 deselected; one host-pressure test failure, subsequently fixed and retested individually |
+| Local versus production OpenAPI | Local 845 paths; production 834; production is missing the subscription/config/webhook group and the unreleased connected-accounts endpoint |
+| Production subscription plans endpoint | HTTP 404; remains blocked on deployment |
+| `gh auth status` | Not authenticated; deployment workflow history and remote deployment were not inspectable |
+| Browser end-to-end sweep | Not run; browser runtime constraints from the preceding audit remain |
+
+The password previously shared in chat was not reused. Rotate it before any further authenticated live testing. The audit remains incomplete for production workflows, browser-based coverage, external service credentials, and the unreviewed portions of the repository; no claim is made that all ecosystem capabilities have been exercised.
