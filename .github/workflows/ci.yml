@@ -57,7 +57,7 @@ jobs:
             --pretty \
             || true   # non-blocking until baseline is established
         env:
-          ENVIRONMENT: test
+          ENVIRONMENT: testing
 
   test:
     name: Tests (pytest)
@@ -95,7 +95,7 @@ jobs:
             --cov-fail-under=0
         env:
           DATABASE_URL: sqlite+aiosqlite:///./test.db
-          ENVIRONMENT: test
+          ENVIRONMENT: testing
           AUTH_ENABLED: 'false'
           USE_REAL_ML_MODELS: 'false'
           RATE_LIMIT_ENABLED: 'false'

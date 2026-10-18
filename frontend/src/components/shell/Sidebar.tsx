@@ -5,7 +5,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  LayoutDashboard, Wallet, Vote, Landmark, Store,
+  LayoutDashboard, Wallet, Vote, Landmark, Store, Smartphone,
   Share2, Coins, Radio, BarChart3, Shield, Settings,
   ChevronLeft, ChevronRight, Activity, HardDrive,
   Layers, Trophy, Star, Sparkles, Globe2, Brain, Users, ShieldCheck,
@@ -31,9 +31,9 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Explore',
     items: [
       { label: 'Platform', path: '/platform', icon: Globe2 },
-      { label: 'AI Intelligence', path: '/ai', icon: Brain },
-      { label: 'Matches', path: '/matches', icon: Trophy },
+      { label: 'Applications', path: '/applications', icon: Smartphone },
       { label: 'Explorer', path: '/chain', icon: Layers },
+      { label: 'Validators', path: '/validators', icon: Shield },
       { label: 'Status', path: '/status-page', icon: Activity },
     ],
   },
@@ -41,12 +41,9 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Workspace',
     items: [
       { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-      { label: 'Predictions', path: '/predictions', icon: Sparkles },
-      { label: 'In-Play', path: '/inplay', icon: Radio, badge: 'LIVE' },
+      { label: 'Network status', path: '/dashboard', icon: Activity },
       { label: 'Wallet', path: '/wallet', icon: Wallet },
-      { label: 'Analytics Studio', path: '/analytics-studio', icon: BarChart3 },
-      { label: 'Odds Compare', path: '/odds', icon: Star },
-      { label: 'Backtest', path: '/backtest', icon: Layers },
+      { label: 'Analytics', path: '/analytics', icon: BarChart3 },
     ],
   },
   {

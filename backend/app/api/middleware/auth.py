@@ -14,10 +14,10 @@ from app.core.errors import error_response
 logger = logging.getLogger(__name__)
 
 
-async def _auth_developer_api_key(raw_key: str) -> tuple[bool, str, int | None, str]:
+async def _auth_developer_api_key(raw_key: str) -> tuple[bool, str, int | None, str, str | None, list[str]]:
     """
     G09: Authenticate a vit_* developer API key against the DB.
-    Returns (allowed, reason, user_id, plan).
+    Returns (allowed, reason, user_id, plan, app_id, scopes).
     Deducts VITCoin for billable plans; returns allowed=False on 402.
     """
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
@@ -34,7 +34,7 @@ async def _auth_developer_api_key(raw_key: str) -> tuple[bool, str, int | None, 
             )
             key_record = result.scalar_one_or_none()
             if not key_record:
-                return False, "invalid_key", None, "free"
+                return False, "invalid_key", None, "free", None, []
 
             # Check expiry
             if key_record.expires_at:
@@ -43,7 +43,7 @@ async def _auth_developer_api_key(raw_key: str) -> tuple[bool, str, int | None, 
                 if exp.tzinfo is None:
                     exp = exp.replace(tzinfo=timezone.utc)
                 if datetime.now(timezone.utc) > exp:
-                    return False, "key_expired", None, "free"
+                    return False, "key_expired", None, "free", None, []
 
             user_id = key_record.user_id
             plan    = key_record.plan
@@ -51,11 +51,49 @@ async def _auth_developer_api_key(raw_key: str) -> tuple[bool, str, int | None, 
             # G09: Deduct VITCoin for billable calls
             from app.modules.developer.service import bill_api_call
             allowed, reason = await bill_api_call(db, key_record.id, user_id, plan)
-            return allowed, reason, user_id, plan
+            return allowed, reason, user_id, plan, key_record.app_id, key_record.scopes or []
     except Exception as exc:
         logger.error("Developer API key auth error: %s", exc)
         # Always fail-closed on auth errors — never grant access on exception
-        return False, "auth_error", None, "free"
+        return False, "auth_error", None, "free", None, []
+
+
+def _required_vitpredict_scope(method: str, path: str) -> str:
+    prefix = "/api/apps/vitpredict"
+    if path in {f"{prefix}/health", f"{prefix}/manifest"}:
+        return ""
+    if path == f"{prefix}/matches" or path.startswith(f"{prefix}/matches/"):
+        if "/predict/" in path:
+            return "prediction.generate" if method.upper() == "POST" else "prediction.read"
+        if method.upper() == "GET":
+            return "sports.read"
+        if path.endswith("/sync"):
+            return "sports.sync"
+        return "sports.write"
+    if path.startswith(f"{prefix}/predict"):
+        if method.upper() == "POST":
+            return "prediction.generate"
+        if path.endswith("/history") or path.endswith("/accuracy"):
+            return "prediction.history.read"
+        return "prediction.read"
+    if path.startswith(f"{prefix}/odds"):
+        return "odds.read"
+    if path.startswith(f"{prefix}/analytics"):
+        return "models.evaluate"
+    if path.startswith(f"{prefix}/attestations"):
+        return "prediction.attest"
+    return "app.access"
+
+
+def _authorize_vitpredict_key(method: str, path: str, app_id: str | None, scopes: list[str]) -> str | None:
+    if not path.startswith("/api/apps/vitpredict"):
+        return "Application API keys are restricted to their registered app"
+    if app_id != "app:vitpredict":
+        return "A VITPredict application key is required"
+    required = _required_vitpredict_scope(method, path)
+    if required and required not in scopes:
+        return f"Application key is missing required scope: {required}"
+    return None
 
 
 def auth_enabled() -> bool:
@@ -98,7 +136,7 @@ _PROTECTED_PREFIXES = (
     "/api/analytics", "/api/predict", "/api/result",
     "/api/training", "/api/ai", "/api/odds", "/api/ai-feed", "/api/admin",
     "/api/audit", "/api/subscription/my-plan", "/api/subscription/upgrade",
-    "/api/subscription/admin", "/api/history/ticket",
+    "/api/subscription/admin", "/api/history/ticket", "/api/apps/vitpredict",
 )
 
 
@@ -142,6 +180,12 @@ class APIKeyMiddleware:
 
         request = Request(scope, receive)
         path = request.url.path
+
+        if path.startswith("/api/apps/vitpredict/") and request.method.upper() == "GET":
+            suffix = path.removeprefix("/api/apps/vitpredict/")
+            if suffix in {"health", "manifest"} or suffix == "matches" or suffix.startswith("matches/"):
+                await self.app(scope, receive, send)
+                return
 
         if any(path.startswith(p) for p in _ALWAYS_OPEN):
             await self.app(scope, receive, send)
@@ -196,7 +240,7 @@ class APIKeyMiddleware:
 
         # G09: Developer API keys (vit_* prefix) — DB lookup + billing
         if api_key.startswith("vit_"):
-            allowed, reason, _uid, _plan = await _auth_developer_api_key(api_key)
+            allowed, reason, _uid, _plan, app_id, scopes = await _auth_developer_api_key(api_key)
             if not allowed:
                 logger.warning(
                     "Auth rejected (developer_key_%s): ip=%s path=%s key=%.12s…",
@@ -218,6 +262,19 @@ class APIKeyMiddleware:
                     )
                 await res(scope, receive, send)
                 return
+            if app_id and not path.startswith("/api/apps/vitpredict"):
+                res = error_response(request=request, status_code=403, code="app_scope_denied", message="Application API keys are restricted to their registered app")
+                await res(scope, receive, send)
+                return
+            if path.startswith("/api/apps/vitpredict"):
+                denial = _authorize_vitpredict_key(request.method, path, app_id, scopes)
+                if denial:
+                    res = error_response(request=request, status_code=403, code="app_scope_denied", message=denial)
+                    await res(scope, receive, send)
+                    return
+                if app_id:
+                    scope.setdefault("state", {})["developer_app_user_id"] = _uid
+                    scope["state"]["developer_app_id"] = app_id
             await self.app(scope, receive, send)
             return
 
@@ -260,10 +317,16 @@ async def verify_api_key(request: Request):
 
     # G09: developer keys
     if api_key.startswith("vit_"):
-        allowed, reason, _uid, _plan = await _auth_developer_api_key(api_key)
+        allowed, reason, _uid, _plan, app_id, scopes = await _auth_developer_api_key(api_key)
         if not allowed:
             status = 402 if reason == "insufficient_balance" else 401
             raise HTTPException(status_code=status, detail=f"Developer API key rejected: {reason}")
+        if app_id and not request.url.path.startswith("/api/apps/vitpredict"):
+            raise HTTPException(status_code=403, detail="Application API keys are restricted to their registered app")
+        if request.url.path.startswith("/api/apps/vitpredict"):
+            denial = _authorize_vitpredict_key(request.method, request.url.path, app_id, scopes)
+            if denial:
+                raise HTTPException(status_code=403, detail=denial)
         return True
 
     if api_key != API_KEY:

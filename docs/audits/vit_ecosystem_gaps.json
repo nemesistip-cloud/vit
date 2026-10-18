@@ -1,0 +1,302 @@
+{
+  "audit_date": "2026-10-17",
+  "repository_revision": "903c940",
+  "initial_worktree": {
+    "pre_existing_changes": ["package-lock.json"],
+    "preserved": true
+  },
+  "overall_status": "NOT_VERIFIED",
+  "deployment": {
+    "url": "https://vitnetwork-nls4.onrender.com",
+    "source": ["README.md", "render.yaml"],
+    "browser_access": "BLOCKED_BY_DEPENDENCY",
+    "production_state": "NOT_VERIFIED"
+  },
+  "environment": {
+    "python_constraint": ">=3.11,<4.0",
+    "python_pin": "3.12.13",
+    "python_used": "3.12.3",
+    "venv": ".venv",
+    "venv_bootstrap_blocker": "python3.12-venv/ensurepip unavailable; pip bootstrapped via pip --python",
+    "poetry": "2.3.2",
+    "poetry_install": "locked dependencies installed; root package discovery failed; pip editable install succeeded",
+    "pip_check": "passed",
+    "node": "24.21.0",
+    "npm": "11.19.0",
+    "frontend_lint": "blocked: eslint executable absent and not declared",
+    "explorer_locked_install": "blocked: explorer/package-lock.json conflicts with package.json",
+    "browser_runtime": "blocked: required Chromium shared libraries unavailable to unprivileged user"
+  },
+  "route_inventory": {
+    "source": "frontend/src/App.tsx",
+    "route_declarations": 58,
+    "public_tree_declarations": 27,
+    "authenticated_tree_declarations": 31,
+    "duplicate_declarations": ["/validators"],
+    "not_found_route": "*",
+    "browser_verified": 0,
+    "browser_not_verified": 58,
+    "backend_openapi_paths": 844,
+    "backend_http_operations": 925,
+    "groups": [
+      {
+        "module": "Public platform",
+        "routes": ["/", "/platform", "/ai", "/storage", "/status-page", "/verification", "/docs", "/responsible-use", "/roadmap", "/about"],
+        "backend_api_families": ["/api/system/status", "/api/system/health/summary", "/api/config/public/*", "/api/registry", "/api/matches/*"],
+        "classification": "NOT_VERIFIED"
+      },
+      {
+        "module": "Developer hub",
+        "routes": ["/developers"],
+        "backend_api_families": ["/api/developer/docs", "/api/developer/keys", "/api/developer/api-keys", "/api/developer/webhooks", "/api/developer/usage/*", "/api/developer/git/*"],
+        "classification": "NOT_VERIFIED"
+      },
+      {
+        "module": "Prediction Intelligence",
+        "routes": ["/matches", "/matches/:id", "/leaderboard", "/predictions", "/odds", "/inplay", "/accumulator", "/rollover", "/backtest", "/bankroll"],
+        "backend_api_families": ["/api/matches/*", "/api/predict/*", "/api/predictions/*", "/api/odds/compare", "/api/results", "/api/analytics/*"],
+        "classification": "NOT_VERIFIED"
+      },
+      {
+        "module": "Chain, governance, validators, marketplace",
+        "routes": ["/governance", "/marketplace", "/chain", "/validators", "/validators/:validatorId", "/validators/:validatorId/:tab", "/network/validators", "/explorer", "/validators"],
+        "backend_api_families": ["/api/governance/*", "/api/marketplace/*", "/api/chain/*", "/api/blockchain/*", "/api/explorer/*"],
+        "classification": "NOT_VERIFIED"
+      },
+      {
+        "module": "Wallet and financial flows",
+        "routes": ["/subscription", "/wallet", "/defi", "/genesis", "/referral", "/treasury", "/vitcoin", "/exchange", "/vaults", "/bridge"],
+        "backend_api_families": ["/api/subscription/*", "/api/wallet/*", "/api/defi/*", "/api/genesis/*", "/api/referral/*", "/api/treasury/*", "/api/exchange/*", "/api/vaults/*", "/api/bridge/*"],
+        "classification": "NOT_VERIFIED"
+      },
+      {
+        "module": "Identity and settings",
+        "routes": ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/settings"],
+        "backend_api_families": ["/api/auth/*", "/api/identity/*", "/api/audit/me", "/api/developer/api-keys"],
+        "classification": "NOT_VERIFIED"
+      },
+      {
+        "module": "Workspace, analytics, administration",
+        "routes": ["/dashboard", "/workspace", "/analytics", "/analytics-studio", "/assistant", "/tasks", "/social", "/ecosystem", "/enterprise", "/admin", "/admin/:tab"],
+        "backend_api_families": ["/api/dashboard/*", "/api/analytics/*", "/api/ai/assistant/*", "/api/tasks/*", "/api/social/*", "/api/enterprise/*", "/api/admin/*"],
+        "classification": "NOT_VERIFIED"
+      },
+      {
+        "module": "Not-found fallback",
+        "routes": ["*"],
+        "backend_api_families": [],
+        "classification": "NOT_VERIFIED"
+      }
+    ]
+  },
+  "service_inventory": [
+    {
+      "component": "FastAPI gateway",
+      "implementation": ["backend/main.py", "backend/app/api/routes/"],
+      "evidence": "Local Uvicorn health and repaired read endpoints; 710 CI-selected Python tests before repairs and 31 API/schema tests after.",
+      "classification": "PARTIALLY_WORKING",
+      "unverified": ["Production PostgreSQL/Redis", "Full router operations", "Production background startup"]
+    },
+    {
+      "component": "VIT Chain",
+      "implementation": ["vit_chain/consensus/", "vit_chain/core/", "vit_chain/crypto/", "vit_chain/p2p/", "vit_chain/rpc/", "vit_chain/storage/"],
+      "evidence": "66 chain tests and one local three-node websocket consensus/restart test passed.",
+      "classification": "PARTIALLY_WORKING",
+      "unverified": ["Deployed chain", "Independent validators", "Adversarial finality", "Production chain/API consistency"]
+    },
+    {
+      "component": "VIT Node",
+      "implementation": ["backend/vit_node/", "pyproject.toml vit-node CLI entry"],
+      "evidence": "P2P client was imported and exercised by the local three-node test.",
+      "classification": "NOT_VERIFIED",
+      "unverified": ["CLI lifecycle", "Standalone daemon", "Storage participation", "Production peers"]
+    },
+    {
+      "component": "Tachyon",
+      "implementation": ["backend/tachyon/api/", "backend/tachyon/core/", "backend/tachyon/providers/", "https://vit-storage-4trt.onrender.com"],
+      "evidence": "13 backend/tachyon/tests passed locally; live storage service not contacted.",
+      "classification": "PARTIALLY_WORKING",
+      "unverified": ["Upload/retrieval", "Provider quorum", "Integrity challenges", "Persistence"]
+    },
+    {
+      "component": "Standalone Explorer",
+      "implementation": ["explorer/"],
+      "evidence": "Manifest-only install and Vite build passed; npm ci fails because locked Vite 8/Tailwind 4 versions conflict with the Vite 7/Tailwind 3 manifest.",
+      "classification": "PARTIALLY_WORKING",
+      "unverified": ["Reproducible locked install", "API linkage", "Rendered routes"]
+    },
+    {
+      "component": "SDKs",
+      "implementation": ["sdk/", "packages/sdk/"],
+      "evidence": "Source/docs discovered; no SDK test suite was run.",
+      "classification": "NOT_VERIFIED",
+      "unverified": ["Installation", "Compatibility", "Examples", "End-to-end calls"]
+    },
+    {
+      "component": "Render worker and schedules",
+      "implementation": ["render.yaml", "scripts/start_worker.sh", "backend schedulers"],
+      "evidence": "Deployment declaration inspected; local web process only.",
+      "classification": "NOT_VERIFIED",
+      "unverified": ["Production worker health", "Queue delivery", "Retries", "Schedules", "Webhook delivery"]
+    },
+    {
+      "component": "Sports providers and payments",
+      "implementation": ["backend provider clients", "fixtures/odds ingestion", "Paystack/Stripe integrations"],
+      "evidence": "Local API tests only; no provider credentials used.",
+      "classification": "NOT_VERIFIED",
+      "unverified": ["Data freshness", "Settlement provenance", "Rate limits", "Payment sandbox workflow"]
+    }
+  ],
+  "findings": [
+    {
+      "id": "VIT-001",
+      "module": "Prediction Intelligence and public landing",
+      "route": "/api/config/public/landing",
+      "feature": "Prediction settlement accuracy, history, leaderboard, bankroll and public landing aggregates",
+      "observed_behavior": "A fresh database upgraded through the prior head zz10_match_statistics lacked predictions.was_correct; the landing API returned HTTP 503 with sqlite3.OperationalError. Multiple API modules query the same field.",
+      "expected_behavior": "The migration schema contains the nullable settlement result used by the ORM and result aggregates.",
+      "classification": "PARTIALLY_WORKING",
+      "status": "REPAIRED_IN_WORKTREE; PRODUCTION_NOT_VERIFIED",
+      "severity": "P1",
+      "user_impact": "Prediction result and history endpoints can fail against databases upgraded only through the prior migration head.",
+      "root_cause": "ORM Prediction.was_correct had no Alembic migration; the older conditional index migration skipped the index when the column was absent.",
+      "evidence": "Pre-fix fresh SQLite migration ended at zz10_match_statistics and GET /api/config/public/landing returned 503. New migration test and post-fix local API test both passed.",
+      "frontend_files": ["frontend/src/pages/Home.tsx", "frontend/src/pages/Predictions.tsx", "frontend/src/pages/Leaderboard.tsx"],
+      "backend_files": ["backend/app/db/models.py", "backend/app/api/routes/config.py", "backend/app/api/routes/history.py", "backend/app/api/routes/predict.py", "alembic/versions/zz11_prediction_settlement.py"],
+      "api_endpoints": ["/api/config/public/landing", "/api/predict/history", "/api/predict/accuracy"],
+      "database_components": ["predictions.was_correct", "idx_predictions_was_correct"],
+      "existing_test_coverage": ["tests/test_api_endpoints.py", "tests/test_schema_bootstrap.py"],
+      "recommended_fix": "Deploy zz11_prediction_settlement and verify PostgreSQL migration state plus settled/pending result reads.",
+      "dependencies_and_order": "Wave 1; deploy after VIT-002 code fix and before production result-route verification.",
+      "acceptance_criteria": ["Fresh and upgraded PostgreSQL databases contain nullable predictions.was_correct and its index.", "Landing, history and accuracy endpoints return valid results for pending and settled rows."],
+      "verification_status": "LOCAL_VERIFIED; LIVE_DEPLOYMENT_NOT_VERIFIED"
+    },
+    {
+      "id": "VIT-002",
+      "module": "Subscriptions and public config",
+      "route": "/api/subscription/plans",
+      "feature": "Subscription plan discovery and public config router availability",
+      "observed_behavior": "Importing backend.main logged NameError: User is not defined in subscription.py. Main catches the import error, leaving subscription routes unavailable; config imports PLANS from that module and was unavailable as well. Existing test allowed HTTP 404.",
+      "expected_behavior": "Subscription and dependent config routers import and serve their declared read endpoints.",
+      "classification": "PARTIALLY_WORKING",
+      "status": "REPAIRED_IN_WORKTREE; PRODUCTION_NOT_VERIFIED",
+      "severity": "P2",
+      "user_impact": "Subscription plan discovery, checkout entry points and public landing configuration can be absent while the API process still starts.",
+      "root_cause": "The evaluated upgrade_plan annotation referenced User without importing it.",
+      "evidence": "Post-fix local ASGI and Uvicorn requests returned HTTP 200; subscription payload contained four plans. Regression test now requires a successful non-empty plan response.",
+      "frontend_files": ["frontend/src/pages/Subscription.tsx", "frontend/src/pages/Home.tsx"],
+      "backend_files": ["backend/app/api/routes/subscription.py", "backend/app/api/routes/config.py", "backend/main.py", "tests/test_api_endpoints.py"],
+      "api_endpoints": ["/api/subscription/plans", "/api/config/public/landing"],
+      "database_components": ["User", "UserSubscription", "AuditLog"],
+      "existing_test_coverage": ["tests/test_api_endpoints.py"],
+      "recommended_fix": "Deploy the model import and verify plan/catalog reads and provider checkout in an authorized sandbox.",
+      "dependencies_and_order": "Wave 1; code deploy can proceed with the settlement migration.",
+      "acceptance_criteria": ["Router imports without logged exception.", "Plan listing returns HTTP 200 and expected plans.", "Checkout test uses payment provider sandbox only."],
+      "verification_status": "LOCAL_VERIFIED; LIVE_DEPLOYMENT_NOT_VERIFIED"
+    },
+    {
+      "id": "VIT-003",
+      "module": "Audit infrastructure",
+      "route": "All 58 frontend route entries and live read-only endpoints",
+      "feature": "Rendered browser audit and live deployment health verification",
+      "observed_behavior": "Playwright Chromium exits before page creation because required shared libraries are absent. The unprivileged container has no apt metadata. The deployed smoke received HTTP 503 and subsequent direct API requests received Cloudflare HTTP 429 challenge pages.",
+      "expected_behavior": "A supported browser can render routes and the auditor can reach an edge-approved read-only deployment endpoint.",
+      "classification": "BLOCKED_BY_DEPENDENCY",
+      "status": "UNRESOLVED_AUDIT_BLOCKER",
+      "severity": "P2",
+      "user_impact": "No production UI or live backend workflow can be certified from this run.",
+      "root_cause": "Container browser runtime dependencies and deployment edge access are unavailable to this audit environment; application cause is unconfirmed.",
+      "evidence": "24 local Playwright cases failed before assertions; deployed Playwright had 1 failure and 2 auth-gated skips; direct live probes returned 429.",
+      "frontend_files": ["playwright.config.ts", "frontend/playwright.deployed.config.ts", "frontend/deployed_smoke.spec.ts"],
+      "backend_files": [],
+      "api_endpoints": ["/ping", "/ready", "/api/chain/status", "/api/chain/recent-blocks", "/api/chain/metrics"],
+      "database_components": [],
+      "existing_test_coverage": ["frontend_verify.spec.ts", "frontend/deployed_smoke.spec.ts"],
+      "recommended_fix": "Run from a browser-enabled runner with required native libraries and an approved staging/production network path.",
+      "dependencies_and_order": "Wave 0 blocker; required before route-level production claims.",
+      "acceptance_criteria": ["Playwright assertions execute in Chromium.", "Read-only health requests pass without edge challenge.", "Screenshots and console/network evidence are captured at desktop, tablet and mobile sizes."],
+      "verification_status": "BLOCKED"
+    },
+    {
+      "id": "VIT-004",
+      "module": "Frontend tooling",
+      "route": null,
+      "feature": "ESLint lint command",
+      "observed_behavior": "npm run lint --prefix frontend exits with eslint: not found.",
+      "expected_behavior": "The declared lint script resolves a checked-in ESLint version and configuration after installing workspace dependencies.",
+      "classification": "BLOCKED_BY_DEPENDENCY",
+      "status": "UNRESOLVED_TOOLING_GAP",
+      "severity": "P3",
+      "user_impact": "Frontend lint cannot be reproduced locally from the checked-in manifest; TypeScript/build checks remain available.",
+      "root_cause": "frontend/package.json defines a lint script but does not declare ESLint.",
+      "evidence": "npm run lint --prefix frontend returned shell error eslint: not found.",
+      "frontend_files": ["frontend/package.json"],
+      "backend_files": [],
+      "api_endpoints": [],
+      "database_components": [],
+      "existing_test_coverage": [".github/workflows/ci.yml"],
+      "recommended_fix": "Choose and declare ESLint plus config in a dependency-scoped change and add the lint command to CI.",
+      "dependencies_and_order": "Wave 0/5 tooling; requires an approved package/lockfile update.",
+      "acceptance_criteria": ["Clean frozen workspace install provides eslint.", "Lint command passes and runs in CI."],
+      "verification_status": "BLOCKED"
+    },
+    {
+      "id": "VIT-005",
+      "module": "Standalone Explorer SPA",
+      "route": "Separate app; not a route in the main React router",
+      "feature": "Reproducible Explorer dependency installation and build",
+      "observed_behavior": "npm ci refuses explorer/package-lock.json because it resolves Vite 8.3.4 and Tailwind 4.3.3 against package.json ranges for Vite 7 and Tailwind 3. A no-lock install from the manifest and subsequent production build passed.",
+      "expected_behavior": "The checked-in lockfile satisfies the declared manifest and npm ci plus build are deterministic.",
+      "classification": "PARTIALLY_WORKING",
+      "status": "UNRESOLVED_LOCKFILE_DRIFT",
+      "severity": "P3",
+      "user_impact": "Clean npm installs of the standalone Explorer are not reproducible; source build succeeds when dependencies resolve from its manifest.",
+      "root_cause": "explorer/package-lock.json is out of sync with explorer/package.json.",
+      "evidence": "npm ci reported Vite/Tailwind version conflicts; npm install --package-lock=false followed by npm run build passed.",
+      "frontend_files": ["explorer/package.json", "explorer/package-lock.json"],
+      "backend_files": [],
+      "api_endpoints": [],
+      "database_components": [],
+      "existing_test_coverage": ["explorer/package.json build script"],
+      "recommended_fix": "Reconcile the Explorer lockfile to the intended manifest in a separate approved dependency change.",
+      "dependencies_and_order": "Wave 0/5 build reproducibility; no runtime change required.",
+      "acceptance_criteria": ["npm ci succeeds using explorer/package-lock.json.", "The locked dependency install produces a successful Explorer build."],
+      "verification_status": "LOCKED_INSTALL_FAILED; MANIFEST_BUILD_PASSED"
+    }
+  ],
+  "test_results": [
+    {"command": "pip check", "result": "passed"},
+    {"command": "python -m compileall -q backend vit_chain", "result": "passed"},
+    {"command": "ruff check . --output-format=github", "result": "passed", "ruff": "0.17.1"},
+    {"command": "CI-selected pytest tests slice", "result": "710 passed, 3 skipped, 16 deselected", "note": "First attempt had 101 Alembic PATH fixture errors; rerun with .venv/bin on PATH passed."},
+    {"command": "pytest tests/test_api_endpoints.py tests/test_schema_bootstrap.py", "result": "31 passed after repairs"},
+    {"command": "two settlement regression tests", "result": "2 passed"},
+    {"command": "pytest vit_chain/tests", "result": "66 passed"},
+    {"command": "pytest tests/integration/test_real_multinode_consensus.py", "result": "1 passed; local nodes only"},
+    {"command": "pytest backend/tachyon/tests", "result": "13 passed; local tests only"},
+    {"command": "npm run build --prefix frontend", "result": "passed; Vite emitted non-fatal useAuth chunk warning"},
+    {"command": "npm run lint --prefix frontend", "result": "blocked; eslint not found"},
+    {"command": "npm ci --prefix explorer --no-audit --no-fund", "result": "failed; explorer lockfile conflicts with manifest"},
+    {"command": "npm install --prefix explorer --package-lock=false --no-audit --no-fund && npm run build --prefix explorer", "result": "passed; lockfile unchanged"},
+    {"command": "npx playwright test --config playwright.config.ts", "result": "24 failed before browser launch; no assertions executed"},
+    {"command": "deployed Playwright smoke", "result": "1 failed on HTTP 503; 2 authenticated cases skipped"},
+    {"command": "direct live API probes", "result": "5 requests received Cloudflare HTTP 429"},
+    {"command": "local Uvicorn with temporary SQLite", "result": "health and repaired endpoints returned HTTP 200 after async startup"}
+  ],
+  "roadmap": [
+    {"wave": 0, "name": "Browser and deployment access", "acceptance": "Playwright renders desktop/tablet/mobile and approved read-only deployment checks succeed."},
+    {"wave": 1, "name": "Deploy integrity fixes", "acceptance": "PostgreSQL upgrade contains settlement column/index; router and result API responses verified."},
+    {"wave": 2, "name": "Core user workflows", "acceptance": "Authorized staging UI-to-API-to-persistence flows verified without real financial/mainnet actions."},
+    {"wave": 3, "name": "Data and external services", "acceptance": "Fixture/result freshness, provenance, workers, webhooks and external service health cross-checked."},
+    {"wave": 4, "name": "UX and route completeness", "acceptance": "All discovered route states inspected at responsive sizes; route ownership and accessibility defects recorded."},
+    {"wave": 5, "name": "Production hardening", "acceptance": "Independent multi-node fault/restart/finality evidence and operational recovery gates pass."}
+  ],
+  "residual_risks": [
+    "Production deployment and PostgreSQL migration head are unknown.",
+    "All 58 user-facing route declarations remain NOT_VERIFIED in a real browser.",
+    "Cloudflare 429 responses prevent live API data and chain consistency checks.",
+    "No authenticated production/staging account or payment sandbox credentials were supplied.",
+    "Local consensus tests do not establish production Byzantine safety or independent validator operation.",
+    "Frontend ESLint, real PostgreSQL integration, external payment/webhook flows and security scanning were not run."
+  ]
+}

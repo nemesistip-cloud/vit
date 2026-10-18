@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
+import { vitpredictApiPath } from '@/lib/vitpredictApi'
 import { presentStoredPick } from '@/lib/pickPresentation'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { authHeaders, getAuthToken } from '@/hooks/useAuth'
@@ -43,7 +44,7 @@ function useTopMatches() {
   return useQuery({
     queryKey: ['top-matches-home'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/matches/upcoming?limit=3`, { signal })
+      const r = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/matches/upcoming?limit=3')}`, { signal })
       if (!r.ok) return []
       const d = await r.json()
       return Array.isArray(d) ? d.slice(0, 3) : []
@@ -58,7 +59,7 @@ function useLeaderboardPreview() {
     queryKey: ['leaderboard-home'],
     enabled: isAuthenticated,
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/analytics/leaderboard/users?limit=5`, {
+      const r = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/analytics/leaderboard/users?limit=5')}`, {
         signal,
         headers: authHeaders(),
       })

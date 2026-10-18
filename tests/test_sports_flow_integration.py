@@ -13,6 +13,7 @@ Tests the following endpoints:
 """
 
 import pytest
+from unittest.mock import AsyncMock
 from httpx import AsyncClient, ASGITransport
 from main import app
 from app.db.database import AsyncSessionLocal
@@ -103,6 +104,76 @@ async def test_api_matches_upcoming_endpoint():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         response = await ac.get("/api/matches/upcoming")
         assert response.status_code in [200, 404], f"Expected 200 or 404, got {response.status_code}"
+
+
+@pytest.mark.asyncio
+async def test_upcoming_matches_respects_requested_limit(client, db_session):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    db_session.add_all([
+        Match(
+            external_id=f"upcoming-limit-{index}",
+            home_team=f"Limit Home {index}",
+            away_team=f"Limit Away {index}",
+            league="limit-test",
+            kickoff_time=now + timedelta(days=index + 1),
+            sport="football",
+            status="scheduled",
+            source="test",
+        )
+        for index in range(4)
+    ])
+    await db_session.commit()
+    await cache.clear_prefix(FIXTURE_LIST)
+
+    response = await client.get("/api/matches/upcoming?sport=football&limit=2")
+
+    assert response.status_code == 200
+    assert len(response.json()) == 2
+
+
+@pytest.mark.asyncio
+async def test_recent_matches_get_does_not_sync_or_settle(client, db_session, monkeypatch):
+    from app.services import sportsdb_api, settlement_service
+
+    sync_results = AsyncMock()
+    settle_results = AsyncMock()
+    monkeypatch.setattr(sportsdb_api, "sync_fixture_results", sync_results)
+    monkeypatch.setattr(settlement_service, "run_auto_settlement", settle_results)
+    await cache.clear_prefix(FIXTURE_LIST)
+
+    response = await client.get("/api/matches/recent?limit=4")
+
+    assert response.status_code == 200
+    sync_results.assert_not_awaited()
+    settle_results.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_vitpredict_api_namespace_preserves_legacy_fixture_contract(client, db_session):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    db_session.add_all([
+        Match(
+            external_id=f"vitpredict-namespace-{index}",
+            home_team=f"Namespace Home {index}",
+            away_team=f"Namespace Away {index}",
+            league="namespace-test",
+            kickoff_time=now + timedelta(days=index + 1),
+            sport="football",
+            status="scheduled",
+            source="test",
+        )
+        for index in range(3)
+    ])
+    await db_session.commit()
+    await cache.clear_prefix(FIXTURE_LIST)
+
+    legacy = await client.get("/api/matches/upcoming?sport=football&limit=2")
+    app_owned = await client.get("/api/apps/vitpredict/matches/upcoming?sport=football&limit=2")
+
+    assert legacy.status_code == app_owned.status_code == 200
+    assert len(legacy.json()) <= 2
+    assert len(app_owned.json()) <= 2
+    assert {row["external_id"] for row in legacy.json()} == {row["external_id"] for row in app_owned.json()}
 
 
 @pytest.mark.asyncio

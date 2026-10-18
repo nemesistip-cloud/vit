@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
+import { vitpredictApiPath } from '@/lib/vitpredictApi'
 import { Spinner } from '@/components/ui/Spinner'
 import { getAuthToken, authHeaders } from '@/hooks/useAuth'
 
@@ -43,7 +44,7 @@ function usePredictions(outcome: OutcomeFilter) {
     queryKey: ['predictions', outcome],
     queryFn: async ({ signal }) => {
       const params = outcome !== 'all' ? `?outcome=${outcome}` : ''
-      const r = await fetch(`${ENDPOINTS.gateway}/api/predict/history${params}`, { signal, headers: authHeaders() })
+      const r = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath(`/api/predict/history${params}`)}`, { signal, headers: authHeaders() })
       if (!r.ok) {
         const payload = await r.json().catch(() => ({}))
         const message = payload.detail ?? payload.error?.message ?? payload.message
@@ -60,7 +61,7 @@ function useAccuracy() {
   return useQuery({
     queryKey: ['prediction-accuracy'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/predict/accuracy`, { signal, headers: authHeaders() })
+      const r = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/predict/accuracy')}`, { signal, headers: authHeaders() })
       return r.ok ? r.json() : null
     },
     retry: false, staleTime: 300_000,
@@ -88,7 +89,7 @@ function AttestButton({ predictionId }: { predictionId: number }) {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/predictions/${predictionId}/attest`, {
+      const r = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath(`/api/predictions/${predictionId}/attest`)}`, {
         method: 'POST',
         headers: authHeaders(),
       })

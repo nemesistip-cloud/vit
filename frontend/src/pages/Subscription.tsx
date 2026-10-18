@@ -104,7 +104,11 @@ function useCurrentSub() {
     queryKey: ['my-subscription'],
     queryFn: async ({ signal }) => {
       const r = await fetch(`${ENDPOINTS.gateway}/api/subscription/my-plan`, { signal, headers: authHeaders() })
-      return r.ok ? r.json() : null
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        throw new Error(data.detail ?? data.message ?? `Current plan could not be loaded (${r.status})`)
+      }
+      return data
     },
     enabled: !!getAuthToken(),
     retry: false,
@@ -199,7 +203,12 @@ function PlanCard({
 
 export default function Subscription() {
   const { data: plans, isLoading: plansLoading, error: plansError, refetch } = usePlans()
-  const { data: sub } = useCurrentSub()
+  const {
+    data: sub,
+    error: subError,
+    isError: subIsError,
+    refetch: refetchSub,
+  } = useCurrentSub()
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [billing, setBilling] = useState<BillingPeriod>('monthly')
 
@@ -251,6 +260,12 @@ export default function Subscription() {
           <p className="text-white/45 text-sm max-w-md mx-auto">
             Compare the current VIT Network plans and pricing.
           </p>
+          {subIsError && (
+            <div role="alert" className="mx-auto mt-4 max-w-lg rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-100">
+              Current plan status is unavailable: {subError instanceof Error ? subError.message : 'please try again.'}
+              <button type="button" onClick={() => void refetchSub()} className="ml-3 underline underline-offset-2">Retry</button>
+            </div>
+          )}
           {sub && (
             <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm text-white/60">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />

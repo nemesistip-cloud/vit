@@ -15,4 +15,4 @@ class WatchlistItem(Base):
     match_id: Mapped[int] = mapped_column(Integer, ForeignKey("matches.id", ondelete="CASCADE"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow_naive)
 
-    match = relationship("app.db.models.Match")
+    match = relationship("Match")

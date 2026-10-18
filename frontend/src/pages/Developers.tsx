@@ -110,6 +110,16 @@ interface GitStatus {
   is_clean: boolean
 }
 
+interface DeveloperApp {
+  id: string
+  name: string
+  description: string
+  category: string
+  requested_scopes: string[]
+  status: string
+  created_at?: string | null
+}
+
 // ── Shared UI Helpers ─────────────────────────────────────────────────────────
 
 function CopyBtn({ text, label = 'Copy' }: { text: string; label?: string }) {
@@ -125,6 +135,97 @@ function CopyBtn({ text, label = 'Copy' }: { text: string; label?: string }) {
       {copied ? <CheckCheck className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
       {copied ? 'Copied' : label}
     </button>
+  )
+}
+
+const APP_SCOPES = ['identity.read', 'prediction.read', 'prediction.generate', 'prediction.history.read', 'models.evaluate', 'wallet.read', 'chain.read', 'storage.read', 'storage.write', 'ai.infer', 'events.subscribe']
+
+function DeveloperApplicationsTab({ isAuth }: { isAuth: boolean }) {
+  const queryClient = useQueryClient()
+  const [slug, setSlug] = useState('')
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [prodUrl, setProdUrl] = useState('')
+  const [scopes, setScopes] = useState<string[]>(['identity.read'])
+  const [issuedKey, setIssuedKey] = useState<{ name: string; value: string; appId: string } | null>(null)
+  const apps = useQuery<DeveloperApp[]>({
+    queryKey: ['developer-applications'],
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/developer/apps`, { signal, headers: authHeaders() })
+      if (!response.ok) throw new Error(`Applications could not be loaded (${response.status})`)
+      return response.json()
+    },
+    enabled: isAuth,
+  })
+  const createApp = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/developer/apps`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, name, description, prod_url: prodUrl || undefined, requested_scopes: scopes }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.detail ?? `Application could not be registered (${response.status})`)
+      return payload
+    },
+    onSuccess: () => {
+      setSlug('')
+      setName('')
+      setDescription('')
+      setProdUrl('')
+      setScopes(['identity.read'])
+      void queryClient.invalidateQueries({ queryKey: ['developer-applications'] })
+    },
+  })
+  const submitApp = useMutation({
+    mutationFn: async (appId: string) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/developer/apps/${encodeURIComponent(appId)}/submit`, { method: 'POST', headers: authHeaders() })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.detail ?? `Application could not be submitted (${response.status})`)
+      return payload
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['developer-applications'] }),
+  })
+  const createAppKey = useMutation({
+    mutationFn: async (app: DeveloperApp) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/developer/apps/${encodeURIComponent(app.id)}/keys`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `${app.name} application key` }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.detail ?? `Application key could not be created (${response.status})`)
+      return { ...payload, appId: app.id }
+    },
+    onSuccess: payload => setIssuedKey({ name: payload.name, value: payload.key, appId: payload.appId }),
+  })
+
+  if (!isAuth) return <div className="border-l-2 border-amber-300/50 bg-white/[0.03] px-4 py-4 text-sm text-white/60">Sign in to register and manage developer applications.</div>
+
+  return (
+    <div className="space-y-8">
+      <section className="border-y border-white/10 py-6">
+        <h2 className="text-lg font-semibold">Register an application</h2>
+        <p className="mt-1 text-sm text-white/45">New apps start as drafts. Requested permissions are reviewed before publication.</p>
+        <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={event => { event.preventDefault(); createApp.mutate() }}>
+          <label className="grid gap-1 text-xs text-white/55">Application ID slug<input value={slug} onChange={event => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} required minLength={2} maxLength={48} pattern="[a-z][a-z0-9-]*" placeholder="example-app" className="rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white" /></label>
+          <label className="grid gap-1 text-xs text-white/55">Display name<input value={name} onChange={event => setName(event.target.value)} required minLength={2} maxLength={128} placeholder="Example application" className="rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white" /></label>
+          <label className="grid gap-1 text-xs text-white/55 md:col-span-2">Description<textarea value={description} onChange={event => setDescription(event.target.value)} required minLength={10} maxLength={2000} rows={3} placeholder="What does your application do?" className="resize-y rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white" /></label>
+          <label className="grid gap-1 text-xs text-white/55 md:col-span-2">Production launch URL (HTTPS)<input type="url" value={prodUrl} onChange={event => setProdUrl(event.target.value)} placeholder="https://app.example.com" className="rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white" /></label>
+          <fieldset className="grid gap-2 md:col-span-2"><legend className="mb-1 text-xs text-white/55">Requested permissions</legend><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{APP_SCOPES.map(scope => <label key={scope} className="flex items-center gap-2 text-xs text-white/65"><input type="checkbox" checked={scopes.includes(scope)} onChange={event => setScopes(current => event.target.checked ? [...current, scope] : current.filter(value => value !== scope))} className="accent-emerald-300" />{scope}</label>)}</div></fieldset>
+          {createApp.isError && <p role="alert" className="text-sm text-rose-300 md:col-span-2">{createApp.error.message}</p>}
+          <div className="md:col-span-2"><button type="submit" disabled={createApp.isPending || !slug || !name || description.length < 10} className="rounded-md bg-emerald-300 px-4 py-2 text-sm font-semibold text-[#092018] disabled:opacity-50">{createApp.isPending ? 'Registering…' : 'Register draft'}</button></div>
+        </form>
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between"><h2 className="text-lg font-semibold">My applications</h2><button type="button" onClick={() => void apps.refetch()} aria-label="Refresh applications" className="rounded p-2 text-white/55 hover:bg-white/10 hover:text-white"><RefreshCw className="h-4 w-4" /></button></div>
+        {apps.isPending ? <div className="flex min-h-20 items-center justify-center"><Spinner className="h-5 w-5 text-vit-400" /></div> : apps.isError ? <p role="alert" className="text-sm text-rose-300">{apps.error.message}</p> : apps.data?.length ? <ul className="divide-y divide-white/10 border-y border-white/10">{apps.data.map(app => <li key={app.id} className="flex flex-wrap items-center justify-between gap-4 py-4"><div><p className="font-medium">{app.name} <span className="ml-2 font-mono text-xs text-white/40">{app.id}</span></p><p className="mt-1 text-xs text-white/45">{app.description}</p><p className="mt-2 text-[11px] text-white/35">{app.requested_scopes.join(' · ') || 'No requested permissions'}</p></div><div className="flex items-center gap-3"><span className="rounded border border-white/10 px-2 py-1 text-[10px] uppercase text-white/55">{app.status.replace(/_/g, ' ')}</span>{['draft', 'rejected'].includes(app.status) && <button type="button" onClick={() => submitApp.mutate(app.id)} disabled={submitApp.isPending} className="rounded-md border border-emerald-300/25 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50">Submit for review</button>}{['approved', 'published'].includes(app.status) && <button type="button" onClick={() => createAppKey.mutate(app)} disabled={createAppKey.isPending} className="rounded-md border border-emerald-300/25 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50">Create app key</button>}</div></li>)}</ul> : <p className="border-y border-white/10 py-6 text-sm text-white/45">No developer applications yet.</p>}
+        {submitApp.isError && <p role="alert" className="mt-3 text-sm text-rose-300">{submitApp.error.message}</p>}
+        {createAppKey.isError && <p role="alert" className="mt-3 text-sm text-rose-300">{createAppKey.error.message}</p>}
+        {issuedKey && <div role="status" className="mt-4 border-l-2 border-emerald-300 bg-emerald-300/5 px-4 py-3"><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold">API key created for {issuedKey.appId}</p><button type="button" onClick={() => setIssuedKey(null)} className="text-xs text-white/45 hover:text-white">Dismiss</button></div><code className="mt-2 block overflow-x-auto text-xs text-emerald-200">{issuedKey.value}</code><p className="mt-2 text-[11px] text-white/40">This key is shown once and is restricted to the permissions approved for this application.</p></div>}
+      </section>
+    </div>
   )
 }
 
@@ -1005,19 +1106,63 @@ function AdminGitTab({ isAuth }: { isAuth: boolean }) {
   )
 }
 
+function ApplicationReviewTab() {
+  const queryClient = useQueryClient()
+  const queue = useQuery<DeveloperApp[]>({
+    queryKey: ['developer-application-review-queue'],
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/developer/apps/review-queue`, { signal, headers: authHeaders() })
+      if (!response.ok) throw new Error(`Review queue unavailable (${response.status})`)
+      return response.json()
+    },
+  })
+  const decide = useMutation({
+    mutationFn: async ({ id, decision }: { id: string; decision: 'approved' | 'rejected' }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/developer/apps/${encodeURIComponent(id)}/review`, {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.detail ?? `Review failed (${response.status})`)
+      return payload
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['developer-application-review-queue'] }),
+  })
+  const publish = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`${ENDPOINTS.gateway}/api/developer/apps/${encodeURIComponent(id)}/publish`, { method: 'POST', headers: authHeaders() })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.detail ?? `Publish failed (${response.status})`)
+      return payload
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['developer-application-review-queue'] }),
+  })
+
+  return (
+    <section>
+      <h2 className="mb-3 text-lg font-semibold">Application review queue</h2>
+      {queue.isPending ? <div className="flex min-h-20 items-center justify-center"><Spinner className="h-5 w-5 text-vit-400" /></div> : queue.isError ? <p role="alert" className="text-sm text-rose-300">{queue.error.message}</p> : queue.data?.length ? <ul className="divide-y divide-white/10 border-y border-white/10">{queue.data.map(app => <li key={app.id} className="flex flex-wrap items-center justify-between gap-4 py-4"><div><p className="font-medium">{app.name} <span className="ml-2 font-mono text-xs text-white/40">{app.id}</span></p><p className="mt-1 text-xs text-white/45">{app.description}</p><p className="mt-2 text-[11px] text-white/35">Requested: {app.requested_scopes.join(' · ') || 'none'}</p></div><div className="flex flex-wrap gap-2">{app.status === 'review_pending' ? <><button type="button" onClick={() => decide.mutate({ id: app.id, decision: 'rejected' })} disabled={decide.isPending} className="rounded-md border border-rose-300/25 px-3 py-1.5 text-xs text-rose-200 disabled:opacity-50">Reject</button><button type="button" onClick={() => decide.mutate({ id: app.id, decision: 'approved' })} disabled={decide.isPending} className="rounded-md border border-emerald-300/25 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50">Approve</button></> : <button type="button" onClick={() => publish.mutate(app.id)} disabled={publish.isPending} className="rounded-md bg-emerald-300 px-3 py-1.5 text-xs font-semibold text-[#092018] disabled:opacity-50">Publish</button>}</div></li>)}</ul> : <p className="border-y border-white/10 py-6 text-sm text-white/45">No applications are awaiting review.</p>}
+      {decide.isError && <p role="alert" className="mt-3 text-sm text-rose-300">{decide.error.message}</p>}
+      {publish.isError && <p role="alert" className="mt-3 text-sm text-rose-300">{publish.error.message}</p>}
+    </section>
+  )
+}
+
 // ── Main Page Component ───────────────────────────────────────────────────────
 
 export default function Developers() {
-  const [activeTab, setActiveTab] = useState<'keys' | 'usage' | 'webhooks' | 'explorer' | 'plans' | 'admin_git'>('keys')
+  const [activeTab, setActiveTab] = useState<'keys' | 'applications' | 'app_review' | 'usage' | 'webhooks' | 'explorer' | 'plans' | 'admin_git'>('keys')
   const isAuth = !!getAuthToken()
   const user = getStoredUser()
 
   const tabs = [
     { id: 'keys', label: 'API Keys', icon: <Key className="w-4 h-4" /> },
+    { id: 'applications', label: 'Applications', icon: <Layers className="w-4 h-4" /> },
     { id: 'usage', label: 'Usage & Metrics', icon: <BarChart3 className="w-4 h-4" /> },
     { id: 'webhooks', label: 'Webhooks', icon: <Webhook className="w-4 h-4" /> },
     { id: 'explorer', label: 'API Explorer & Docs', icon: <Terminal className="w-4 h-4" /> },
     { id: 'plans', label: 'Plans & Pricing', icon: <Layers className="w-4 h-4" /> },
+    ...(user?.role === 'admin' || user?.role === 'super_admin' ? [{ id: 'app_review', label: 'App Review', icon: <Shield className="w-4 h-4" /> }] : []),
     ...(user?.role === 'admin' ? [{ id: 'admin_git', label: 'Git Sync', icon: <GitBranch className="w-4 h-4" /> }] : []),
   ] as const
 
@@ -1050,6 +1195,8 @@ export default function Developers() {
         {/* Tab Contents */}
         <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
           {activeTab === 'keys' && <ApiKeysTab isAuth={isAuth} />}
+          {activeTab === 'applications' && <DeveloperApplicationsTab isAuth={isAuth} />}
+          {activeTab === 'app_review' && (user?.role === 'admin' || user?.role === 'super_admin') && <ApplicationReviewTab />}
           {activeTab === 'usage' && <UsageTab isAuth={isAuth} />}
           {activeTab === 'webhooks' && <WebhooksTab isAuth={isAuth} />}
           {activeTab === 'explorer' && <ApiExplorerTab />}

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Brain, Wallet, Vote, Store, BarChart3,
-  Cloud, Database, Coins, Radio, ChevronDown, Shield,
+  Cloud, Database, Coins, ChevronDown, Shield, Smartphone,
   Activity, Building2, Zap, Users, Globe,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -19,12 +19,12 @@ export interface Workspace {
 }
 
 const WORKSPACES: Workspace[] = [
-  { id: 'dashboard',   label: 'Dashboard',       icon: LayoutDashboard, path: '/dashboard',        color: 'text-violet-400', description: 'Your personal hub' },
-  { id: 'sports',      label: 'Sports AI',        icon: Brain,           path: '/matches',           color: 'text-blue-400',   description: 'Predictions & matches' },
+  { id: 'dashboard',   label: 'Network',          icon: LayoutDashboard, path: '/dashboard',        color: 'text-emerald-300', description: 'Network health and services' },
+  { id: 'applications',label: 'Applications',     icon: Smartphone,      path: '/applications',     color: 'text-emerald-300', description: 'Discover VIT applications' },
+  { id: 'vitpredict',  label: 'VITPredict',       icon: Brain,           path: '/apps/vitpredict',   color: 'text-blue-300',    description: 'Prediction intelligence' },
   { id: 'wallet',      label: 'Wallet',           icon: Wallet,          path: '/wallet',            color: 'text-emerald-400', description: 'VIT balance & transactions' },
-  { id: 'analytics',   label: 'Analytics',        icon: BarChart3,       path: '/analytics-studio',  color: 'text-amber-400',  description: 'Performance studio' },
+  { id: 'analytics',   label: 'Analytics',        icon: BarChart3,       path: '/analytics',         color: 'text-amber-400',  description: 'Network analytics' },
   { id: 'defi',        label: 'DeFi',             icon: Coins,           path: '/defi',              color: 'text-pink-400',   description: 'Yield & liquidity pools' },
-  { id: 'inplay',      label: 'In-Play',          icon: Radio,           path: '/inplay',            color: 'text-red-400',    description: 'Live prediction markets', badge: 'LIVE' },
   { id: 'governance',  label: 'Governance',       icon: Vote,            path: '/governance',        color: 'text-indigo-400', description: 'DAO proposals & voting' },
   { id: 'marketplace', label: 'Marketplace',      icon: Store,           path: '/marketplace',       color: 'text-orange-400', description: 'Prediction marketplace' },
   { id: 'storage',     label: 'Storage',          icon: Database,        path: '/storage',           color: 'text-cyan-400',   description: 'Tachyon decentralised storage' },

@@ -42,7 +42,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:testpass@localhost:5432/vit_test
           JWT_SECRET_KEY: test-secret-key-for-ci
-          ENVIRONMENT: test
+          ENVIRONMENT: testing
         run: |
           echo "Running alembic upgrade heads..."
           alembic upgrade heads
@@ -52,7 +52,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:testpass@localhost:5432/vit_test
           JWT_SECRET_KEY: test-secret-key-for-ci
-          ENVIRONMENT: test
+          ENVIRONMENT: testing
         run: |
           python3 scripts/init_db.py
           echo "✅ init_db.py completed"
@@ -61,8 +61,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:testpass@localhost:5432/vit_test
           JWT_SECRET_KEY: test-secret-key-for-ci
-          ENVIRONMENT: test
+          ENVIRONMENT: testing
           REDIS_URL: ""
         run: |
-          python3 -m pytest tests/ -x -q --tb=short 2>&1 | head -100 || true
+          python3 -m pytest tests/ -x -q --tb=short
           echo "Test run complete"

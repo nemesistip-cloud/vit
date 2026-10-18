@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
+import { vitpredictApiPath } from '@/lib/vitpredictApi'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Spinner } from '@/components/ui/Spinner'
 import { toast } from 'sonner'
@@ -63,7 +64,7 @@ function useMatches(tab: Tab, sport: Sport) {
     queryKey: ['matches', tab, sport],
     queryFn: async ({ signal }) => {
       const params = sport !== 'all' ? `?sport=${sport}` : ''
-      const res = await fetch(`${ENDPOINTS.gateway}${endpoint}${params}`, { signal })
+      const res = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath(`${endpoint}${params}`)}`, { signal })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         const detail = typeof err?.detail === 'string'
@@ -110,7 +111,7 @@ function useSyncFixtures() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${ENDPOINTS.gateway}/api/matches/sync?days=60`, {
+      const res = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/matches/sync?days=60')}`, {
         method: 'POST',
       })
       if (!res.ok) {

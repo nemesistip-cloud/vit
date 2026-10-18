@@ -22,7 +22,7 @@ from app.db.models import User, Prediction, Match
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/analytics-studio", tags=["Analytics Studio"])
+router = APIRouter(tags=["Analytics Studio"])
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 

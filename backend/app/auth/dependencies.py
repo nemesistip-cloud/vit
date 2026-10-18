@@ -1,6 +1,6 @@
 # app/auth/dependencies.py
 import os
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -21,23 +21,27 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    payload = decode_token(credentials.credentials)
-    if not payload or payload.get("type") != "access":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        app_user_id = request.scope.get("state", {}).get("developer_app_user_id")
+        if not app_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        payload = {"sub": app_user_id}
+    else:
+        payload = decode_token(credentials.credentials)
+        if not payload or payload.get("type") != "access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     jti = payload.get("jti")
     if jti and await is_token_revoked(jti, db):
@@ -64,6 +68,7 @@ async def get_current_user(
 
 
 async def get_current_admin(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
@@ -74,7 +79,7 @@ async def get_current_admin(
                 detail="Not authenticated",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        real_user = await get_current_user(credentials, db)
+        real_user = await get_current_user(request, credentials, db)
         if real_user.role not in _ADMIN_ROLES:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
         return real_user

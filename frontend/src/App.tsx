@@ -1,9 +1,10 @@
 import React, { Suspense, lazy } from 'react'
-import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, Outlet, useLocation, useParams } from 'react-router-dom'
 import { AppShell, PublicShell } from '@/components/shell/AppShell'
 import { getAuthToken } from '@/hooks/useAuth'
 import { RouteErrorBoundary } from '@/components/ErrorBoundary'
 import { Spinner } from '@/components/ui/Spinner'
+import { VITPredictShell } from '@/components/shell/VITPredictShell'
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 
@@ -58,11 +59,19 @@ function RequireGuest() {
 
 
 function PublicHomeGate() {
-  return getAuthToken() ? <Navigate to="/dashboard" replace /> : <Home />
+  return getAuthToken() ? <Navigate to="/dashboard" replace /> : <NetworkOverview />
+}
+
+function LegacyMatchRedirect() {
+  const { id } = useParams()
+  return <Navigate to={`/apps/vitpredict/matches/${id ?? ''}`} replace />
+}
+
+function ValidatorsShell() {
+  return getAuthToken() ? <AppShell /> : <PublicShell />
 }
 
 // ── Public / marketing (lazy) ─────────────────────────────────────────────────
-const Home          = lazy(() => import('@/pages/Home'))
 const Platform      = lazy(() => import('@/pages/Platform'))
 const AI            = lazy(() => import('@/pages/AI'))
 const Storage       = lazy(() => import('@/pages/Storage'))
@@ -73,6 +82,9 @@ const Documentation = lazy(() => import('@/pages/Documentation'))
 const Roadmap       = lazy(() => import('@/pages/Roadmap'))
 const About         = lazy(() => import('@/pages/About'))
 const ResponsibleUse = lazy(() => import('@/pages/ResponsibleUse'))
+const Applications = lazy(() => import('@/pages/Applications'))
+const NetworkOverview = lazy(() => import('@/pages/NetworkOverview'))
+const Home = lazy(() => import('@/pages/Home'))
 
 // ── Auth (lazy) ───────────────────────────────────────────────────────────────
 const Login          = lazy(() => import('@/pages/Login'))
@@ -129,6 +141,7 @@ const Bridge   = lazy(() => import('@/pages/Bridge'))
 // ── Admin & 404 (lazy) ────────────────────────────────────────────────────────
 const Admin    = lazy(() => import('@/pages/Admin'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
+const VITPredictApp = lazy(() => import('@/pages/VITPredictApp'))
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
@@ -142,20 +155,23 @@ export default function App() {
         <Route path="/ai"              element={wrap(<AI />)}             />
         <Route path="/storage"         element={wrap(<Storage />)}        />
         <Route path="/status-page"    element={wrap(<Status />)}         />
-        <Route path="/verification"    element={wrap(<Verification />)}    />
+        <Route path="/verification"    element={<Navigate to="/apps/vitpredict/verification" replace />} />
         <Route path="/developers"      element={wrap(<Developers />)}     />
         <Route path="/docs"            element={wrap(<Documentation />)}  />
         <Route path="/responsible-use" element={wrap(<ResponsibleUse />)} />
         <Route path="/roadmap"         element={wrap(<Roadmap />)}        />
         <Route path="/about"           element={wrap(<About />)}          />
-        {/* Read-only discovery pages linked from the public navbar. */}
-        <Route path="/matches"         element={wrap(<Matches />)}        />
-        <Route path="/matches/:id"     element={wrap(<MatchDetail />)}    />
+        <Route path="/applications"   element={wrap(<Applications />)}  />
+        {/* Legacy product URLs remain compatible while the app owns its routes. */}
+        <Route path="/matches"         element={<Navigate to="/apps/vitpredict/matches" replace />} />
+        <Route path="/matches/:id"     element={<LegacyMatchRedirect />} />
+        <Route path="/predictions"     element={<Navigate to="/apps/vitpredict/predictions" replace />} />
+        <Route path="/odds"            element={<Navigate to="/apps/vitpredict/odds" replace />} />
+        <Route path="/analytics-studio" element={<Navigate to="/apps/vitpredict/analytics" replace />} />
         <Route path="/leaderboard"     element={wrap(<Leaderboard />)}    />
         <Route path="/governance"      element={wrap(<Governance />)}     />
         <Route path="/marketplace"     element={wrap(<Marketplace />)}    />
         <Route path="/chain"           element={wrap(<Explorer />)}       />
-        <Route path="/validators"                  element={wrap(<Validators />)} />
         <Route path="/validators/:validatorId"     element={wrap(<Validators />)} />
         <Route path="/validators/:validatorId/:tab" element={wrap(<Validators />)} />
         <Route path="/network/validators"          element={wrap(<Validators />)} />
@@ -169,10 +185,30 @@ export default function App() {
         <Route path="/verify-email"    element={wrap(<VerifyEmail />)}    />
       </Route>
 
+      <Route element={<ValidatorsShell />}>
+        <Route path="/validators" element={wrap(<Validators />)} />
+      </Route>
+
+      <Route path="/apps/vitpredict" element={<VITPredictShell />}>
+        <Route index element={wrap(<VITPredictApp />)} />
+        <Route path="home" element={wrap(<Home />)} />
+        <Route path="verification" element={wrap(<Verification />)} />
+        <Route element={<RequireAuth />}>
+          <Route path="dashboard" element={wrap(<Dashboard />)} />
+        </Route>
+        <Route path="matches" element={wrap(<Matches />)} />
+        <Route path="matches/:id" element={wrap(<MatchDetail />)} />
+        <Route element={<RequireAuth />}>
+          <Route path="predictions" element={wrap(<Predictions />)} />
+          <Route path="odds" element={wrap(<Odds />)} />
+          <Route path="analytics" element={wrap(<AnalyticsStudio />)} />
+        </Route>
+      </Route>
+
       {/* ── Authenticated app ──────────────────────────────────────────────── */}
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
-            <Route path="/dashboard"        element={wrap(<Dashboard />)}       />
+            <Route path="/dashboard"        element={wrap(<NetworkOverview />)}  />
             <Route path="/workspace"        element={wrap(<Workspace />)}       />
             <Route path="/settings"         element={wrap(<Settings />)}        />
             <Route path="/subscription"     element={wrap(<Subscription />)}    />
@@ -188,7 +224,6 @@ export default function App() {
             <Route path="/genesis"          element={wrap(<Genesis />)}         />
             <Route path="/referral"         element={wrap(<Referral />)}        />
             <Route path="/treasury"         element={wrap(<Treasury />)}        />
-            <Route path="/validators"       element={wrap(<Validators />)}      />
             <Route path="/social"           element={wrap(<Social />)}          />
             <Route path="/ecosystem"        element={wrap(<Ecosystem />)}       />
             <Route path="/enterprise"       element={wrap(<Enterprise />)}      />

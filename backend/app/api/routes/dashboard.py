@@ -14,7 +14,7 @@ from app.db.models import CLVEntry, Match, Prediction, User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
+router = APIRouter(tags=["Dashboard"])
 
 # In-process price cache
 _price_cache = {

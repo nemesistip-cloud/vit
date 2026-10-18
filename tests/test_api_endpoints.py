@@ -71,7 +71,16 @@ async def test_results_endpoint_responds():
 async def test_subscription_plans_listing():
     async with _client() as client:
         resp = await client.get("/api/subscription/plans")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code == 200
+    assert resp.json()["plans"]
+
+
+@pytest.mark.asyncio
+async def test_public_landing_uses_prediction_settlement_schema():
+    async with _client() as client:
+        resp = await client.get("/api/config/public/landing")
+    assert resp.status_code == 200
+    assert resp.json()["plans"]
 
 
 # ── Odds ──────────────────────────────────────────────────────────────────────

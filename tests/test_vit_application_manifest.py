@@ -6,6 +6,7 @@ from vit_protocol.application import (
     m24_reference_manifest,
     validate_manifest,
 )
+from app.modules.vitpredict import vitpredict_manifest
 
 
 class VitApplicationManifestTests(unittest.TestCase):
@@ -27,6 +28,16 @@ class VitApplicationManifestTests(unittest.TestCase):
         )
         with self.assertRaises(ApplicationManifestError):
             validate_manifest(manifest)
+
+    def test_vitpredict_manifest_uses_scoped_prediction_capabilities(self):
+        manifest = vitpredict_manifest().to_dict()
+
+        self.assertEqual(manifest["app_id"], "app:vitpredict")
+        self.assertIn("identity.read", manifest["permissions"])
+        self.assertIn("prediction.generate", manifest["permissions"])
+        self.assertNotIn("wallet.transfer", manifest["permissions"])
+        self.assertNotIn("chain.read", manifest["permissions"])
+        self.assertNotIn("chain", manifest["dependencies"])
 
 
 if __name__ == "__main__":

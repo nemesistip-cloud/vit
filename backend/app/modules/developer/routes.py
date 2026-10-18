@@ -6,17 +6,254 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin, get_current_user
 from app.db.database import get_db
 from app.db.models import User
 from app.modules.developer import service as svc
+from app.modules.developer.models import AppAuditLog, DeveloperApp
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/developer", tags=["developer"])
+
+APPLICATION_SCOPES = {
+    "identity.read",
+    "app.metadata.read",
+    "sports.read",
+    "sports.sync",
+    "sports.write",
+    "odds.read",
+    "wallet.read",
+    "chain.read",
+    "storage.read",
+    "storage.write",
+    "ai.infer",
+    "prediction.read",
+    "prediction.generate",
+    "prediction.history.read",
+    "prediction.attest",
+    "models.evaluate",
+    "events.subscribe",
+}
+
+
+class CreateApplicationRequest(BaseModel):
+    slug: str = Field(..., min_length=2, max_length=48, pattern=r"^[a-z][a-z0-9-]*$")
+    name: str = Field(..., min_length=2, max_length=128)
+    description: str = Field(..., min_length=10, max_length=2000)
+    category: str = Field(default="General", max_length=64)
+    dev_url: AnyHttpUrl | None = None
+    prod_url: AnyHttpUrl | None = None
+    requested_scopes: list[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("requested_scopes")
+    @classmethod
+    def validate_scopes(cls, scopes: list[str]) -> list[str]:
+        unknown = sorted(set(scopes) - APPLICATION_SCOPES)
+        if unknown:
+            raise ValueError(f"Unsupported application scopes: {', '.join(unknown)}")
+        if len(scopes) != len(set(scopes)):
+            raise ValueError("Application scopes must be unique")
+        return scopes
+
+    @field_validator("dev_url", "prod_url")
+    @classmethod
+    def validate_https_urls(cls, url: AnyHttpUrl | None) -> AnyHttpUrl | None:
+        if url is not None and url.scheme != "https":
+            raise ValueError("Application URLs must use HTTPS")
+        return url
+
+
+class ApplicationReviewRequest(BaseModel):
+    decision: str = Field(..., pattern=r"^(approved|rejected)$")
+    reviewer_notes: str | None = Field(default=None, max_length=2000)
+
+
+class CreateApplicationKeyRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=128)
+    plan: str = Field(default="free")
+
+
+apps_router = APIRouter(prefix="/apps", tags=["Developer Applications"])
+
+
+def _format_developer_app(app: DeveloperApp) -> dict:
+    return {
+        "id": app.app_id,
+        "name": app.name,
+        "description": app.description,
+        "category": app.category,
+        "icon": app.icon,
+        "dev_url": app.dev_url,
+        "prod_url": app.prod_url,
+        "requested_scopes": app.requested_scopes or [],
+        "status": app.status,
+        "created_at": app.created_at.isoformat() if app.created_at else None,
+        "updated_at": app.updated_at.isoformat() if app.updated_at else None,
+    }
+
+
+@apps_router.post("", status_code=201, summary="Register a draft developer application")
+async def register_application(
+    body: CreateApplicationRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    app_id = f"app:{body.slug}"
+    existing = await db.scalar(select(DeveloperApp.id).where(DeveloperApp.app_id == app_id))
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="Application identifier is already registered")
+
+    application = DeveloperApp(
+        app_id=app_id,
+        user_id=current_user.id,
+        name=body.name,
+        description=body.description,
+        category=body.category,
+        dev_url=str(body.dev_url) if body.dev_url else None,
+        prod_url=str(body.prod_url) if body.prod_url else None,
+        requested_scopes=body.requested_scopes,
+        status="draft",
+    )
+    db.add(application)
+    await db.flush()
+    db.add(AppAuditLog(app_id=application.id, user_id=current_user.id, event_type="application.created", details={"app_id": app_id}))
+    await db.commit()
+    await db.refresh(application)
+    return _format_developer_app(application)
+
+
+@apps_router.get("", summary="List my developer applications")
+async def list_my_applications(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.scalars(
+        select(DeveloperApp).where(DeveloperApp.user_id == current_user.id).order_by(DeveloperApp.created_at.desc())
+    )
+    return [_format_developer_app(application) for application in result.all()]
+
+
+@apps_router.post("/{app_id}/submit", summary="Submit a draft application for review")
+async def submit_application(
+    app_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    application = await db.scalar(
+        select(DeveloperApp).where(DeveloperApp.app_id == app_id, DeveloperApp.user_id == current_user.id)
+    )
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if application.status not in {"draft", "rejected"}:
+        raise HTTPException(status_code=409, detail="Application is not eligible for submission")
+    application.status = "review_pending"
+    db.add(AppAuditLog(app_id=application.id, user_id=current_user.id, event_type="application.submitted", details={}))
+    await db.commit()
+    await db.refresh(application)
+    return _format_developer_app(application)
+
+
+@apps_router.post("/{app_id}/keys", status_code=201, summary="Create an API key scoped to an approved app")
+async def create_application_key(
+    app_id: str,
+    body: CreateApplicationKeyRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    application = await db.scalar(
+        select(DeveloperApp).where(
+            DeveloperApp.app_id == app_id,
+            DeveloperApp.user_id == current_user.id,
+        )
+    )
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if application.status not in {"approved", "published"}:
+        raise HTTPException(status_code=409, detail="Application must be approved before key creation")
+
+    try:
+        key, raw = await svc.create_key(
+            db,
+            user_id=current_user.id,
+            name=body.name,
+            plan=body.plan,
+            app_id=application.app_id,
+            scopes=application.requested_scopes or [],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    formatted = _fmt_key(key, show_plain=True)
+    formatted["key"] = raw
+    formatted["scopes"] = key.scopes or []
+    key.key_plain = None
+    await db.commit()
+    return formatted
+
+
+@apps_router.get("/review-queue", summary="List applications awaiting admin review")
+async def list_application_review_queue(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_admin),
+):
+    result = await db.scalars(
+        select(DeveloperApp)
+        .where(DeveloperApp.status.in_(("review_pending", "approved")))
+        .order_by(DeveloperApp.created_at.asc())
+    )
+    return [_format_developer_app(application) for application in result.all()]
+
+
+@apps_router.post("/{app_id}/review", summary="Approve or reject an application")
+async def review_application(
+    app_id: str,
+    body: ApplicationReviewRequest,
+    db: AsyncSession = Depends(get_db),
+    reviewer: User = Depends(get_current_admin),
+):
+    application = await db.scalar(select(DeveloperApp).where(DeveloperApp.app_id == app_id))
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if application.status != "review_pending":
+        raise HTTPException(status_code=409, detail="Application is not awaiting review")
+    application.status = body.decision
+    db.add(AppAuditLog(
+        app_id=application.id,
+        user_id=reviewer.id,
+        event_type=f"application.{body.decision}",
+        details={"reviewer_notes": body.reviewer_notes},
+    ))
+    await db.commit()
+    await db.refresh(application)
+    return _format_developer_app(application)
+
+
+@apps_router.post("/{app_id}/publish", summary="Publish an approved application")
+async def publish_application(
+    app_id: str,
+    db: AsyncSession = Depends(get_db),
+    reviewer: User = Depends(get_current_admin),
+):
+    application = await db.scalar(select(DeveloperApp).where(DeveloperApp.app_id == app_id))
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if application.status != "approved":
+        raise HTTPException(status_code=409, detail="Only approved applications can be published")
+    if not application.prod_url or not application.prod_url.startswith("https://"):
+        raise HTTPException(status_code=409, detail="An HTTPS production URL is required before publication")
+    application.status = "published"
+    db.add(AppAuditLog(app_id=application.id, user_id=reviewer.id, event_type="application.published", details={}))
+    await db.commit()
+    await db.refresh(application)
+    return _format_developer_app(application)
+
+
+router.include_router(apps_router)
 
 
 # ── Schemas ────────────────────────────────────────────────────────────────────
@@ -86,6 +323,8 @@ def _fmt_key(k, show_plain: bool = False) -> dict:
         "key_prefix":               k.key_prefix,
         "key":                      k.key_plain if show_plain else None,
         "plan":                     k.plan,
+        "app_id":                   k.app_id,
+        "scopes":                   k.scopes or [],
         "rate_limit_rpm":           k.rate_limit_rpm,
         "rate_limit_rpd":           k.rate_limit_rpd,
         "is_active":                k.is_active,

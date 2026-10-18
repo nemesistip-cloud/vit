@@ -66,7 +66,7 @@ function useGlobalStats() {
   return useQuery({
     queryKey: ['leaderboard-stats'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/analytics/stats`, { signal })
+      const r = await fetch(`${ENDPOINTS.gateway}/api/analytics/summary`, { signal })
       return r.ok ? r.json() : null
     },
     staleTime: 120_000,
@@ -307,8 +307,8 @@ export default function Leaderboard() {
             {[
               { icon: Users,      label: 'Total Users',       value: stats.total_users ?? stats.users ?? '—',         color: 'bg-vit-500/10 text-vit-400' },
               { icon: Target,     label: 'Predictions Made',  value: stats.total_predictions ?? stats.predictions ?? '—', color: 'bg-emerald-500/10 text-emerald-400' },
-              { icon: TrendingUp, label: 'Avg Accuracy',      value: stats.avg_accuracy ? `${Math.round(stats.avg_accuracy * 100)}%` : '—', color: 'bg-amber-500/10 text-amber-400' },
-              { icon: Zap,        label: 'VIT Distributed',   value: stats.vit_distributed ? `${Number(stats.vit_distributed).toLocaleString()}` : '—', color: 'bg-purple-500/10 text-purple-400' },
+              { icon: TrendingUp, label: 'Total XP',          value: Number(stats.total_xp ?? 0).toLocaleString(), color: 'bg-amber-500/10 text-amber-400' },
+              { icon: Zap,        label: 'Active niche markets', value: stats.active_niche ?? 0, color: 'bg-purple-500/10 text-purple-400' },
             ].map(({ icon: Icon, label, value, color }) => (
               <div key={label} className="bg-surface-800/60 border border-white/8 rounded-xl p-4">
                 <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center mb-2', color.split(' ')[0])}>

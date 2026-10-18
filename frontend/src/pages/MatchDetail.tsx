@@ -22,6 +22,7 @@ import {
   Database,
 } from 'lucide-react'
 import { ENDPOINTS } from '@/lib/api'
+import { vitpredictApiPath } from '@/lib/vitpredictApi'
 import { cn } from '@/lib/utils'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Spinner } from '@/components/ui/Spinner'
@@ -166,7 +167,7 @@ function useMatch(id?: string) {
     enabled: valid,
     queryFn: async ({ signal }) => {
       if (!valid) return null
-      const r = await fetch(`${ENDPOINTS.gateway}/api/matches/${numId}`, { signal })
+      const r = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath(`/api/matches/${numId}`)}`, { signal })
       if (r.status === 404) return null
       if (!r.ok) {
         const body = await r.json().catch(() => ({}))
@@ -551,7 +552,7 @@ export default function MatchDetail() {
     }, 1200)
 
     try {
-      const res = await fetchWithAuth(`${ENDPOINTS.gateway}/api/matches/${match.id}/predict/${endpoint}`, {
+      const res = await fetchWithAuth(`${ENDPOINTS.gateway}${vitpredictApiPath(`/api/matches/${match.id}/predict/${endpoint}`)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })

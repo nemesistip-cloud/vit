@@ -28,7 +28,7 @@ except Exception:
     CHAIN_AVAILABLE = False
 
 
-router = APIRouter(prefix="/api/predictions", tags=["attestation"])
+router = APIRouter(tags=["attestation"])
 
 
 class AttestationResponse(BaseModel):

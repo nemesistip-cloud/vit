@@ -169,6 +169,35 @@ test('Matches page renders its real tabs, summary count, and search', async ({ p
   await page.screenshot({ path: 'matches-tabs.png' });
 });
 
+test('validators route uses the public shell anonymously and the workspace shell when signed in', async ({ browser }) => {
+  const publicPage = await browser.newPage();
+  const authenticatedPage = await browser.newPage();
+
+  await authenticatedPage.addInitScript(() => {
+    localStorage.setItem('vit_token', 'validators-shell-test-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 9, username: 'validator-user', role: 'user' }));
+  });
+
+  for (const page of [publicPage, authenticatedPage]) {
+    await page.route('**/api/blockchain/active', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) }));
+    await page.route('**/api/governance/config', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) }));
+    await page.route('**/api/blockchain/validators/me', route => route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: 'authentication required' }) }));
+  }
+
+  await publicPage.goto('/validators');
+  await expect(publicPage.getByRole('heading', { name: 'Validators', exact: true })).toBeVisible();
+  await expect(publicPage.getByRole('link', { name: 'Open Assistant' })).toHaveCount(0);
+  await publicPage.screenshot({ path: 'docs/audits/validators-public.png', fullPage: true });
+
+  await authenticatedPage.goto('/validators');
+  await expect(authenticatedPage.getByRole('heading', { name: 'Validators', exact: true })).toBeVisible();
+  await expect(authenticatedPage.getByRole('link', { name: 'Open Assistant' })).toBeVisible();
+  await authenticatedPage.screenshot({ path: 'docs/audits/validators-authenticated.png', fullPage: true });
+
+  await publicPage.close();
+  await authenticatedPage.close();
+});
+
 test('admin console shows a production summary and editable feature flags', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('vit_token', 'admin-ui-smoke-token');
@@ -520,7 +549,7 @@ test('subscription page shows catalog errors instead of invented fallback pricin
   await expect(page.getByRole('button', { name: 'Continue to checkout' })).toHaveCount(0);
 });
 
-test('platform blocks authenticated access until genesis verification is complete', async ({ page }) => {
+test('unverified genesis keeps the authenticated workspace available', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('vit_token', 'boot-gate-token');
     localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'boot-gate-admin', role: 'admin' }));
@@ -541,8 +570,8 @@ test('platform blocks authenticated access until genesis verification is complet
 
   await page.goto('/dashboard');
 
-  await expect(page).toHaveURL(/\/genesis$/);
-  await expect(page.getByRole('heading', { name: /Genesis Initialization Wizard/i })).toBeVisible();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole('heading', { name: 'boot-gate-admin' })).toBeVisible();
 });
 
 test('unverified genesis does not block VIT sports prediction workflows', async ({ page }) => {
@@ -668,7 +697,7 @@ test('AI overview does not invent accuracy for models without measurements', asy
   await page.getByRole('button', { name: 'models', exact: true }).click();
   await expect(page.getByText('2 registered · 1 loaded in runtime')).toBeVisible();
   await expect(page.getByText('Model A')).toBeVisible();
-  await expect(page.getByText('Registered', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/^registered$/i).first()).toBeVisible();
 });
 
 test('AI inference sends a validated JSON payload to the VIT AI inference API', async ({ page }) => {
@@ -759,10 +788,35 @@ test('human status page is separate from the legacy machine status route', async
   await expect(page.getByRole('heading', { name: 'Platform Health' })).toBeVisible();
 });
 
-test('Developer Hub documents the deployed Chain service and gateway health schema', async ({ page }) => {
+test('Developer Hub loads API docs and exercises a selected endpoint', async ({ page }) => {
+  await page.route('**/api/developer/docs', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      openapi_url: '/openapi.json',
+      redoc_url: '/redoc',
+      swagger_url: '/docs',
+      base_api_url: 'http://127.0.0.1:5000',
+      endpoint_count: 1,
+      endpoints: [{ method: 'GET', path: '/api/health', description: 'Gateway health check', tags: ['Health'] }],
+    }),
+  }));
+  await page.route('**/api/health', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ status: 'ok' }),
+  }));
+
   await page.goto('/developers');
 
-  await expect(page.getByText('vit-chain', { exact: true })).toBeVisible();
-  await expect(page.getByText(/models_loaded/)).toBeVisible();
-  await expect(page.getByText(/blockchain service \(future\)/i)).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Build on VIT Network' })).toBeVisible();
+  await page.getByRole('button', { name: 'API Explorer & Docs' }).click();
+  const endpoint = page.getByRole('button', { name: /GET \/api\/health/ });
+  await expect(endpoint).toBeVisible();
+  await endpoint.click();
+  await expect(page.getByRole('heading', { name: '/api/health' })).toBeVisible();
+  await expect(page.getByText('Gateway health check').last()).toBeVisible();
+
+  await page.getByRole('button', { name: 'Try It Out' }).click();
+  await expect(page.getByText(/"status":\s*"ok"/)).toBeVisible();
 });

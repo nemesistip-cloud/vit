@@ -111,12 +111,12 @@ async def process_subscription_commission(
         )
 
 
-async def _referrals_enabled(db: AsyncSession) -> bool:
-    return await is_feature_enabled(db, "REFERRALS_ENABLED", True)
+async def _referrals_enabled() -> bool:
+    return is_feature_enabled("REFERRALS_ENABLED", default=True)
 
 
-async def _require_referrals_enabled(db: AsyncSession) -> None:
-    if not await _referrals_enabled(db):
+async def _require_referrals_enabled() -> None:
+    if not await _referrals_enabled():
         raise HTTPException(403, "Referral program is currently disabled.")
 
 
@@ -126,7 +126,7 @@ async def apply_referral_bonus(
     code: str,
     commit: bool = True,
 ) -> dict:
-    await _require_referrals_enabled(db)
+    await _require_referrals_enabled()
 
     clean_code = code.strip().upper()
     if not clean_code:
@@ -216,7 +216,7 @@ async def get_my_code(
     db: AsyncSession = Depends(get_db),
 ):
     """Get (or create) this user's personal referral code."""
-    await _require_referrals_enabled(db)
+    await _require_referrals_enabled()
 
     result = await db.execute(
         select(ReferralCode).where(ReferralCode.user_id == current_user.id)
@@ -261,7 +261,7 @@ async def referral_stats(
     db: AsyncSession = Depends(get_db),
 ):
     """Detailed referral statistics."""
-    await _require_referrals_enabled(db)
+    await _require_referrals_enabled()
 
     uses = await db.execute(
         select(ReferralUse).where(ReferralUse.referrer_id == current_user.id)
@@ -307,7 +307,7 @@ async def referral_leaderboard(
     db: AsyncSession = Depends(get_db),
 ):
     """Top referrers by number of successful referrals."""
-    await _require_referrals_enabled(db)
+    await _require_referrals_enabled()
 
     results = await db.execute(
         select(ReferralUse.referrer_id, func.count(ReferralUse.id).label("count"))

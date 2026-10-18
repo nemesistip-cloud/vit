@@ -1,11 +1,36 @@
 import asyncio
 import os
+import sqlite3
+import subprocess
+import sys
 from unittest.mock import AsyncMock
+from pathlib import Path
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.pool import NullPool
+
+
+def test_fresh_migrations_add_prediction_settlement_column(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    db_path = tmp_path / "settlement-migration.db"
+    env = os.environ.copy()
+    env["DATABASE_URL"] = f"sqlite+aiosqlite:///{db_path}"
+
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "-c", str(repo_root / "alembic.ini"), "upgrade", "head"],
+        cwd=repo_root,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    with sqlite3.connect(db_path) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(predictions)")}
+
+    assert "was_correct" in columns
 
 
 @pytest.mark.asyncio

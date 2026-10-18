@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, ArrowRight, CheckCircle2, Clock3, ShieldCheck, Sparkles } from 'lucide-react'
 import { ENDPOINTS } from '@/lib/api'
+import { vitpredictApiPath } from '@/lib/vitpredictApi'
 import { presentStoredPick } from '@/lib/pickPresentation'
 import { Spinner } from '@/components/ui/Spinner'
 
@@ -22,8 +23,8 @@ function useVerificationRecords() {
     queryKey: ['verification-records'],
     queryFn: async () => {
       const [upcomingRes, recentRes] = await Promise.all([
-        fetch(`${ENDPOINTS.gateway}/api/matches/upcoming?limit=4`),
-        fetch(`${ENDPOINTS.gateway}/api/matches/recent?limit=4`),
+        fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/matches/upcoming?limit=4')}`),
+        fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/matches/recent?limit=4')}`),
       ])
 
       const upcoming = upcomingRes.ok ? await upcomingRes.json() : []

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Brain, Home, MoreHorizontal, Settings, Shield, Sparkles, Trophy, Wallet, X } from 'lucide-react'
+import { Brain, Boxes, Home, MoreHorizontal, Settings, Shield, Sparkles, Wallet, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getStoredUser } from '@/hooks/useAuth'
 import { useWorkspaceStore, workspaceStoreInstance } from '@/lib/workspacePersistence'
@@ -101,8 +101,8 @@ export function WorkspaceDock() {
         className="pointer-events-auto relative flex w-full max-w-sm sm:max-w-md items-center justify-around rounded-2xl border border-white/10 bg-surface-900/95 px-2 py-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl lg:hidden"
       >
         {[
-          { label: 'Home', path: '/dashboard', icon: Home },
-          { label: 'Matches', path: '/matches', icon: Trophy },
+          { label: 'Network', path: '/dashboard', icon: Home },
+          { label: 'Apps', path: '/applications', icon: Boxes },
           { label: 'AI', path: '/assistant', icon: Brain },
           { label: 'Wallet', path: '/wallet', icon: Wallet },
         ].map(({ label, path, icon: Icon }) => {

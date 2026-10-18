@@ -4,7 +4,7 @@ Tests for the FeatureFlags system (app/core/feature_flags.py).
 import os
 import pytest
 
-from app.core.feature_flags import FeatureFlags
+from app.core.feature_flags import FeatureFlags, is_feature_enabled
 
 
 def setup_function():
@@ -70,6 +70,12 @@ def test_blockchain_enabled_defaults_false():
     os.environ.pop("BLOCKCHAIN_ENABLED", None)
     FeatureFlags.reset()
     assert FeatureFlags.is_enabled("BLOCKCHAIN_ENABLED") is False
+
+
+def test_feature_flag_can_default_to_enabled():
+    os.environ.pop("REFERRALS_ENABLED", None)
+    FeatureFlags.reset()
+    assert is_feature_enabled("REFERRALS_ENABLED", default=True) is True
 
 
 def test_ml_cache_flag_can_be_read():

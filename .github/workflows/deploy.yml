@@ -50,7 +50,7 @@ jobs:
             -p no:warnings
         env:
           DATABASE_URL: sqlite+aiosqlite:///./test.db
-          ENVIRONMENT: test
+          ENVIRONMENT: testing
           AUTH_ENABLED: 'false'
           USE_REAL_ML_MODELS: 'false'
 

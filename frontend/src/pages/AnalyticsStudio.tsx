@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
+import { vitpredictApiPath } from '@/lib/vitpredictApi'
 import { authHeaders, getAuthToken } from '@/hooks/useAuth'
 import { Spinner } from '@/components/ui/Spinner'
 import { useNavigate } from 'react-router-dom'
@@ -61,7 +62,7 @@ interface CalibrationPoint {
 
 // ── Hooks ──────────────────────────────────────────────────────────────────────
 
-const BASE = () => `${ENDPOINTS.gateway}/api/analytics-studio`
+const BASE = () => `${ENDPOINTS.gateway}${vitpredictApiPath('/api/analytics-studio')}`
 
 function useOverview() {
   return useQuery({

@@ -15,16 +15,16 @@ import { useNavigate } from 'react-router-dom'
 
 interface ReferralCode {
   code: string
-  link: string
-  signup_bonus_vit: number
-  deposit_commission_pct: number
-  subscription_commission_pct: number
+  share_url: string
+  bonus_per_referral_vit: number
+  total_referrals: number
+  total_bonus_earned_vit: number
 }
 
 interface ReferralStats {
   total: number
   pending_bonuses: number
-  referrals: Array<{ username: string; joined_at?: string; bonus_paid: boolean }>
+  referrals: Array<{ referee_username: string; joined_at?: string; bonus_paid: boolean; bonus_amount: number }>
 }
 
 interface LeaderboardEntry {
@@ -126,6 +126,7 @@ export default function Referral() {
   const { data: codeData, isLoading: codeLoading } = useMyCode(isAuth)
   const { data: stats }                             = useReferralStats(isAuth)
   const { data: lbData, isLoading: lbLoading }     = useLeaderboard()
+  const shareLink = codeData ? new URL(codeData.share_url, window.location.origin).toString() : ''
   const board = lbData?.leaderboard ?? []
 
   return (
@@ -171,17 +172,17 @@ export default function Referral() {
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 flex items-center gap-3 mb-4">
               <ExternalLink className="w-4 h-4 text-white/30 flex-shrink-0" />
-              <p className="text-sm text-white/50 font-mono truncate flex-1">{codeData.link}</p>
-              <CopyButton text={codeData.link} label="Copy link" />
+              <p className="text-sm text-white/50 font-mono truncate flex-1">{shareLink}</p>
+              <CopyButton text={shareLink} label="Copy link" />
             </div>
             <div className="flex flex-wrap gap-3">
               <CopyButton text={codeData.code} label="Copy code" />
-              <a href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Join me on VitNetwork — AI-powered sports predictions. Use my code ${codeData.code} for 50 VIT free! ${codeData.link}`)}`}
+              <a href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Join me on VitNetwork — AI-powered sports predictions. Use my code ${codeData.code} for ${codeData.bonus_per_referral_vit} VIT free! ${shareLink}`)}`}
                 target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-sky-500/10 text-sky-300 border border-sky-400/20 hover:bg-sky-500/20 transition-colors">
                 <Share2 className="w-3.5 h-3.5" /> Share on X
               </a>
-              <a href={`https://t.me/share/url?url=${encodeURIComponent(codeData.link)}&text=${encodeURIComponent(`Join VitNetwork with my code ${codeData.code} — get 50 VIT free!`)}`}
+              <a href={`https://t.me/share/url?url=${encodeURIComponent(shareLink)}&text=${encodeURIComponent(`Join VitNetwork with my code ${codeData.code} — get ${codeData.bonus_per_referral_vit} VIT free!`)}`}
                 target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-300 border border-blue-400/20 hover:bg-blue-500/20 transition-colors">
                 <Share2 className="w-3.5 h-3.5" /> Share on Telegram
@@ -194,7 +195,7 @@ export default function Referral() {
         {isAuth && stats && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-10">
             <StatCard icon={<Users className="w-4 h-4" />}  label="Total Referrals"  value={stats.total}                  accent />
-            <StatCard icon={<Gift className="w-4 h-4" />}    label="VIT Earned"       value={`${stats.total * 50} VIT`} />
+            <StatCard icon={<Gift className="w-4 h-4" />}    label="VIT Earned"       value={`${codeData?.total_bonus_earned_vit ?? 0} VIT`} />
             <StatCard icon={<Clock className="w-4 h-4" />}   label="Pending Bonuses"  value={stats.pending_bonuses} />
           </div>
         )}
@@ -242,7 +243,7 @@ export default function Referral() {
               <div className="divide-y divide-white/5">
                 {stats.referrals.map((ref, i) => (
                   <div key={i} className="grid grid-cols-3 px-4 py-3 items-center">
-                    <span className="text-sm text-white font-medium">{ref.username}</span>
+                    <span className="text-sm text-white font-medium">{ref.referee_username}</span>
                     <span className="text-xs text-white/40 text-center">{ref.joined_at ? new Date(ref.joined_at).toLocaleDateString() : '—'}</span>
                     <span className={cn('text-xs text-right font-medium', ref.bonus_paid ? 'text-green-400' : 'text-amber-400')}>
                       {ref.bonus_paid ? '✓ Paid' : 'Pending'}

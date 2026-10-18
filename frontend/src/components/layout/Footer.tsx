@@ -16,13 +16,10 @@ const COLUMNS = [
     ],
   },
   {
-    heading: 'Predict',
+    heading: 'Applications',
     links: [
-      { label: 'Matches',      path: '/matches' },
-      { label: 'Predictions',  path: '/predictions' },
-      { label: 'Odds Compare', path: '/odds' },
-      { label: 'AI Assistant', path: '/assistant' },
-      { label: 'Leaderboard',  path: '/leaderboard' },
+      { label: 'Application directory', path: '/applications' },
+      { label: 'VITPredict', path: '/apps/vitpredict' },
     ],
   },
   {
