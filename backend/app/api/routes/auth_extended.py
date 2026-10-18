@@ -91,12 +91,22 @@ async def google_auth(
 
     email: str = claims.get("email", "")
     name: str = claims.get("name", "") or claims.get("display_name", "")
+    google_id: str = claims.get("sub", "")
     if not email:
         raise HTTPException(400, "Google account has no email address")
+    if claims.get("email_verified") is not True:
+        raise HTTPException(401, "Google account email must be verified")
+    if not google_id:
+        raise HTTPException(401, "Google identity is missing")
 
-    # Find or create the VIT user
+    # Find the VIT user by verified email or the previously linked Google identity.
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
+    google_result = await db.execute(select(User).where(User.google_id == google_id))
+    google_user = google_result.scalar_one_or_none()
+    if google_user and user and google_user.id != user.id:
+        raise HTTPException(409, "Google account is linked to a different VIT account")
+    user = google_user or user
     is_new = False
 
     if not user:
@@ -118,6 +128,7 @@ async def google_auth(
             email=email,
             username=username,
             hashed_password=hash_password(secrets.token_hex(32)),  # random, unusable
+            google_id=google_id,
             role="viewer",
             is_active=True,
         )
@@ -128,6 +139,11 @@ async def google_auth(
         db.add(user)
         await db.commit()
         await db.refresh(user)
+    elif user.google_id and user.google_id != google_id:
+        raise HTTPException(409, "VIT account is linked to a different Google account")
+    elif not user.google_id:
+        user.google_id = google_id
+        await db.commit()
 
     if not user.is_active:
         raise HTTPException(403, "Account suspended")

@@ -999,13 +999,11 @@ function ConnectedAccountsTab() {
   const PROVIDERS = [
     { id: 'google',   label: 'Google',   icon: '🔵', description: 'Sign in with Google' },
     { id: 'telegram', label: 'Telegram', icon: '✈️',  description: 'Telegram notifications' },
-    { id: 'discord',  label: 'Discord',  icon: '🟣', description: 'Discord integration' },
-    { id: 'github',   label: 'GitHub',   icon: '⚫',  description: 'Developer account' },
   ]
 
   return (
     <div className="space-y-6">
-      <SectionHead title="Connected Accounts" subtitle="Link external accounts for single sign-on and integrations." />
+      <SectionHead title="Connected Accounts" subtitle="External accounts linked through supported sign-in methods." />
       {isLoading ? (
         <div className="flex items-center justify-center py-8"><Spinner className="w-6 h-6 text-vit-400" /></div>
       ) : isError ? (

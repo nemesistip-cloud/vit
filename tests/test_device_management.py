@@ -1,7 +1,29 @@
+from types import SimpleNamespace
+
 import pytest
 from httpx import AsyncClient, ASGITransport
+from app.api.routes.identity_management import connected_accounts
 from app.services.device_service import parse_user_agent
 from main import app
+
+
+@pytest.mark.asyncio
+async def test_connected_accounts_only_returns_linked_supported_providers():
+    user = SimpleNamespace(
+        google_id="private-google-id",
+        telegram_id="private-telegram-id",
+        email="user@example.com",
+        telegram_username="vit_user",
+    )
+
+    result = await connected_accounts(user)
+
+    assert result == {
+        "accounts": [
+            {"provider": "google", "email": "user@example.com"},
+            {"provider": "telegram", "username": "vit_user"},
+        ]
+    }
 
 
 def test_parse_user_agent():
@@ -65,6 +87,10 @@ async def test_device_auto_registration_on_login_and_listing():
         assert dev["platform"] == "macOS"
         assert dev["browser"] == "Chrome"
         assert dev["is_trusted"] is False
+
+        accounts_resp = await client.get("/api/identity/me/connected-accounts", headers=headers)
+        assert accounts_resp.status_code == 200
+        assert accounts_resp.json() == {"accounts": []}
 
         trust_resp = await client.post(
             f"/api/identity/me/devices/{dev['device_id']}/trust",

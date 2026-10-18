@@ -30,6 +30,21 @@ async def _get_or_create_global_identity(db: AsyncSession, user: User):
     from app.services.device_service import get_or_create_global_identity
     return await get_or_create_global_identity(db, user)
 
+
+@router.get("/connected-accounts")
+async def connected_accounts(current_user: User = Depends(get_current_user)):
+    """List external sign-in accounts already linked to the current user."""
+    accounts = []
+    if current_user.google_id:
+        accounts.append({"provider": "google", "email": current_user.email})
+    if current_user.telegram_id:
+        accounts.append({
+            "provider": "telegram",
+            "username": current_user.telegram_username or None,
+        })
+    return {"accounts": accounts}
+
+
 # ── Sessions ──────────────────────────────────────────────────────────────────
 
 class SessionOut(BaseModel):
