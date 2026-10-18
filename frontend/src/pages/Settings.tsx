@@ -130,7 +130,8 @@ function useConnectedAccounts() {
     queryKey: ['connected-accounts'],
     queryFn: async ({ signal }) => {
       const r = await fetch(`${ENDPOINTS.gateway}/api/identity/me/connected-accounts`, { signal, headers: authHeaders() })
-      return r.ok ? r.json() : []
+      if (!r.ok) throw new Error(`Connected accounts could not be loaded (${r.status})`)
+      return r.json()
     },
     retry: false, staleTime: 60_000,
   })
@@ -992,7 +993,7 @@ function ApiKeysTab() {
 // ── Connected Accounts Tab ────────────────────────────────────────────────────
 
 function ConnectedAccountsTab() {
-  const { data, isLoading } = useConnectedAccounts()
+  const { data, isLoading, isError, error, refetch } = useConnectedAccounts()
   const accounts = Array.isArray(data) ? data : data?.accounts ?? []
 
   const PROVIDERS = [
@@ -1007,6 +1008,18 @@ function ConnectedAccountsTab() {
       <SectionHead title="Connected Accounts" subtitle="Link external accounts for single sign-on and integrations." />
       {isLoading ? (
         <div className="flex items-center justify-center py-8"><Spinner className="w-6 h-6 text-vit-400" /></div>
+      ) : isError ? (
+        <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <AlertTriangle className="w-8 h-8 text-amber-400/80" />
+          <p className="text-sm text-white/70">Connected account status is unavailable.</p>
+          <p className="max-w-sm text-xs text-white/35">{error instanceof Error ? error.message : 'Check your connection and try again.'}</p>
+          <button
+            onClick={() => void refetch()}
+            className="px-3 py-1.5 rounded-lg border border-white/10 text-xs text-white/60 hover:text-white"
+          >
+            Retry
+          </button>
+        </div>
       ) : (
         <div className="space-y-3">
           {PROVIDERS.map(p => {

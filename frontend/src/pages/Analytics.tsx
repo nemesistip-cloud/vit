@@ -34,9 +34,7 @@ interface AnalyticsSummary {
 }
 
 interface SystemHealth {
-  services?: Record<string, { status: string; latency?: number }>
-  uptime?: number
-  error_rate?: number
+  services?: Record<string, { status: string; latency?: number; latency_ms?: number }>
 }
 
 // ── Hooks ──────────────────────────────────────────────────────────────────────
@@ -58,8 +56,9 @@ function useSystemHealth() {
   return useQuery<SystemHealth>({
     queryKey: ['system-health'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/admin/system/health`, { signal, headers: authHeaders() })
-      return r.ok ? r.json() : {}
+      const r = await fetch(`${ENDPOINTS.gateway}/api/registry`, { signal })
+      if (!r.ok) throw new Error(`System health could not be loaded (${r.status})`)
+      return r.json()
     },
     retry: false,
     staleTime: 60_000,
@@ -341,7 +340,7 @@ export default function Analytics() {
                 <div key={name} className="flex items-center justify-between p-3 rounded-lg bg-white/3 border border-white/6">
                   <span className="text-sm text-white/70 capitalize">{name}</span>
                   <div className="flex items-center gap-2">
-                    {svc.latency != null && <span className="text-xs text-white/30">{svc.latency}ms</span>}
+                    {(svc.latency_ms ?? svc.latency) != null && <span className="text-xs text-white/30">{svc.latency_ms ?? svc.latency}ms</span>}
                     <span className={cn(
                       'w-2 h-2 rounded-full',
                       svc.status === 'healthy' || svc.status === 'ok' ? 'bg-emerald-400' :

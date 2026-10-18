@@ -79,10 +79,10 @@ async def list_pools(db: AsyncSession = Depends(get_db)):
 
 @router.get("/grants")
 async def list_grants(db: AsyncSession = Depends(get_db)):
-    from app.modules.treasury.models import TreasuryGrantProposal
+    from app.modules.treasury.models import GrantProposal
     from sqlalchemy import select
-    rows = (await db.execute(select(TreasuryGrantProposal).order_by(
-        TreasuryGrantProposal.created_at.desc()).limit(50))).scalars().all()
+    rows = (await db.execute(select(GrantProposal).order_by(
+        GrantProposal.created_at.desc()).limit(50))).scalars().all()
     return {"proposals": [
         {
             "id": r.id, "title": r.title, "status": r.status.value,
