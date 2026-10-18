@@ -22,23 +22,22 @@ interface NavLink {
 
 const PUBLIC_LINKS: NavLink[] = [
   { label: 'Platform',    path: '/platform' },
-  { label: 'AI',          path: '/ai' },
-  { label: 'Matches',     path: '/matches' },
-  { label: 'Verification', path: '/verification' },
+  { label: 'Applications', path: '/applications' },
   { label: 'Explorer',    path: '/chain' },
+  { label: 'Validators',  path: '/validators' },
+  { label: 'Developers',  path: '/developers' },
   { label: 'Status',      path: '/status-page' },
 ]
 
 const AUTH_PRIMARY: NavLink[] = [
-  { label: 'Dashboard',   path: '/dashboard',        icon: LayoutDashboard },
-  { label: 'Predictions', path: '/predictions',      icon: Brain           },
-  { label: 'Matches',     path: '/matches',          icon: Trophy          },
+  { label: 'Network',     path: '/dashboard',        icon: LayoutDashboard },
+  { label: 'Applications', path: '/applications',    icon: Smartphone      },
   { label: 'Wallet',      path: '/wallet',           icon: Wallet          },
   { label: 'Ecosystem',   path: '/ecosystem',        icon: Smartphone      },
 ]
 
 const AUTH_SECONDARY = [
-  { label: 'Analytics',   path: '/analytics-studio', icon: BarChart3    },
+  { label: 'Analytics',   path: '/analytics',        icon: BarChart3    },
   { label: 'Governance',  path: '/governance',       icon: Vote         },
   { label: 'Marketplace', path: '/marketplace',      icon: Store        },
   { label: 'Settings',    path: '/settings',         icon: Settings     },
@@ -54,8 +53,9 @@ const MOBILE_AUTH_GROUPS = [
     heading: 'Ecosystem',
     items: [
       { label: 'Marketplace', path: '/marketplace', icon: Store },
+      { label: 'Applications', path: '/applications', icon: Smartphone },
       { label: 'Governance', path: '/governance', icon: Vote },
-      { label: 'Analytics', path: '/analytics-studio', icon: BarChart3 },
+      { label: 'Analytics', path: '/analytics', icon: BarChart3 },
       { label: 'Settings', path: '/settings', icon: Settings },
     ],
   },

@@ -122,3 +122,133 @@ async def test_api_key_revocation_and_deletion(client: AsyncClient, admin_header
     # Check DB state
     db_key = await db_session.get(APIKey, key_id)
     assert db_key.is_active is False
+
+
+@pytest.mark.asyncio
+async def test_developer_application_registration_is_authenticated_and_owner_scoped(
+    client: AsyncClient, user_headers: dict, test_normal_user: User
+):
+    payload = {
+        "slug": "sample-intelligence-app",
+        "name": "Sample Intelligence App",
+        "description": "An independently registered VIT ecosystem application.",
+        "requested_scopes": ["identity.read", "prediction.read"],
+    }
+    unauthenticated = await client.post("/api/developer/apps", json=payload)
+    assert unauthenticated.status_code == 401
+
+    created = await client.post("/api/developer/apps", json=payload, headers=user_headers)
+    assert created.status_code == 201
+    assert created.json()["id"] == "app:sample-intelligence-app"
+    assert created.json()["status"] == "draft"
+    assert created.json()["requested_scopes"] == payload["requested_scopes"]
+
+    listed = await client.get("/api/developer/apps", headers=user_headers)
+    assert listed.status_code == 200
+    assert [app["id"] for app in listed.json()] == [created.json()["id"]]
+
+
+@pytest.mark.asyncio
+async def test_application_scopes_are_allowlisted_and_admin_controls_publication(
+    client: AsyncClient, user_headers: dict, admin_headers: dict
+):
+    payload = {
+        "slug": "reviewable-app",
+        "name": "Reviewable App",
+        "description": "An application that must pass review before discovery.",
+        "prod_url": "https://apps.example.test/reviewable-app",
+        "requested_scopes": ["identity.read", "root.access"],
+    }
+    invalid = await client.post("/api/developer/apps", json=payload, headers=user_headers)
+    assert invalid.status_code == 422
+
+    payload["requested_scopes"] = ["identity.read", "prediction.read"]
+    created = await client.post("/api/developer/apps", json=payload, headers=user_headers)
+    app_id = created.json()["id"]
+    assert created.status_code == 201
+
+    hidden = await client.get("/api/apps")
+    assert all(item["id"] != app_id for item in hidden.json())
+
+    submitted = await client.post(f"/api/developer/apps/{app_id}/submit", headers=user_headers)
+    assert submitted.status_code == 200
+    assert submitted.json()["status"] == "review_pending"
+
+    forbidden_queue = await client.get("/api/developer/apps/review-queue", headers=user_headers)
+    assert forbidden_queue.status_code == 403
+
+    queue = await client.get("/api/developer/apps/review-queue", headers=admin_headers)
+    assert queue.status_code == 200
+    assert any(item["id"] == app_id for item in queue.json())
+
+    approved = await client.post(
+        f"/api/developer/apps/{app_id}/review",
+        json={"decision": "approved", "reviewer_notes": "Scope request reviewed."},
+        headers=admin_headers,
+    )
+    assert approved.status_code == 200
+
+    scoped_key = await client.post(
+        f"/api/developer/apps/{app_id}/keys",
+        json={"name": "Reviewable app key"},
+        headers=user_headers,
+    )
+    assert scoped_key.status_code == 201
+    assert scoped_key.json()["app_id"] == app_id
+    assert scoped_key.json()["scopes"] == ["identity.read", "prediction.read"]
+
+    published = await client.post(f"/api/developer/apps/{app_id}/publish", headers=admin_headers)
+    assert published.status_code == 200
+    assert published.json()["status"] == "published"
+
+    catalog = await client.get("/api/apps")
+    assert catalog.status_code == 200
+    assert any(item["id"] == app_id for item in catalog.json())
+
+
+def test_vitpredict_api_key_policy_is_app_and_scope_limited():
+    from app.api.middleware.auth import _authorize_vitpredict_key
+
+    assert _authorize_vitpredict_key(
+        "GET", "/api/apps/vitpredict/matches/upcoming", "app:vitpredict", ["sports.read"]
+    ) is None
+    assert _authorize_vitpredict_key(
+        "GET", "/api/apps/vitpredict/analytics/overview", "app:vitpredict", ["prediction.read"]
+    ) == "Application key is missing required scope: models.evaluate"
+    assert _authorize_vitpredict_key(
+        "GET", "/api/wallet/balance", "app:vitpredict", ["wallet.read"]
+    ) == "Application API keys are restricted to their registered app"
+
+
+@pytest.mark.asyncio
+async def test_vitpredict_api_key_middleware_enforces_app_scopes(client, monkeypatch, test_normal_user: User):
+    from app.api.middleware import auth
+
+    monkeypatch.setenv("AUTH_ENABLED", "true")
+
+    async def scoped_key(_key):
+        return True, "ok", test_normal_user.id, "free", "app:vitpredict", ["models.evaluate"]
+
+    async def wrong_scope_key(_key):
+        return True, "ok", test_normal_user.id, "free", "app:vitpredict", ["prediction.read"]
+
+    async def wrong_app_key(_key):
+        return True, "ok", test_normal_user.id, "free", "app:other", ["models.evaluate"]
+
+    monkeypatch.setattr(auth, "_auth_developer_api_key", wrong_scope_key)
+    wrong_scope = await client.get(
+        "/api/apps/vitpredict/analytics/overview", headers={"x-api-key": "vit_test"}
+    )
+    assert wrong_scope.status_code == 403
+
+    monkeypatch.setattr(auth, "_auth_developer_api_key", wrong_app_key)
+    wrong_app = await client.get(
+        "/api/apps/vitpredict/analytics/overview", headers={"x-api-key": "vit_test"}
+    )
+    assert wrong_app.status_code == 403
+
+    monkeypatch.setattr(auth, "_auth_developer_api_key", scoped_key)
+    allowed = await client.get(
+        "/api/apps/vitpredict/analytics/overview", headers={"x-api-key": "vit_test"}
+    )
+    assert allowed.status_code == 200

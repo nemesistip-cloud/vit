@@ -63,6 +63,8 @@ async def create_key(
     name: str,
     plan: str = "free",
     expires_at: Optional[datetime] = None,
+    app_id: Optional[str] = None,
+    scopes: Optional[list[str]] = None,
 ) -> tuple[APIKey, str]:
     """Returns (APIKey, raw_key). raw_key shown once, then discarded."""
     if plan not in PLAN_DEFAULTS:
@@ -80,6 +82,8 @@ async def create_key(
         key_hash=hashed,
         key_plain=raw,   # stored temporarily — cleared after first retrieval
         plan=plan,
+        app_id=app_id,
+        scopes=scopes or [],
         rate_limit_rpm=cfg["rpm"],
         rate_limit_rpd=cfg["rpd"],
         is_active=True,

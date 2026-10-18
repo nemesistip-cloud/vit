@@ -27,6 +27,8 @@ class APIKey(Base):
     key_plain       : Mapped[str]      = mapped_column(String(64), nullable=True)         # shown once on creation, then nulled
 
     plan            : Mapped[str]      = mapped_column(String(32), default="free")        # free | starter | pro | enterprise
+    app_id          : Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    scopes          : Mapped[list]     = mapped_column(JSON, default=list, nullable=False)
     rate_limit_rpm  : Mapped[int]      = mapped_column(Integer, default=60)               # requests per minute
     rate_limit_rpd  : Mapped[int]      = mapped_column(Integer, default=1000)             # requests per day
 

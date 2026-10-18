@@ -702,23 +702,30 @@ async def get_matches(
 @router.get("/upcoming")
 async def get_upcoming_matches(
     sport: Optional[str] = Query(None),
+    limit: int = Query(default=50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        _cache_key = f"{FIXTURE_LIST}:upcoming:{sport}"
+        _cache_key = f"{FIXTURE_LIST}:upcoming:{sport}:{limit}"
         _cached = await cache.get(_cache_key)
         if _cached is not None:
             return _cached
         now = datetime.now(timezone.utc).replace(tzinfo=None)
-        stmt = (
-            select(Match, Prediction)
-            .outerjoin(Prediction, Match.id == Prediction.match_id)
+        match_ids = (
+            select(Match.id)
             .where(Match.kickoff_time >= now - timedelta(hours=2))
             .where(Match.actual_outcome.is_(None))
             .order_by(Match.kickoff_time.asc())
+            .limit(limit)
         )
         if sport and sport.lower() != "all":
-            stmt = stmt.where(Match.sport == sport.lower().replace(" ", "_"))
+            match_ids = match_ids.where(Match.sport == sport.lower().replace(" ", "_"))
+        stmt = (
+            select(Match, Prediction)
+            .outerjoin(Prediction, Match.id == Prediction.match_id)
+            .where(Match.id.in_(match_ids))
+            .order_by(Match.kickoff_time.asc(), Prediction.timestamp.desc())
+        )
         result = await db.execute(stmt)
         rows = result.all()
 
@@ -1047,29 +1054,6 @@ async def get_recent_matches(
                     match_map[m.id] = (m, p)
 
         res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
-
-        # If history is sparse, attempt lightweight background/sync fallback to populate recent matches
-        if len(res) < 5:
-            try:
-                from app.services.sportsdb_api import sync_fixture_results
-                from app.services.settlement_service import run_auto_settlement
-                await sync_fixture_results(db, days_back=14)
-                await run_auto_settlement(db)
-
-                # Re-query
-                result = await db.execute(_build_stmt())
-                rows = result.all()
-                match_map = {}
-                for m, p in rows:
-                    if m.id not in match_map:
-                        match_map[m.id] = (m, p)
-                    else:
-                        _, existing_p = match_map[m.id]
-                        if p and (not existing_p or (p.timestamp and existing_p.timestamp and p.timestamp > existing_p.timestamp)):
-                            match_map[m.id] = (m, p)
-                res = [_fmt_match(m, p, markets) for m, p in match_map.values()]
-            except Exception as sync_err:
-                logger.warning(f"Recent match auto-sync fallback failed: {sync_err}")
 
         try:
             await cache.set(_cache_key, res, ttl=120)

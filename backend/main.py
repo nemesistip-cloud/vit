@@ -711,7 +711,8 @@ except Exception as _e:
 
 try:
     from app.api.routes.attestation import router as attestation_router
-    app.include_router(attestation_router)
+    app.include_router(attestation_router, prefix="/api/predictions")
+    app.include_router(attestation_router, prefix="/api/apps/vitpredict/attestations")
 except Exception as _e:
     logging.warning("attestation_router not mounted — routes unavailable: %s", _e)
 
@@ -735,7 +736,7 @@ except Exception as _e:
 
 try:
     from app.api.routes.dashboard import router as dashboard_router
-    app.include_router(dashboard_router)
+    app.include_router(dashboard_router, prefix="/api/dashboard")
 except Exception as _e:
     logging.warning("dashboard_router not mounted — routes unavailable: %s", _e)
 
@@ -744,6 +745,12 @@ try:
     app.include_router(sports_router, prefix="/api")
 except Exception as _sports_e:
     logging.error("sports router not mounted — sports endpoints unavailable: %s", _sports_e, exc_info=True)
+
+try:
+    from app.modules.vitpredict.routes import router as vitpredict_router
+    app.include_router(vitpredict_router)
+except Exception as _vitpredict_e:
+    logging.error("VITPredict application routes not mounted: %s", _vitpredict_e, exc_info=True)
 
 try:
     from app.api.routes.analytics import router as analytics_router
@@ -979,7 +986,8 @@ except Exception as _e:
 
 try:
     from app.modules.analytics_studio.routes import router as analytics_studio_router
-    app.include_router(analytics_studio_router, tags=["Analytics Studio"])
+    app.include_router(analytics_studio_router, prefix="/api/analytics-studio", tags=["Analytics Studio"])
+    app.include_router(analytics_studio_router, prefix="/api/apps/vitpredict/analytics", tags=["VITPredict Analytics"])
 except Exception as _e:
     logging.warning("analytics_studio_router not mounted — routes unavailable: %s", _e)
 

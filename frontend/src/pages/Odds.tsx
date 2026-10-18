@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import { ENDPOINTS } from '@/lib/api'
+import { vitpredictApiPath } from '@/lib/vitpredictApi'
 import { authHeaders } from '@/hooks/useAuth'
 import { Spinner } from '@/components/ui/Spinner'
 
@@ -48,7 +49,7 @@ function useOdds(sport: string, search: string) {
         queryParams.set('sport', sport)
       }
       const qs = queryParams.toString() ? `?${queryParams.toString()}` : ''
-      const r = await fetch(`${ENDPOINTS.gateway}/api/odds/compare${qs}`, { signal, headers: authHeaders() })
+      const r = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath(`/api/odds/compare${qs}`)}`, { signal, headers: authHeaders() })
       if (!r.ok) {
         const payload = await r.json().catch(() => ({}))
         const message = payload.detail ?? payload.error?.message ?? payload.message

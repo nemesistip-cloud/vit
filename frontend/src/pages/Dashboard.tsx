@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { getAuthToken, getStoredUser, clearAuth, authHeaders, fetchWithAuth } from '@/hooks/useAuth'
 import { ENDPOINTS, chainApi, aiApi, storageApi, gatewayApi } from '@/lib/api'
+import { vitpredictApiPath } from '@/lib/vitpredictApi'
 import { Spinner } from '@/components/ui/Spinner'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { SkeletonDashboard, Skeleton } from '@/components/ui/Skeleton'
@@ -62,7 +63,7 @@ function useDashboardSummary() {
     queryKey: ['dashboard-summary'],
     queryFn: async ({ signal }) => {
       try {
-        const r = await fetchWithAuth(buildUrl('/api/dashboard/summary'), { signal })
+        const r = await fetchWithAuth(buildUrl(vitpredictApiPath('/api/dashboard/summary')), { signal })
         return r.ok ? await r.json() : null
       } catch {
         return null
@@ -78,7 +79,7 @@ function useTopOpportunities() {
     queryKey: ['top-opportunities'],
     queryFn: async ({ signal }) => {
       try {
-        const r = await fetchWithAuth(buildUrl('/api/dashboard/top-opportunities'), { signal })
+        const r = await fetchWithAuth(buildUrl(vitpredictApiPath('/api/dashboard/top-opportunities')), { signal })
         if (!r.ok) return []
         const d = await r.json()
         return Array.isArray(d) ? d : d.opportunities ?? d.matches ?? []
@@ -96,7 +97,7 @@ function useLeaderboardPreview() {
     queryKey: ['leaderboard-preview'],
     queryFn: async ({ signal }) => {
       try {
-        const r = await fetchWithAuth(buildUrl('/api/dashboard/leaderboard?limit=5'), { signal })
+        const r = await fetchWithAuth(buildUrl(vitpredictApiPath('/api/dashboard/leaderboard?limit=5')), { signal })
         if (!r.ok) return []
         const d = await r.json()
         return Array.isArray(d) ? d : d.leaderboard ?? d.items ?? []
@@ -114,7 +115,7 @@ function useRecentActivity() {
     queryKey: ['recent-activity'],
     queryFn: async ({ signal }) => {
       try {
-        const r = await fetchWithAuth(buildUrl('/api/dashboard/recent-activity'), { signal })
+        const r = await fetchWithAuth(buildUrl(vitpredictApiPath('/api/dashboard/recent-activity')), { signal })
         if (!r.ok) return []
         const d = await r.json()
         return Array.isArray(d) ? d : d.activities ?? d.items ?? []
