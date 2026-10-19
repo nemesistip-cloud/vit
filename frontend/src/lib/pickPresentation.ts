@@ -10,6 +10,19 @@ type MatchPickRecord = {
   } | null
 }
 
+function normalizeBetSide(value: unknown): string {
+  if (typeof value !== 'string') return ''
+
+  const normalized = value.trim().toLowerCase().replace(/[_\s-]+/g, ' ').trim()
+  if (!normalized) return ''
+
+  if (normalized.includes('home')) return 'home'
+  if (normalized.includes('away')) return 'away'
+  if (normalized.includes('draw') || normalized === 'x') return 'draw'
+
+  return normalized
+}
+
 export type PickPresentation = {
   state: 'sealed' | 'unavailable' | 'processing' | 'stale' | 'not-sealed'
   stateLabel: string
@@ -32,9 +45,16 @@ const TWO_WAY_SPORTS = new Set([
 ])
 
 function readProbability(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
-    ? value
-    : null
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value >= 0 && value <= 1 ? value : null
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim())
+    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : null
+  }
+
+  return null
 }
 
 function unavailable(
@@ -99,7 +119,7 @@ export function presentStoredPick(match: MatchPickRecord): PickPresentation {
     ...(!twoWay ? [{ side: 'draw', label: 'Draw', probability: draw }] : []),
     { side: 'away', label: 'Away win', probability: away },
   ]
-  const savedSide = typeof match.bet_side === 'string' ? match.bet_side.toLowerCase() : ''
+  const savedSide = normalizeBetSide(match.bet_side)
   const selected = sides.find((entry) => entry.side === savedSide)
     ?? sides.reduce((best, entry) => (entry.probability ?? 0) > (best.probability ?? 0) ? entry : best)
 
