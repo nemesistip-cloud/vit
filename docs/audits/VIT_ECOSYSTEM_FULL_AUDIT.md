@@ -262,10 +262,20 @@ This continuation verifies selected API wiring, CI configuration, and backend te
 - Evidence: `VITChain.add_block` applied block transactions sequentially and returned `False` immediately when a later transaction failed. The P2P sync caller commits the session after processing a batch, so writes from earlier transactions in a rejected block could be included in that commit.
 - Repair: `vit_chain/core/chain.py` now wraps transaction application, rewards, block event persistence, and secondary indexing in a nested database transaction. A rejected transaction raises an internal rollback signal; the public API still returns `False` and caller-owned outer transactions remain open.
 - Regression: `vit_chain/tests/test_chain.py::test_rejected_block_rolls_back_prior_transaction_mutations` uses a real SQLite `AsyncSession`, applies one mutation before rejecting the next, commits the caller session, and confirms the balance remains unchanged.
-- Verification: the focused regression passed; `vit_chain/tests/test_chain.py` passed 7/7; changed chain files compiled; editor diagnostics and `git diff --check` passed. P2P/multi-node tests could not collect in the temporary Python 3.12 environment because `backend/app/core/__init__.py` eagerly imports unrelated app modules and requires `beautifulsoup4` and further application dependencies.
+- Verification: the focused regression passed; `vit_chain/tests/test_chain.py` passed 7/7; the combined chain, P2P gossip, bootstrap, transport, and multi-node suite passed 28/28 after VIT-010 removed the eager import cascade. Changed files compiled and `git diff --check` passed.
 - Data impact: no production state was changed. The test database was in-memory SQLite.
 - Security/deployment impact: this changes production transaction-processing semantics. It is not deployed; explicit approval is required before publishing or deploying under the platform's change-control policy.
 - Remaining gaps: run the P2P/multi-node suite in the project's complete Python environment; add a persistent multi-transaction block rollback integration test against the project's supported database; verify no indexer path commits independently.
+
+### VIT-010: Core package initialization eagerly loaded the application container
+
+- Severity: Medium reliability and test-isolation defect. Component: shared core imports used by chain consensus/P2P.
+- Evidence: importing `app.core.errors` first executed `backend/app/core/__init__.py`, which eagerly imported `app.core.dependencies`; that imported FastAPI, scraper/data-loader, and ML orchestration modules unrelated to core errors. In an isolated chain test environment this caused collection to fail on unrelated packages such as `httpx`, `tenacity`, and `beautifulsoup4`.
+- Repair: `backend/app/core/__init__.py` now lazily resolves the same six public dependency-container exports through module `__getattr__`, retaining their import names while keeping plain package imports lightweight.
+- Regression: `tests/test_core_lazy_imports.py` starts a clean subprocess, verifies that `import app.core` does not load `app.core.dependencies`, then verifies that the public `get_orchestrator` export resolves on demand.
+- Verification: lazy-import regression passed; combined chain and P2P/multi-node suites passed 28/28 in a disposable Python 3.12 environment.
+- Data/security impact: no database, wallet, validator, or chain state changed.
+- Remaining gaps: full application integration tests and a complete locked dependency environment remain separate validation gates.
 
 ### Production status and next action
 
