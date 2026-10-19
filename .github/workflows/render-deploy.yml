@@ -46,6 +46,49 @@ jobs:
           DEPLOY_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
           echo "Deploy triggered: $DEPLOY_ID"
 
+      - name: Wait for the requested commit to be live
+        env:
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          SERVICE_ID="${SERVICE_ID:-srv-d8sipgjeo5us73eis7hg}"
+          if [[ -z "$API_KEY" ]]; then
+            echo "Render API key is unavailable; commit-specific deployment verification is blocked."
+            exit 1
+          fi
+
+          echo "Waiting for Render to serve commit $GITHUB_SHA..."
+          for i in $(seq 1 40); do
+            DEPLOYS=$(curl -fsS --max-time 15 \
+              -H "Authorization: Bearer $API_KEY" \
+              "https://api.render.com/v1/services/$SERVICE_ID/deploys?limit=20" || true)
+            if [[ -n "$DEPLOYS" ]]; then
+              MATCH=$(jq -c --arg sha "$GITHUB_SHA" '
+                (if type == "array" then . else [.] end)
+                | map(.deploy // .)
+                | map(select((.commit.id // .commitId // .commit_id // "") == $sha))
+                | first // empty
+              ' <<< "$DEPLOYS")
+              STATUS=$(jq -r '.status // empty' <<< "$MATCH" 2>/dev/null || true)
+              echo "Attempt $i/40: commit status ${STATUS:-not listed}"
+
+              if [[ "$STATUS" == "live" ]]; then
+                echo "Render reports $GITHUB_SHA is live."
+                exit 0
+              fi
+              if [[ "$STATUS" == "build_failed" || "$STATUS" == "update_failed" || "$STATUS" == "canceled" ]]; then
+                echo "Render deployment ended with status $STATUS."
+                exit 1
+              fi
+            else
+              echo "Attempt $i/40: deployment record not available"
+            fi
+            sleep 15
+          done
+
+          echo "Render did not report $GITHUB_SHA as live within 10 minutes."
+          exit 1
+
       # Health gate: poll /ready until dependencies are healthy or 5 minutes have elapsed.
       # Docker builds on Render (free tier) take 3-6 min end-to-end.
       # We poll every 15 s for up to 20 attempts (= 5 min max) without
