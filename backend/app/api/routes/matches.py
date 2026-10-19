@@ -2228,7 +2228,16 @@ async def sync_fixtures(
                     logger.error(f"DB commit failed during Football-Data sync: {e}")
 
     # ── Phase 2: TheSportsDB (always runs) ──────────────────────────────────
-    sdb_result: dict = {"inserted": 0, "updated": 0, "skipped": 0, "total_fetched": 0}
+    sdb_result: dict = {
+        "inserted": 0,
+        "updated": 0,
+        "skipped": 0,
+        "total_fetched": 0,
+        "sportsdb_fetched": 0,
+        "sportsdb_status": "not_configured",
+        "odds_api_fetched": 0,
+        "odds_api_error": "sync_failed",
+    }
     try:
         async with AsyncSessionLocal() as sdb_db:
             sdb_result = await _sdb_sync(sdb_db, days_ahead=days)
@@ -2246,7 +2255,10 @@ async def sync_fixtures(
     sources_used = []
     if fd_source_used:
         sources_used.append("football-data.org")
-    sources_used.append("thesportsdb")
+    if sdb_result.get("sportsdb_fetched"):
+        sources_used.append("thesportsdb")
+    if sdb_result.get("odds_api_fetched"):
+        sources_used.append("the_odds_api_events")
 
     return {
         "stored": total_new,
@@ -2254,6 +2266,9 @@ async def sync_fixtures(
         "sportsdb_new": sdb_result["inserted"],
         "sportsdb_updated": sdb_result["updated"],
         "sportsdb_fetched": sdb_result["total_fetched"],
+        "sportsdb_status": sdb_result.get("sportsdb_status"),
+        "odds_api_fetched": sdb_result.get("odds_api_fetched", 0),
+        "odds_api_status": sdb_result.get("odds_api_error") or "ok",
         "skipped_existing": skipped_existing + sdb_result["skipped"],
         "skipped_dedup": skipped_dedup,
         "rate_limited_leagues": rate_limited_leagues,
@@ -2262,7 +2277,8 @@ async def sync_fixtures(
         "window": f"{date_from} → {date_to}",
         "message": (
             f"Synced {total_new} new fixtures "
-            f"({stored_fd} from Football-Data, {sdb_result['inserted']} from TheSportsDB). "
+            f"({stored_fd} from Football-Data, {sdb_result['sportsdb_fetched']} from TheSportsDB, "
+            f"{sdb_result.get('odds_api_fetched', 0)} from Odds API event schedules). "
             f"{_existing_count} total fixtures in database."
         ),
     }

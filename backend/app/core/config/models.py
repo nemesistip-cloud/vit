@@ -35,7 +35,7 @@ class AIConfig(BaseModel):
     isports_api_key: Optional[SecretStr] = Field(None, alias="ISPORTS_API_KEY")
     football_data_api_key: Optional[SecretStr] = Field(None, alias="FOOTBALL_DATA_API_KEY")
     the_odds_api_key: Optional[SecretStr] = Field(None, alias="ODDS_API_KEY")
-    the_sportsdb_api_key: str = Field("3", alias="THESPORTSDB_API_KEY")
+    the_sportsdb_api_key: str = Field("", alias="THESPORTSDB_API_KEY")
     embedding_model: str = Field("all-MiniLM-L6-v2", alias="EMBEDDING_MODEL")
     embedding_dim: int = Field(384, alias="EMBEDDING_DIM")
     embedding_cache_ttl: int = Field(3600, alias="EMBEDDING_CACHE_TTL")

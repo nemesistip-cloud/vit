@@ -434,6 +434,21 @@ def _is_before_cutoff(match: Any, before: Optional[datetime]) -> bool:
     return match_date is not None and cutoff is not None and match_date < cutoff
 
 
+def _needs_static_history_supplement(matches: List[Any], *, max_age_days: int = 540) -> bool:
+    if len(matches) < 10:
+        return True
+
+    latest = max(
+        (_as_utc(getattr(match, "kickoff_time", None)) for match in matches),
+        default=None,
+    )
+    if latest is None:
+        return True
+
+    age_days = (datetime.now(timezone.utc) - latest).total_seconds() / 86400
+    return age_days < 0 or age_days > max_age_days
+
+
 def _static_history_for_team(
     team: str,
     limit: int = 10,
@@ -781,7 +796,7 @@ async def build_predict_features(
             home_recent_db = await _recent_matches_for(db, home_team, limit=10, before=before, sport=sport)
             static_home = _static_history_for_team(
                 home_team, limit=10, league=league, before=before, sport=sport,
-            ) if len(home_recent_db) < 10 else []
+            ) if _needs_static_history_supplement(home_recent_db) else []
             home_recent = _merge_match_history(home_recent_db, static_home, limit=10)
             if static_home:
                 evidence_source = "mixed"
@@ -793,7 +808,7 @@ async def build_predict_features(
             away_recent_db = await _recent_matches_for(db, away_team, limit=10, before=before, sport=sport)
             static_away = _static_history_for_team(
                 away_team, limit=10, league=league, before=before, sport=sport,
-            ) if len(away_recent_db) < 10 else []
+            ) if _needs_static_history_supplement(away_recent_db) else []
             away_recent = _merge_match_history(away_recent_db, static_away, limit=10)
             if static_away:
                 evidence_source = "mixed"

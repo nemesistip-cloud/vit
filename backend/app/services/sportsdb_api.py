@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -30,9 +31,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-import os as _os
-_TSDB_KEY = _os.getenv("THESPORTSDB_API_KEY", "3")
-BASE = f"https://www.thesportsdb.com/api/v1/json/{_TSDB_KEY}"
+_TSDB_KEY = os.getenv("THESPORTSDB_API_KEY", "").strip()
+BASE = f"https://www.thesportsdb.com/api/v1/json/{_TSDB_KEY}" if _TSDB_KEY else ""
 
 LEAGUES: Dict[str, int] = {
     # Top 5 European leagues
@@ -365,6 +365,8 @@ _last_request_time = 0.0
 async def _fetch(path: str, timeout: int = 15) -> List[Dict]:
     """GET a TheSportsDB endpoint with automatic rate limit pacing and 429 retry backoff."""
     global _last_request_time
+    if not _TSDB_KEY:
+        return []
     url = f"{BASE}/{path}"
 
     now = asyncio.get_event_loop().time()
@@ -400,8 +402,12 @@ async def _fetch(path: str, timeout: int = 15) -> List[Dict]:
         except httpx.TimeoutException:
             logger.debug("[sportsdb] timeout on %s", path)
             return []
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code if exc.response is not None else "unknown"
+            logger.warning("[sportsdb] provider returned HTTP %s for %s", status, path)
+            return []
         except Exception as exc:
-            logger.debug("[sportsdb] fetch %s failed: %s", path, exc)
+            logger.warning("[sportsdb] fetch %s failed: %s", path, type(exc).__name__)
             return []
     return []
 
@@ -496,6 +502,103 @@ def _current_seasons() -> List[str]:
         f"{year - 1}-{year}",   # e.g. 2024-2025 (still running)
         str(year),              # e.g. 2025 (Americas / single-year season)
     ]
+
+
+def _odds_api_sport(sport_key: str) -> Optional[str]:
+    prefixes = (
+        ("americanfootball_", "american_football"),
+        ("icehockey_", "ice_hockey"),
+        ("rugbyleague_", "rugby"),
+        ("rugbyunion_", "rugby"),
+        ("basketball_", "basketball"),
+        ("baseball_", "baseball"),
+        ("tennis_", "tennis"),
+        ("cricket_", "cricket"),
+        ("soccer_", "football"),
+        ("mma_", "mma"),
+        ("boxing_", "boxing"),
+    )
+    return next((sport for prefix, sport in prefixes if sport_key.startswith(prefix)), None)
+
+
+async def _fetch_odds_api_fixtures(days_ahead: int = 60) -> tuple[List[Dict], Optional[str]]:
+    """Fetch active event schedules only; bookmaker markets are not requested."""
+    api_key = os.getenv("ODDS_API_KEY") or os.getenv("THE_ODDS_API_KEY")
+    if not api_key:
+        return [], "not_configured"
+
+    from app.services.odds_api import OddsAPIClient
+
+    client = OddsAPIClient(api_key, timeout=12, max_retries=1, enable_cache=False)
+    try:
+        sports = await client.get_sports()
+        if not sports:
+            return [], "unavailable"
+
+        now = datetime.now(timezone.utc)
+        cutoff = now + timedelta(days=days_ahead)
+        semaphore = asyncio.Semaphore(4)
+
+        async def fetch_sport(sport_info: Dict) -> List[Dict]:
+            sport_key = str(sport_info.get("key") or "")
+            sport = _odds_api_sport(sport_key)
+            if not sport or sport_info.get("active") is not True:
+                return []
+
+            async with semaphore:
+                events = await client.get_events(
+                    sport_key,
+                    commence_time_from=now.isoformat(),
+                    commence_time_to=cutoff.isoformat(),
+                )
+
+            fixtures = []
+            for event in events:
+                kickoff = event.get("commence_time")
+                try:
+                    kickoff_time = datetime.fromisoformat(str(kickoff).replace("Z", "+00:00"))
+                except (TypeError, ValueError):
+                    continue
+                home = str(event.get("home_team") or "").strip()
+                away = str(event.get("away_team") or "").strip()
+                event_id = str(event.get("id") or "").strip()
+                if not home or not away or not event_id or not kickoff_time:
+                    continue
+                fixtures.append({
+                    "external_id": f"oddsapi:{event_id}",
+                    "home_team": home,
+                    "away_team": away,
+                    "league": str(sport_info.get("title") or sport_key),
+                    "kickoff_time": kickoff_time,
+                    "status": "upcoming",
+                    "sport": sport,
+                    "source": "the_odds_api",
+                })
+            return fixtures
+
+        batches = await asyncio.gather(
+            *(fetch_sport(info) for info in sports),
+            return_exceptions=True,
+        )
+        fixtures = [
+            event
+            for batch in batches
+            if isinstance(batch, list)
+            for event in batch
+        ]
+        failures = sum(isinstance(batch, Exception) for batch in batches)
+        logger.info(
+            "[odds-api] fetched %d events across %d active competition keys; failed=%d",
+            len(fixtures),
+            len(sports),
+            failures,
+        )
+        return fixtures, "partial_failure" if failures else None
+    except Exception as exc:
+        logger.warning("[odds-api] fixture schedule fetch failed: %s", type(exc).__name__)
+        return [], type(exc).__name__
+    finally:
+        await client.close()
 
 
 async def _fetch_season_for_league(league_slug: str, league_id: int) -> List[Dict]:
@@ -654,10 +757,13 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
         logger.warning("[sportsdb] fetch_next_events warning: %s", exc)
 
     try:
-        range_evs = await asyncio.wait_for(fetch_upcoming_range(days=min(days_ahead, 14)), timeout=120)
+        range_evs = await asyncio.wait_for(fetch_upcoming_range(days=min(days_ahead, 14)), timeout=240)
         next_events.extend(range_evs)
     except Exception as exc:
         logger.warning("[sportsdb] fetch_upcoming_range warning: %s", exc)
+
+    odds_api_events, odds_api_error = await _fetch_odds_api_fixtures(days_ahead=days_ahead)
+    next_events.extend(odds_api_events)
 
     now = datetime.now(timezone.utc)
     cutoff = now + timedelta(days=days_ahead)
@@ -687,6 +793,7 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
     inserted = 0
     updated = 0
     skipped = 0
+    event_counts = {"sportsdb": 0, "the_odds_api": 0}
 
     for ev in all_events:
         home = ev["home_team"]
@@ -694,6 +801,9 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
         kickoff = ev.get("kickoff_time")
         ext_id = ev.get("external_id") or None
         league = ev.get("league", "unknown")
+        sport = ev.get("sport") or "football"
+        source = ev.get("source") or "sportsdb"
+        event_counts[source] = event_counts.get(source, 0) + 1
 
         if not kickoff:
             skipped += 1
@@ -715,6 +825,9 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
             if existing:
                 # Backfill external_id if missing
                 changed = False
+                if existing.source in {"sportsdb", "the_odds_api"} and existing.sport != sport:
+                    existing.sport = sport
+                    changed = True
                 if ext_id and not existing.external_id:
                     existing.external_id = ext_id
                     changed = True
@@ -726,6 +839,7 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
                     changed = True
                 if changed:
                     await db.flush()
+                    await db.commit()
                     updated += 1
                 else:
                     skipped += 1
@@ -735,10 +849,10 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
                     home_team=home,
                     away_team=away,
                     league=league,
-                    sport=ev.get("sport", "football"),
+                    sport=sport,
                     kickoff_time=ko_naive,
                     status="upcoming",
-                    source="sportsdb",
+                    source=source,
                     fingerprint=fingerprint,
                 )
                 db.add(match)
@@ -753,7 +867,16 @@ async def sync_upcoming_fixtures(db, days_ahead: int = 60) -> Dict:
         "[sportsdb] sync_upcoming_fixtures done: inserted=%d updated=%d skipped=%d total=%d",
         inserted, updated, skipped, len(all_events),
     )
-    return {"inserted": inserted, "updated": updated, "skipped": skipped, "total_fetched": len(all_events)}
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "skipped": skipped,
+        "total_fetched": len(all_events),
+        "sportsdb_fetched": event_counts["sportsdb"],
+        "odds_api_fetched": event_counts["the_odds_api"],
+        "odds_api_error": odds_api_error,
+        "sportsdb_status": "configured" if _TSDB_KEY else "not_configured",
+    }
 
 
 async def sync_and_insert_historical(

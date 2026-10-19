@@ -179,7 +179,7 @@ FOOTBALL_DATA_API_KEY: str = get_val("ai", "football_data_api_key", "")
 ISPORTS_API_KEY: str = get_val("ai", "isports_api_key", "")
 THE_ODDS_API_KEY: str = get_val("ai", "the_odds_api_key", "")
 ODDS_API_KEY: str = THE_ODDS_API_KEY
-THESPORTSDB_API_KEY: str = get_val("ai", "the_sportsdb_api_key", "3")
+THESPORTSDB_API_KEY: str = get_val("ai", "the_sportsdb_api_key", "")
 
 PAYSTACK_SECRET_KEY: str = get_val("external", "paystack_secret_key", "")
 FLW_SECRET_KEY: str = get_val("external", "flw_secret_key", "")

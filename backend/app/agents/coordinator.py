@@ -129,6 +129,9 @@ class AgentCoordinator:
         def _get_fixture():
             from app.agents.fixture_gap_agent import FixtureGapAgent
             return FixtureGapAgent
+        def _get_fixture_sync():
+            from app.agents.fixture_sync_agent import FixtureSyncAgent
+            return FixtureSyncAgent
         def _get_acc():
             from app.agents.accumulator_publisher_agent import AccumulatorPublisherAgent
             return AccumulatorPublisherAgent
@@ -175,6 +178,7 @@ class AgentCoordinator:
             "model-promoter":           _get_promoter,
             "analytics-reporter":       _get_analytics,
             "fixture-gap":              _get_fixture,
+            "fixture-sync":             _get_fixture_sync,
             "accumulator-publisher":    _get_acc,
             "revenue-optimizer":        _get_rev,
             "governance-executor":      _get_gov,
@@ -209,6 +213,7 @@ class AgentCoordinator:
             "network-guardian",
             "weight-optimizer",
             "match-scout",
+            "fixture-sync",
             "oracle-node",
             "kyc-screener",
             "academic-tutor",

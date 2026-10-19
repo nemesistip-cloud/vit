@@ -78,6 +78,7 @@ class FixtureGapAgent(BaseAgent):
                 return 0
 
             inserted = 0
+            updated = 0
             async with AsyncSessionLocal() as db:
                 # Purge stale synthetic data on first import run
                 synth_count_res = await db.execute(
@@ -113,6 +114,7 @@ class FixtureGapAgent(BaseAgent):
                     league = ev["league"]
                     ko     = ev.get("kickoff_time")
                     status = ev.get("status", "upcoming")
+                    sport  = ev.get("sport") or "football"
 
                     # Skip duplicates by external_id
                     if ext_id:
@@ -121,13 +123,20 @@ class FixtureGapAgent(BaseAgent):
                             _sel(Match).where(Match.external_id == ext_id)
                         )).scalar_one_or_none()
                         if existing:
+                            changed = False
+                            if existing.source == "sportsdb" and existing.sport != sport:
+                                existing.sport = sport
+                                changed = True
                             # Update score/status on settled matches
                             if status == "settled" and existing.status != "settled":
                                 existing.status        = "settled"
                                 existing.home_goals    = ev.get("home_goals")
                                 existing.away_goals    = ev.get("away_goals")
                                 existing.actual_outcome = ev.get("actual_outcome")
+                                changed = True
+                            if changed:
                                 existing.updated_at    = datetime.now(timezone.utc)
+                                updated += 1
                             continue
 
                     # Dedup by fingerprint
@@ -135,6 +144,10 @@ class FixtureGapAgent(BaseAgent):
                     fp = compute_fingerprint(home, away, ko_naive, league)
                     fp_existing = await find_existing_match(db, home, away, ko_naive, league)
                     if fp_existing:
+                        if fp_existing.source == "sportsdb" and fp_existing.sport != sport:
+                            fp_existing.sport = sport
+                            fp_existing.updated_at = datetime.now(timezone.utc)
+                            updated += 1
                         continue
 
                     new_match = Match(
@@ -144,6 +157,7 @@ class FixtureGapAgent(BaseAgent):
                         league       = league,
                         kickoff_time = ko_naive,
                         status       = status,
+                        sport        = sport,
                         source       = "sportsdb",
                         fingerprint  = fp,
                         home_goals   = ev.get("home_goals"),
@@ -153,9 +167,13 @@ class FixtureGapAgent(BaseAgent):
                     db.add(new_match)
                     inserted += 1
 
-                if inserted > 0:
+                if inserted > 0 or updated > 0:
                     await db.commit()
-                    logger.info("[fixture-gap] imported %d real fixtures from TheSportsDB", inserted)
+                    logger.info(
+                        "[fixture-gap] imported %d and updated %d real fixtures from TheSportsDB",
+                        inserted,
+                        updated,
+                    )
 
             return inserted
         except Exception as exc:

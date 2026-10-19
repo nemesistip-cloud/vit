@@ -47,7 +47,22 @@ interface Match {
 }
 
 type Tab   = 'upcoming' | 'live' | 'recent' | 'all'
-type Sport = 'all' | 'football' | 'basketball' | 'tennis' | 'cricket'
+type Sport =
+  | 'all'
+  | 'football'
+  | 'basketball'
+  | 'tennis'
+  | 'cricket'
+  | 'american_football'
+  | 'baseball'
+  | 'ice_hockey'
+  | 'rugby'
+  | 'mma'
+  | 'boxing'
+  | 'rugby_union'
+  | 'formula1'
+  | 'esports'
+type DateFilter = 'all' | 'today' | 'next_7_days'
 type IntelligenceFilter = 'all' | 'verified' | 'needs_data' | 'unavailable'
 type SortMode = 'kickoff' | 'confidence' | 'edge' | 'quality'
 
@@ -63,7 +78,10 @@ function useMatches(tab: Tab, sport: Sport) {
   return useQuery<Match[]>({
     queryKey: ['matches', tab, sport],
     queryFn: async ({ signal }) => {
-      const params = sport !== 'all' ? `?sport=${sport}` : ''
+      const searchParams = new URLSearchParams()
+      if (tab === 'upcoming') searchParams.set('limit', '100')
+      if (sport !== 'all') searchParams.set('sport', sport)
+      const params = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
       const res = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath(`${endpoint}${params}`)}`, { signal })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -121,8 +139,10 @@ function useSyncFixtures() {
       return res.json()
     },
     onSuccess: (data) => {
-      const synced = data?.stored ?? data?.sportsdb_new ?? 0
-      toast.success(`Synced ${synced} fixture${synced !== 1 ? 's' : ''} from SportsDB`)
+      const synced = data?.stored ?? 0
+      const oddsEvents = data?.odds_api_fetched ?? 0
+      const providerNote = oddsEvents > 0 ? `; checked ${oddsEvents} Odds API events` : ''
+      toast.success(`Added ${synced} new fixture${synced !== 1 ? 's' : ''}${providerNote}`)
       qc.invalidateQueries({ queryKey: ['matches'] })
     },
     onError: (err: Error) => {
@@ -326,18 +346,34 @@ const TABS: { value: Tab; label: string; icon: ElementType }[] = [
 ]
 
 const SPORTS: { value: Sport; label: string }[] = [
-  { value: 'all',        label: 'All Sports' },
-  { value: 'football',   label: '⚽ Football' },
-  { value: 'basketball', label: '🏀 Basketball' },
-  { value: 'tennis',     label: '🎾 Tennis' },
-  { value: 'cricket',    label: '🏏 Cricket' },
+  { value: 'all',              label: 'All Sports' },
+  { value: 'football',         label: 'Football' },
+  { value: 'basketball',       label: 'Basketball' },
+  { value: 'tennis',           label: 'Tennis' },
+  { value: 'cricket',          label: 'Cricket' },
+  { value: 'american_football', label: 'American Football' },
+  { value: 'baseball',         label: 'Baseball' },
+  { value: 'ice_hockey',       label: 'Ice Hockey' },
+  { value: 'rugby',            label: 'Rugby' },
+  { value: 'rugby_union',     label: 'Rugby Union' },
+  { value: 'mma',              label: 'MMA' },
+  { value: 'boxing',           label: 'Boxing' },
+  { value: 'formula1',         label: 'Formula 1' },
+  { value: 'esports',          label: 'Esports' },
 ]
+
+function utcDateKey(value: string): string | null {
+  const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`
+  const date = new Date(normalized)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10)
+}
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function Matches() {
   const [tab, setTab]     = useState<Tab>('upcoming')
   const [sport, setSport] = useState<Sport>('all')
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all')
   const [search, setSearch] = useState('')
   const [league, setLeague] = useState('all')
   const [intelligence, setIntelligence] = useState<IntelligenceFilter>('all')
@@ -348,15 +384,23 @@ export default function Matches() {
   const syncMutation = useSyncFixtures()
 
   const leagues = Array.from(new Set(data.map(m => m.league).filter(Boolean))).sort()
+  const todayKey = new Date().toISOString().slice(0, 10)
   const filtered = data.filter(m => {
       const query = search.trim().toLowerCase()
       const matchesSearch = !query || [m.home_team, m.away_team, m.league].some(value => value.toLowerCase().includes(query))
+      const kickoffKey = utcDateKey(m.kickoff_time)
+      const daysFromToday = kickoffKey
+        ? (Date.parse(`${kickoffKey}T00:00:00Z`) - Date.parse(`${todayKey}T00:00:00Z`)) / 86_400_000
+        : Number.NaN
+      const matchesDate = dateFilter === 'all'
+        || (dateFilter === 'today' && kickoffKey === todayKey)
+        || (dateFilter === 'next_7_days' && daysFromToday >= 0 && daysFromToday < 7)
       const status = m.prediction_status ?? ((m.home_prob != null || m.away_prob != null) ? 'ready' : 'not_initialized')
       const matchesIntelligence = intelligence === 'all'
         || (intelligence === 'verified' && (status === 'ready' || status === 'stale'))
         || (intelligence === 'needs_data' && status === 'not_initialized')
         || (intelligence === 'unavailable' && status === 'failed')
-      return matchesSearch && (league === 'all' || m.league === league) && matchesIntelligence
+      return matchesSearch && (league === 'all' || m.league === league) && matchesIntelligence && matchesDate
     })
     .sort((a, b) => {
       if (sort === 'confidence') return (b.confidence ?? -1) - (a.confidence ?? -1)
@@ -443,6 +487,29 @@ export default function Matches() {
 
         {/* ── Sport filters + search ─────────────────────────────────────── */}
         <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-hide" role="group" aria-label="Filter by kickoff date">
+            {([
+              { value: 'today', label: 'Today' },
+              { value: 'next_7_days', label: 'Next 7 days' },
+              { value: 'all', label: 'All dates' },
+            ] as { value: DateFilter; label: string }[]).map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setDateFilter(value)}
+                aria-pressed={dateFilter === value}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors',
+                  dateFilter === value
+                    ? 'bg-vit-500/20 border border-vit-500/30 text-vit-200'
+                    : 'border border-white/8 text-white/45 hover:text-white hover:bg-white/5',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           {/* Sport chips — horizontal scroll, never wrap */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide shrink-0" role="group" aria-label="Filter by sport">
             {SPORTS.map(({ value, label }) => (
@@ -547,7 +614,7 @@ export default function Matches() {
             </h3>
             <p className="text-white/30 text-sm mb-6 max-w-xs">
               {tab === 'live'     ? 'No matches in play right now. Check back soon.' :
-               tab === 'upcoming' ? 'No fixtures scheduled in the next 48 hours.' :
+               tab === 'upcoming' ? `No fixtures listed for ${dateFilter === 'today' ? 'today' : dateFilter === 'next_7_days' ? 'the next 7 days' : 'this date range'}. Try another sport or date filter.` :
                tab === 'recent'   ? 'No results from the last 24 hours.' :
                search             ? `No matches matching "${search}".` : 'No matches found.'}
             </p>

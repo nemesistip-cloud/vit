@@ -115,6 +115,59 @@ def test_predict_features_augment_partial_database_history_from_static(monkeypat
     assert {"sportsdb", "football-data-uk"} <= set(features["evidence_providers"])
 
 
+def test_predict_features_supplement_stale_full_database_history_from_static(monkeypatch):
+    import asyncio
+    import app.services.predict_features as predict_features
+
+    now = datetime.now(timezone.utc)
+
+    def make_result(team, opponent, count, age_days, source):
+        return [
+            SimpleNamespace(
+                home_team=team,
+                away_team=f"{opponent} {index}",
+                home_goals=110,
+                away_goals=100,
+                kickoff_time=now - timedelta(days=age_days + index),
+                sport="basketball",
+                source=source,
+            )
+            for index in range(count)
+        ]
+
+    home_db = make_result("Toronto Raptors", "Opponent", 10, 600, "sportsdb")
+    away_db = make_result("Miami Heat", "Opponent", 10, 600, "sportsdb")
+    home_static = make_result("Toronto Raptors", "Opponent", 10, 30, "espn_public_api")
+    away_static = make_result("Miami Heat", "Opponent", 10, 30, "espn_public_api")
+
+    async def recent_matches(_db, team, **_kwargs):
+        return home_db if "Toronto" in team else away_db
+
+    async def h2h_matches(_db, *_args, **_kwargs):
+        return []
+
+    def static_team(team, **_kwargs):
+        return home_static if "Toronto" in team else away_static
+
+    monkeypatch.setattr(predict_features, "_recent_matches_for", recent_matches)
+    monkeypatch.setattr(predict_features, "_h2h_matches", h2h_matches)
+    monkeypatch.setattr(predict_features, "_static_history_for_team", static_team)
+    monkeypatch.setattr(predict_features, "_static_history_for_pair", lambda *_args, **_kwargs: [])
+
+    features = asyncio.run(build_predict_features(
+        object(),
+        "Toronto Raptors",
+        "Miami Heat",
+        league="NBA",
+        before=now,
+        sport="basketball",
+    ))
+
+    assert features["home_history_latest"] == home_static[0].kickoff_time.isoformat()
+    assert features["away_history_latest"] == away_static[0].kickoff_time.isoformat()
+    assert has_fresh_verified_match_history(features) is True
+
+
 def test_recent_matches_exclude_results_after_prediction_kickoff():
     before = datetime(2026, 9, 19, 11, 30)
     older = SimpleNamespace(
