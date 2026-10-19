@@ -422,19 +422,9 @@ class OddsAPIClient:
         data = await self._request("/sports", {})
         return data if isinstance(data, list) else []
 
-    async def get_events(
-        self,
-        sport: str,
-        commence_time_from: Optional[str] = None,
-        commence_time_to: Optional[str] = None,
-    ) -> List[Dict]:
+    async def get_events(self, sport: str) -> List[Dict]:
         """Fetch scheduled event records without requesting or consuming odds markets."""
-        params: Dict[str, Any] = {}
-        if commence_time_from:
-            params["commenceTimeFrom"] = commence_time_from
-        if commence_time_to:
-            params["commenceTimeTo"] = commence_time_to
-        data = await self._request(f"/sports/{sport}/events", params)
+        data = await self._request(f"/sports/{sport}/events", {})
         return data if isinstance(data, list) else []
 
     async def get_odds(

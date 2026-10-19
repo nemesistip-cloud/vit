@@ -255,12 +255,26 @@ async def test_odds_api_fixture_fetch_uses_active_event_schedules_only(monkeypat
 
         async def get_events(self, sport_key, **kwargs):
             self.event_requests.append((sport_key, kwargs))
-            return [{
-                "id": "nba-event-1",
-                "home_team": "Toronto Raptors",
-                "away_team": "Miami Heat",
-                "commence_time": (datetime.now(timezone.utc) + timedelta(days=2)).isoformat(),
-            }]
+            return [
+                {
+                    "id": "nba-event-1",
+                    "home_team": "Toronto Raptors",
+                    "away_team": "Miami Heat",
+                    "commence_time": (datetime.now(timezone.utc) + timedelta(days=2)).isoformat(),
+                },
+                {
+                    "id": "nba-event-past",
+                    "home_team": "Past Home",
+                    "away_team": "Past Away",
+                    "commence_time": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+                },
+                {
+                    "id": "nba-event-out-of-range",
+                    "home_team": "Later Home",
+                    "away_team": "Later Away",
+                    "commence_time": (datetime.now(timezone.utc) + timedelta(days=8)).isoformat(),
+                },
+            ]
 
         async def close(self):
             return None
@@ -278,7 +292,7 @@ async def test_odds_api_fixture_fetch_uses_active_event_schedules_only(monkeypat
     assert len(clients[0].event_requests) == 1
     sport_key, params = clients[0].event_requests[0]
     assert sport_key == "basketball_nba"
-    assert set(params) == {"commence_time_from", "commence_time_to"}
+    assert params == {}
 
 
 @pytest.mark.parametrize(
@@ -302,7 +316,7 @@ def test_odds_api_fixture_sport_mapping_covers_supported_sports(sport_key, expec
 
 
 @pytest.mark.asyncio
-async def test_odds_api_client_uses_event_only_endpoint_with_time_bounds(monkeypatch):
+async def test_odds_api_client_uses_event_only_endpoint_without_markets(monkeypatch):
     from app.services.odds_api import OddsAPIClient
 
     client = OddsAPIClient("test-key", enable_cache=False)
@@ -315,18 +329,11 @@ async def test_odds_api_client_uses_event_only_endpoint_with_time_bounds(monkeyp
 
     monkeypatch.setattr(client, "_request", fake_request)
 
-    events = await client.get_events(
-        "basketball_nba",
-        commence_time_from="2026-10-19T00:00:00Z",
-        commence_time_to="2026-10-26T00:00:00Z",
-    )
+    events = await client.get_events("basketball_nba")
     await client.close()
 
     assert events == [{"id": "event-1"}]
     assert requested == {
         "endpoint": "/sports/basketball_nba/events",
-        "params": {
-            "commenceTimeFrom": "2026-10-19T00:00:00Z",
-            "commenceTimeTo": "2026-10-26T00:00:00Z",
-        },
+        "params": {},
     }

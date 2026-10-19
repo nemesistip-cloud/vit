@@ -546,11 +546,7 @@ async def _fetch_odds_api_fixtures(days_ahead: int = 60) -> tuple[List[Dict], Op
                 return []
 
             async with semaphore:
-                events = await client.get_events(
-                    sport_key,
-                    commence_time_from=now.isoformat(),
-                    commence_time_to=cutoff.isoformat(),
-                )
+                events = await client.get_events(sport_key)
 
             fixtures = []
             for event in events:
@@ -558,6 +554,8 @@ async def _fetch_odds_api_fixtures(days_ahead: int = 60) -> tuple[List[Dict], Op
                 try:
                     kickoff_time = datetime.fromisoformat(str(kickoff).replace("Z", "+00:00"))
                 except (TypeError, ValueError):
+                    continue
+                if kickoff_time < now or kickoff_time > cutoff:
                     continue
                 home = str(event.get("home_team") or "").strip()
                 away = str(event.get("away_team") or "").strip()
