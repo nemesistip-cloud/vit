@@ -11,6 +11,11 @@ from app.db.models import IoTEvent
 
 logger = logging.getLogger(__name__)
 
+
+class _BlockTransactionRejected(Exception):
+    pass
+
+
 class VITChain:
     CHAIN_ID = 7764
     GENESIS_HASH = "8f0376d859187321685794178550186178864700877041857917856018617886"
@@ -102,64 +107,68 @@ class VITChain:
         if not validate_block(block, latest, known_validators, consensus_validator):
             return False
 
-        # 2. Apply transactions and rewards
-        for tx in block.transactions:
-            success = await self.state.apply_transaction(db, tx)
-            if not success:
-                return False
-
-        # Apply block reward
-        await self.state.apply_block_reward(db, block.validator_id, block.block_reward + block.total_fees)
-
-        # 3. Persist the block
-        p = {
-            "height": block.height,
-            "prev_hash": block.prev_hash,
-            "merkle_root": block.merkle_root,
-            "timestamp": block.timestamp,
-            "validator_id": block.validator_id,
-            "validator_signature": block.validator_signature,
-            "block_hash": block.block_hash,
-            "tx_count": block.tx_count,
-            "total_fees": str(block.total_fees),
-            "block_reward": str(block.block_reward),
-            "transactions": [tx.to_dict() for tx in block.transactions],
-            "state_commitment": block.state_commitment,
-            "storage_proofs": block.storage_proofs,
-            "consensus_votes": block.consensus_votes
-        }
-        event = IoTEvent(
-            source="vitchain_block",
-            event_type="block_finalized",
-            payload=p
-        )
-        db.add(event)
-
-        # Index block into ChainBlock, ChainTransaction, ChainAccount
         try:
-            from vit_chain.storage.indexer import ChainIndexer
-            indexer = ChainIndexer()
-            await indexer.index_block(db, block)
-        except Exception as exc:
-            logger.warning(f"[vitchain] Could not index block: {exc}")
+            async with db.begin_nested():
+                # 2. Apply transactions and rewards atomically with block persistence.
+                for tx in block.transactions:
+                    success = await self.state.apply_transaction(db, tx)
+                    if not success:
+                        raise _BlockTransactionRejected
 
-        # Persist into Block model (vit_blocks)
-        try:
-            from app.db.models import Block
-            res = await db.execute(select(Block).where(Block.height == block.height))
-            if not res.scalar_one_or_none():
-                v_block = Block(
-                    height=block.height,
-                    chain_id=self.CHAIN_ID,
-                    hash=block.block_hash,
-                    parent_hash=block.prev_hash,
-                    proposer=block.validator_id,
-                    tx_count=block.tx_count,
-                    extra_data=f"VIT Chain block height={block.height}",
+                await self.state.apply_block_reward(
+                    db,
+                    block.validator_id,
+                    block.block_reward + block.total_fees,
                 )
-                db.add(v_block)
-        except Exception as exc:
-            logger.warning(f"[vitchain] Could not persist Block model: {exc}")
+
+                # 3. Persist the block
+                p = {
+                    "height": block.height,
+                    "prev_hash": block.prev_hash,
+                    "merkle_root": block.merkle_root,
+                    "timestamp": block.timestamp,
+                    "validator_id": block.validator_id,
+                    "validator_signature": block.validator_signature,
+                    "block_hash": block.block_hash,
+                    "tx_count": block.tx_count,
+                    "total_fees": str(block.total_fees),
+                    "block_reward": str(block.block_reward),
+                    "transactions": [tx.to_dict() for tx in block.transactions],
+                    "state_commitment": block.state_commitment,
+                    "storage_proofs": block.storage_proofs,
+                    "consensus_votes": block.consensus_votes,
+                }
+                db.add(IoTEvent(
+                    source="vitchain_block",
+                    event_type="block_finalized",
+                    payload=p,
+                ))
+
+                # Index block into ChainBlock, ChainTransaction, ChainAccount.
+                try:
+                    from vit_chain.storage.indexer import ChainIndexer
+                    await ChainIndexer().index_block(db, block)
+                except Exception as exc:
+                    logger.warning("[vitchain] Could not index block: %s", exc)
+
+                # Persist into the legacy Block model when available.
+                try:
+                    from app.db.models import Block
+                    res = await db.execute(select(Block).where(Block.height == block.height))
+                    if not res.scalar_one_or_none():
+                        db.add(Block(
+                            height=block.height,
+                            chain_id=self.CHAIN_ID,
+                            hash=block.block_hash,
+                            parent_hash=block.prev_hash,
+                            proposer=block.validator_id,
+                            tx_count=block.tx_count,
+                            extra_data=f"VIT Chain block height={block.height}",
+                        ))
+                except Exception as exc:
+                    logger.warning("[vitchain] Could not persist Block model: %s", exc)
+        except _BlockTransactionRejected:
+            return False
 
         return True
 

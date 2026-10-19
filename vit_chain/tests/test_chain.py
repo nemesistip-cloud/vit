@@ -1,5 +1,7 @@
 import pytest
 from decimal import Decimal
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from vit_chain.core.transaction import VITTransaction, create_transaction, verify_transaction, Mempool
 from vit_chain.core.block import VITBlock, build_block, validate_block
 from vit_chain.core.state import ChainState
@@ -85,6 +87,62 @@ async def test_genesis_block():
     assert len(genesis.transactions) == 1
     assert genesis.transactions[0].amount == Decimal("1000000")
     assert validate_block(genesis, None, [])
+
+
+@pytest.mark.asyncio
+async def test_rejected_block_rolls_back_prior_transaction_mutations(monkeypatch):
+    from vit_chain.core.chain import VITChain
+    from vit_chain.core.block import VITBlock
+
+    class State:
+        def __init__(self):
+            self.applied = 0
+
+        async def apply_transaction(self, db, _tx):
+            await db.execute(text("UPDATE test_balances SET balance = balance + 1 WHERE id = 1"))
+            self.applied += 1
+            return self.applied == 1
+
+        async def apply_block_reward(self, *_args):
+            raise AssertionError("rejected block must not apply rewards")
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as connection:
+        await connection.execute(text("CREATE TABLE test_balances (id INTEGER PRIMARY KEY, balance INTEGER NOT NULL)"))
+        await connection.execute(text("INSERT INTO test_balances (id, balance) VALUES (1, 0)"))
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    try:
+        async with session_factory() as db:
+            chain = VITChain()
+            chain.state = State()
+
+            async def no_prior_block(_db):
+                return None
+
+            chain.get_latest_block = no_prior_block
+            monkeypatch.setattr("vit_chain.core.chain.validate_block", lambda *_args, **_kwargs: True)
+            block = VITBlock(
+                height=0,
+                prev_hash="0" * 64,
+                merkle_root="0" * 64,
+                timestamp=1,
+                validator_id="VIT" + "1" * 40,
+                transactions=[object(), object()],
+                tx_count=2,
+                total_fees=Decimal("0"),
+                block_reward=Decimal("10"),
+            )
+
+            accepted = await chain.add_block(db, block)
+            assert accepted is False
+            assert chain.state.applied == 2
+            await db.commit()
+
+            balance = await db.scalar(text("SELECT balance FROM test_balances WHERE id = 1"))
+            assert balance == 0
+    finally:
+        await engine.dispose()
 
 @pytest.mark.asyncio
 async def test_chain_state_logic(mocker):

@@ -254,6 +254,25 @@ This continuation verifies selected API wiring, CI configuration, and backend te
 - Repair: the success-path test now stubs CPU and memory measurements to safe deterministic values, preserving production load-shedding behavior.
 - Verification: the resource test, subscription endpoint regression, and connected-accounts regression pass together (3 passed); Ruff passes for the changed test file. The full suite has not been rerun after this test-only repair.
 
+## Core Continuation — 2026-10-19
+
+### VIT-009: Rejected blocks could leave partial wallet mutations
+
+- Severity: Critical state-integrity risk. Component: VIT Chain block execution and P2P block ingestion.
+- Evidence: `VITChain.add_block` applied block transactions sequentially and returned `False` immediately when a later transaction failed. The P2P sync caller commits the session after processing a batch, so writes from earlier transactions in a rejected block could be included in that commit.
+- Repair: `vit_chain/core/chain.py` now wraps transaction application, rewards, block event persistence, and secondary indexing in a nested database transaction. A rejected transaction raises an internal rollback signal; the public API still returns `False` and caller-owned outer transactions remain open.
+- Regression: `vit_chain/tests/test_chain.py::test_rejected_block_rolls_back_prior_transaction_mutations` uses a real SQLite `AsyncSession`, applies one mutation before rejecting the next, commits the caller session, and confirms the balance remains unchanged.
+- Verification: the focused regression passed; `vit_chain/tests/test_chain.py` passed 7/7; changed chain files compiled; editor diagnostics and `git diff --check` passed. P2P/multi-node tests could not collect in the temporary Python 3.12 environment because `backend/app/core/__init__.py` eagerly imports unrelated app modules and requires `beautifulsoup4` and further application dependencies.
+- Data impact: no production state was changed. The test database was in-memory SQLite.
+- Security/deployment impact: this changes production transaction-processing semantics. It is not deployed; explicit approval is required before publishing or deploying under the platform's change-control policy.
+- Remaining gaps: run the P2P/multi-node suite in the project's complete Python environment; add a persistent multi-transaction block rollback integration test against the project's supported database; verify no indexer path commits independently.
+
+### Production status and next action
+
+- The repository is clean at `f689ced`; Render's commit-aware workflow reported that commit live and passed `/ready`, but later requests returned HTTP 503 with `x-render-routing: hibernate-wake-error`. Production recovery and chain state are therefore not verified.
+- Next core priorities: restore an observable, stable production health path; remove eager imports from `backend/app/core/__init__.py` so isolated core tests do not load unrelated application services; then run the complete chain/P2P suite in an approved test environment.
+- VITPredict remains a separate application track. Its recent fixture work is not evidence about core chain or wallet correctness.
+
 ### Continuation validation snapshot
 
 | Check | Result |
