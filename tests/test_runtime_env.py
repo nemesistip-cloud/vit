@@ -37,3 +37,24 @@ def test_production_environment_rejects_default_dev_secrets(monkeypatch):
 
     with pytest.raises(StartupError, match="JWT_SECRET_KEY|SECRET_KEY"):
         validate_runtime_security()
+
+
+def test_runtime_config_prefers_explicit_jwt_secret_over_lazy_defaults(monkeypatch):
+    secret = "runtime-jwt-secret-with-at-least-32-characters"
+    monkeypatch.setenv("JWT_SECRET_KEY", secret)
+
+    from app.config import get_val
+
+    assert get_val("app", "jwt_secret_key", "fallback") == secret
+
+
+def test_external_postgres_uses_certificate_verified_tls():
+    import ssl
+    from app.db.database import _postgres_connect_args
+
+    external_ssl = _postgres_connect_args("db.example.com")["ssl"]
+
+    assert external_ssl.verify_mode == ssl.CERT_REQUIRED
+    assert external_ssl.check_hostname is True
+    assert _postgres_connect_args("helium") == {}
+    assert _postgres_connect_args("localhost") == {}

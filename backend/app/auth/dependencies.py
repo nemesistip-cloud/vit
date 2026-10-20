@@ -84,7 +84,7 @@ async def get_current_admin(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
         return real_user
 
-    real_user = await get_current_user(credentials, db)
+    real_user = await get_current_user(request, credentials, db)
     admin_role = getattr(real_user, "admin_role", None) or ""
     if real_user.role not in _ADMIN_ROLES and admin_role not in _ADMIN_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
@@ -99,12 +99,13 @@ async def get_current_super_admin(current_user: User = Depends(get_current_admin
 
 
 async def get_optional_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User | None:
     if not credentials:
         return None
     try:
-        return await get_current_user(credentials, db)
+        return await get_current_user(request, credentials, db)
     except HTTPException:
         return None

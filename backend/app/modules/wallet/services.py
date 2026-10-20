@@ -52,10 +52,11 @@ class WalletService:
                 )
                 wallet = result.scalar_one()
 
+            welcome_bonus_reference = f"welcome_bonus:{user_id}"
             tx_check = await self.db.execute(
                 select(WalletTransaction).where(
                     WalletTransaction.wallet_id == wallet.id,
-                    WalletTransaction.reference == "welcome_bonus",
+                    WalletTransaction.reference == welcome_bonus_reference,
                 )
             )
             if not tx_check.scalar_one_or_none():
@@ -63,7 +64,7 @@ class WalletService:
                 tx = WalletTransaction(
                     wallet_id=wallet.id, user_id=user_id, type="welcome_bonus",
                     amount=welcome_bonus, currency="VITCoin", status="confirmed",
-                    direction="credit", reference="welcome_bonus",
+                    direction="credit", reference=welcome_bonus_reference,
                     processed_at=datetime.now(timezone.utc).replace(tzinfo=None),
                 )
                 self.db.add(tx)

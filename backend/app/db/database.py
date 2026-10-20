@@ -34,6 +34,15 @@ DATABASE_URL = _make_async_url(_raw_url)
 
 _is_sqlite = "aiosqlite" in DATABASE_URL
 
+
+def _postgres_connect_args(host: str) -> dict:
+    if host in ("helium", "localhost", "127.0.0.1", ""):
+        return {}
+
+    import ssl
+
+    return {"ssl": ssl.create_default_context()}
+
 # SQLite needs a single shared connection for in-memory databases; PostgreSQL uses queue pool
 if _is_sqlite:
     connect_args = {"check_same_thread": False}
@@ -61,16 +70,7 @@ else:
     # Replit's internal PostgreSQL (host "helium") does not support SSL.
     # External cloud databases (Cloud Run, Render) require SSL.
     _pg_host = urlparse(DATABASE_URL).hostname or ""
-    _needs_ssl = _pg_host not in ("helium", "localhost", "127.0.0.1")
-
-    if _needs_ssl:
-        import ssl as _ssl
-        _ssl_ctx = _ssl.create_default_context()
-        _ssl_ctx.check_hostname = False
-        _ssl_ctx.verify_mode = _ssl.CERT_NONE
-        _connect_args = {"ssl": _ssl_ctx}
-    else:
-        _connect_args = {}
+    _connect_args = _postgres_connect_args(_pg_host)
 
     # Pool sizes are config-driven via env vars (defaults tuned for Render Free Tier
     # which allows 25 connections; keep pool_size + max_overflow ≤ 20 to leave

@@ -128,6 +128,10 @@ def _resolve_env_alias(section: str, key: str) -> Optional[str]:
     return _ENV_ALIASES.get((section, key))
 
 def get_val(section: str, key: str, default: Any = None) -> Any:
+    env_name = _resolve_env_alias(section, key) or key.upper()
+    if os.environ.get(env_name):
+        return os.environ[env_name]
+
     cfg = _get_config()
     if cfg:
         try:
@@ -141,7 +145,6 @@ def get_val(section: str, key: str, default: Any = None) -> Any:
     # Config not loaded yet (e.g. this module is being imported before
     # kernel.boot() runs config_manager.load()) — fall back to reading the
     # real environment variable directly via its known alias.
-    env_name = _resolve_env_alias(section, key) or key.upper()
     return os.getenv(env_name, default)
 
 def resolve_chain_mode(

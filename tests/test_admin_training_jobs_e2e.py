@@ -1,5 +1,6 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import select
 from main import app
 from app.db.models import User
 from app.modules.ai.models import ModelMetadata
@@ -9,16 +10,29 @@ from app.db.database import get_db
 @pytest.fixture
 async def override_admin_auth():
     admin_user = User(id=1, email="admin@vit.network", role="admin")
-    app.dependency_overrides[require_admin] = lambda: admin_user
 
     async for db in get_db():
-        m = ModelMetadata(key="xgb_match", name="XGBoost Match Predictor", model_type="xgb", is_active=True)
-        db.add(m)
-        await db.commit()
+        result = await db.execute(select(ModelMetadata).where(ModelMetadata.key == "xgb_match"))
+        model = result.scalar_one_or_none()
+        if model is None:
+            db.add(ModelMetadata(
+                key="xgb_match",
+                name="XGBoost Match Predictor",
+                model_type="xgb",
+                is_active=True,
+            ))
+            await db.commit()
         break
 
-    yield admin_user
-    app.dependency_overrides.pop(require_admin, None)
+    previous_override = app.dependency_overrides.get(require_admin)
+    app.dependency_overrides[require_admin] = lambda: admin_user
+    try:
+        yield admin_user
+    finally:
+        if previous_override is None:
+            app.dependency_overrides.pop(require_admin, None)
+        else:
+            app.dependency_overrides[require_admin] = previous_override
 
 @pytest.mark.asyncio
 async def test_admin_training_jobs_lifecycle(override_admin_auth):

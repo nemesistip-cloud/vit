@@ -64,6 +64,43 @@ async def test_wallet_auto_created_on_register_with_vitcoin_bonus():
 
 
 @pytest.mark.asyncio
+async def test_new_wallets_receive_user_scoped_welcome_bonus_once(db_session):
+    from sqlalchemy import select
+    from app.db.models import User
+    from app.modules.wallet.models import WalletTransaction
+    from app.modules.wallet.services import WalletService
+
+    users = [
+        User(
+            email=f"welcome_{uuid.uuid4().hex[:8]}@vit.network",
+            username=f"welcome_{uuid.uuid4().hex[:8]}",
+            hashed_password="test-hash",
+        )
+        for _ in range(2)
+    ]
+    db_session.add_all(users)
+    await db_session.flush()
+
+    service = WalletService(db_session)
+    wallets = [await service.get_or_create_wallet(user.id) for user in users]
+    await service.get_or_create_wallet(users[0].id)
+    await db_session.commit()
+
+    transactions = (await db_session.execute(
+        select(WalletTransaction).where(
+            WalletTransaction.type == "welcome_bonus",
+            WalletTransaction.user_id.in_([user.id for user in users]),
+        )
+    )).scalars().all()
+
+    assert len(transactions) == 2
+    assert {transaction.reference for transaction in transactions} == {
+        f"welcome_bonus:{user.id}" for user in users
+    }
+    assert {wallet.vitcoin_balance for wallet in wallets} == {10}
+
+
+@pytest.mark.asyncio
 async def test_wallet_transactions_requires_auth():
     async with _client() as client:
         resp = await client.get("/api/wallet/transactions")

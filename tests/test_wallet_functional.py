@@ -36,6 +36,7 @@ async def test_stake_and_unstake_follow_platform_minimum_config():
         token, user_id = await _register(client, "stake_roundtrip")
 
         from app.db.database import AsyncSessionLocal
+        from sqlalchemy import select
         from app.modules.wallet.models import PlatformConfig
         from app.modules.wallet.services import WalletService
         from app.modules.wallet.models import Currency
@@ -44,9 +45,21 @@ async def test_stake_and_unstake_follow_platform_minimum_config():
         async with AsyncSessionLocal() as db:
             wallet = await WalletService(db).get_or_create_wallet(user_id)
             await WalletService(db).credit(
-                wallet.id, user_id, Currency.VITCOIN, Decimal("20.0"), "stake_test_funding", reference="stake_test_funding"
+                wallet.id, user_id, Currency.VITCOIN, Decimal("20.0"), "stake_test_funding",
+                reference=f"stake_test_funding:{uuid.uuid4().hex}",
             )
-            db.add(PlatformConfig(key="vitcoin_min_stake", value={"amount": 5, "validator_min": 5}, description="Minimum stake amount"))
+            config_result = await db.execute(
+                select(PlatformConfig).where(PlatformConfig.key == "vitcoin_min_stake")
+            )
+            minimum_config = config_result.scalar_one_or_none()
+            if minimum_config:
+                minimum_config.value = {"amount": 5, "validator_min": 5}
+            else:
+                db.add(PlatformConfig(
+                    key="vitcoin_min_stake",
+                    value={"amount": 5, "validator_min": 5},
+                    description="Minimum stake amount",
+                ))
             await db.commit()
 
         below = await client.post("/api/wallet/stake", json={"amount": 4}, headers=_auth(token))
@@ -107,7 +120,10 @@ async def test_wallet_send_between_users_by_wallet_address():
         async with AsyncSessionLocal() as db:
             service = WalletService(db)
             wallet = await service.get_or_create_wallet(sender_user_id)
-            await service.credit(wallet.id, sender_user_id, Currency.VITCOIN, Decimal("10.0"), "test_funding", reference="test_funding")
+            await service.credit(
+                wallet.id, sender_user_id, Currency.VITCOIN, Decimal("10.0"), "test_funding",
+                reference=f"test_funding:{uuid.uuid4().hex}",
+            )
             await db.commit()
 
         send_resp = await client.post(

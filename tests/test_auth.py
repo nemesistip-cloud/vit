@@ -175,6 +175,52 @@ async def test_login_with_username(client):
     assert "access_token" in data
     assert data["username"] == username
 
+
+@pytest.mark.asyncio
+async def test_get_current_admin_passes_request_and_credentials_when_auth_enabled(monkeypatch):
+    from types import SimpleNamespace
+    from app.auth import dependencies
+
+    request = object()
+    credentials = object()
+    db = object()
+    admin = SimpleNamespace(role="super_admin", admin_role=None)
+    received = []
+
+    async def fake_get_current_user(actual_request, actual_credentials, actual_db):
+        received.append((actual_request, actual_credentials, actual_db))
+        return admin
+
+    monkeypatch.setattr(dependencies, "_auth_enabled", lambda: True)
+    monkeypatch.setattr(dependencies, "get_current_user", fake_get_current_user)
+
+    result = await dependencies.get_current_admin(request, credentials, db)
+
+    assert result is admin
+    assert received == [(request, credentials, db)]
+
+
+@pytest.mark.asyncio
+async def test_get_optional_user_passes_request_and_credentials(monkeypatch):
+    from app.auth import dependencies
+
+    request = object()
+    credentials = object()
+    db = object()
+    user = object()
+    received = []
+
+    async def fake_get_current_user(actual_request, actual_credentials, actual_db):
+        received.append((actual_request, actual_credentials, actual_db))
+        return user
+
+    monkeypatch.setattr(dependencies, "get_current_user", fake_get_current_user)
+
+    result = await dependencies.get_optional_user(request, credentials, db)
+
+    assert result is user
+    assert received == [(request, credentials, db)]
+
 @pytest.mark.asyncio
 async def test_login_with_untrimmed_whitespace(client):
     email = _unique_email()

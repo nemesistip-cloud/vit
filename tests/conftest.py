@@ -95,7 +95,6 @@ def run_alembic_migrations(database_url: str) -> None:
     alembic_config = _alembic_config()
     env = os.environ.copy()
     env["DATABASE_URL"] = database_url
-    env.pop("PYTHONPATH", None)
     env.pop("PYTHONHOME", None)
 
     repo_root = Path(__file__).resolve().parents[1]

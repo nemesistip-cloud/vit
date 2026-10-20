@@ -45,7 +45,7 @@ async def test_predict_returns_probabilities():
 
 
 @pytest.mark.asyncio
-async def test_football_prediction_works_without_market_odds():
+async def test_football_prediction_works_without_market_odds(db_engine):
     payload = _match_payload()
     payload["market_odds"] = {}
     async with _client() as client:
@@ -258,7 +258,7 @@ async def test_football_prediction_uses_current_public_premier_league_history():
 
 
 @pytest.mark.asyncio
-async def test_predict_endpoint_uses_public_football_form(monkeypatch):
+async def test_predict_endpoint_uses_public_football_form(monkeypatch, db_engine):
     captured_features = {}
 
     async def public_features(db, home_team, away_team, league=None, before=None, sport=None):
