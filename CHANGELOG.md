@@ -1,3 +1,5 @@
+- 2026-10-21 `e3ae71a` Fix/dynamic storage quota 15621807443065477901
+
 - 2026-10-21 `74bce3f` fix: compute storage quota dynamically instead of hardcoding 100 GB
 
 - 2026-10-18 `2aa3f94` feat(docs): overhaul API Documentation portal to modern OpenAPI 3.1 UI
