@@ -1,3 +1,5 @@
+- 2026-10-21 `74bce3f` fix: compute storage quota dynamically instead of hardcoding 100 GB
+
 - 2026-10-18 `2aa3f94` feat(docs): overhaul API Documentation portal to modern OpenAPI 3.1 UI
 
 - 2026-10-18 `e80bb42` Feat/vitpredict application boundary
