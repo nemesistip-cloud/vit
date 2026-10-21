@@ -578,29 +578,37 @@ export default function Storage() {
             </div>
 
             {/* Storage Quota Progress */}
-            <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="font-semibold text-white/80">Storage Quota</span>
-                <span className="font-mono text-vit-400">
-                  Free Plan · {formatBytes(health?.used ?? 0)} used of {formatBytes(health?.capacity ?? 100 * 1024 ** 3)}
-                </span>
-              </div>
-              <div className="w-full h-2.5 rounded-full bg-white/10 overflow-hidden">
-                <div
-                  className="h-full bg-vit-500 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      ((health?.used ?? 0) / (health?.capacity ?? 100 * 1024 ** 3)) * 100
-                    ).toFixed(4)}%`,
-                  }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-white/40 mt-2">
-                <span>0.0000%</span>
-                <span>100 GB limit</span>
-              </div>
-            </div>
+            {(() => {
+              const usedBytes = health?.used ?? (health as any)?.disk?.used_bytes ?? 0
+              const capacityBytes =
+                health?.capacity ??
+                ((health as any)?.disk?.total_bytes) ??
+                (networkStats?.total_gb_contributed ? networkStats.total_gb_contributed * 1024 ** 3 : null) ??
+                (22 * 1024 ** 3)
+              const usedPct = capacityBytes > 0 ? (usedBytes / capacityBytes) * 100 : 0
+              return (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                  <div className="flex items-center justify-between text-xs mb-2">
+                    <span className="font-semibold text-white/80">Storage Quota</span>
+                    <span className="font-mono text-vit-400">
+                      Free Plan · {formatBytes(usedBytes)} used of {formatBytes(capacityBytes)}
+                    </span>
+                  </div>
+                  <div className="w-full h-2.5 rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className="h-full bg-vit-500 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min(100, usedPct).toFixed(4)}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-white/40 mt-2">
+                    <span>{usedPct.toFixed(4)}%</span>
+                    <span>{formatBytes(capacityBytes)} limit</span>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Storage Nodes Grid */}
             <div>
