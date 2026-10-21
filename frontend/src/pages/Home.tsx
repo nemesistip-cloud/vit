@@ -17,13 +17,18 @@ function useSystemStatus() {
   return useQuery({
     queryKey: ['system-status-home'],
     queryFn: async ({ signal }) => {
-      const [healthResponse, summaryResponse] = await Promise.all([
-        fetch(`${ENDPOINTS.gateway}/health`, { signal }),
+      const [readinessResponse, summaryResponse] = await Promise.all([
+        fetch(`${ENDPOINTS.gateway}/ready`, { signal }),
         fetch(`${ENDPOINTS.gateway}/api/system/health/summary`, { signal }),
       ])
-      const health = healthResponse.ok ? await healthResponse.json() : null
+      const readiness = readinessResponse.ok ? await readinessResponse.json() : null
       const summary = summaryResponse.ok ? await summaryResponse.json() : null
-      return { ...summary, gateway_status: health?.status, gateway_health: health }
+      const gatewayStatus = readinessResponse.ok
+        ? 'healthy'
+        : readinessResponse.status === 503
+          ? 'degraded'
+          : 'unavailable'
+      return { ...summary, gateway_status: gatewayStatus, gateway_health: readiness }
     },
     staleTime: 30_000, refetchInterval: 60_000,
   })

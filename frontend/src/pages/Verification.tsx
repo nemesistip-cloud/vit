@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, ArrowRight, CheckCircle2, Clock3, ShieldCheck, Sparkles } from 'lucide-react'
+import { Activity, ArrowRight, Clock3, ShieldCheck, Sparkles } from 'lucide-react'
 import { ENDPOINTS } from '@/lib/api'
 import { vitpredictApiPath } from '@/lib/vitpredictApi'
 import { presentStoredPick } from '@/lib/pickPresentation'
@@ -21,14 +21,18 @@ function formatDate(value?: string | null) {
 function useVerificationRecords() {
   return useQuery({
     queryKey: ['verification-records'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const [upcomingRes, recentRes] = await Promise.all([
-        fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/matches/upcoming?limit=4')}`),
-        fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/matches/recent?limit=4')}`),
+        fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/matches/upcoming?limit=4')}`, { signal }),
+        fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/matches/recent?limit=4')}`, { signal }),
       ])
 
-      const upcoming = upcomingRes.ok ? await upcomingRes.json() : []
-      const recent = recentRes.ok ? await recentRes.json() : []
+      if (!upcomingRes.ok || !recentRes.ok) {
+        throw new Error('Verification records could not be loaded')
+      }
+
+      const upcoming = await upcomingRes.json()
+      const recent = await recentRes.json()
       const collection = [...Array.isArray(upcoming) ? upcoming : [], ...Array.isArray(recent) ? recent : []]
 
       return collection.slice(0, 6).map((match: any) => {
@@ -37,7 +41,7 @@ function useVerificationRecords() {
         const awayScore = match?.away_score ?? match?.away_goals
         const hasScore = homeScore != null && awayScore != null
         const status = hasScore
-          ? 'Verified'
+          ? 'Final'
           : match?.status === 'live' || match?.status === 'in_play'
             ? 'Live'
             : prediction.stateLabel
@@ -60,7 +64,7 @@ function useVerificationRecords() {
 }
 
 export default function Verification() {
-  const { data: records = [], isLoading } = useVerificationRecords()
+  const { data: records = [], isLoading, isError, isFetching, refetch } = useVerificationRecords()
 
   return (
     <div className="pt-16 min-h-screen">
@@ -89,6 +93,14 @@ export default function Verification() {
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
         {isLoading ? (
           <div className="flex items-center justify-center py-16"><Spinner className="h-8 w-8 text-vit-400" /></div>
+        ) : isError ? (
+          <div role="alert" className="rounded-2xl border border-rose-500/25 bg-rose-500/5 p-6 text-center">
+            <p className="text-sm font-medium text-rose-200">Verification records could not be loaded</p>
+            <p className="mt-2 text-sm text-white/55">The service may be temporarily unavailable. Try again shortly.</p>
+            <button type="button" onClick={() => void refetch()} disabled={isFetching} className="mt-4 rounded-lg border border-white/10 px-4 py-2 text-sm text-white/75 hover:bg-white/5 disabled:opacity-50">
+              {isFetching ? 'Retrying...' : 'Retry'}
+            </button>
+          </div>
         ) : records.length === 0 ? (
           <div className="rounded-2xl border border-white/8 bg-surface-800/60 p-6 text-center text-sm text-white/60">
             No public record entries are available yet.
@@ -103,7 +115,7 @@ export default function Verification() {
                     <h2 className="mt-2 text-xl font-medium text-white">{entry.match}</h2>
                   </div>
                   <span className={
-                    entry.status === 'Verified'
+                    entry.status === 'Final'
                       ? 'rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-300'
                       : entry.status === 'Live'
                         ? 'rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[10px] font-medium text-amber-300'
@@ -139,7 +151,7 @@ export default function Verification() {
                     <span className="text-white/75">{entry.kickoff}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Outcome</span>
+                    <span className="inline-flex items-center gap-2"><Activity className="w-3.5 h-3.5 text-white/35" /> Outcome</span>
                     <span className="text-white/75">{entry.result}</span>
                   </div>
                 </div>

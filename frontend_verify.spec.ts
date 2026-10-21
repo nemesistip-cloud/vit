@@ -88,6 +88,60 @@ test('prediction accuracy labels its settled denominator', async ({ page }) => {
   await expect(page.getByText('6 / 7', { exact: true })).toBeVisible();
 });
 
+test('verification distinguishes an API failure from an empty public record', async ({ page }) => {
+  await page.route('**/api/matches/upcoming**', route => route.fulfill({
+    status: 503,
+    contentType: 'application/json',
+    body: JSON.stringify({ detail: 'temporarily unavailable' }),
+  }));
+  await page.route('**/api/matches/recent**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([]),
+  }));
+
+  await page.goto('/verification');
+
+  await expect(page.getByRole('alert')).toContainText('Verification records could not be loaded');
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+  await expect(page.getByText('No public record entries are available yet.')).toHaveCount(0);
+});
+
+test('verification calls scored matches final without claiming proof verification', async ({ page }) => {
+  await page.route('**/api/matches/upcoming**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([{ id: 360, home_team: 'Arsenal', away_team: 'Liverpool', kickoff_time: '2026-09-18T19:45:00Z', home_score: 2, away_score: 1 }]),
+  }));
+  await page.route('**/api/matches/recent**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([]),
+  }));
+
+  await page.goto('/verification');
+
+  await expect(page.getByText('Final', { exact: true })).toBeVisible();
+  await expect(page.getByText('Verified', { exact: true })).toHaveCount(0);
+});
+
+test('home status follows readiness when health checks disagree', async ({ page }) => {
+  await page.route('**/ready', route => route.fulfill({
+    status: 503,
+    contentType: 'application/json',
+    body: JSON.stringify({ status: 'not_ready', db: false, redis: true }),
+  }));
+  await page.route('**/api/system/health/summary', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ overall_status: 'HEALTHY', details: {} }),
+  }));
+
+  await page.goto('/');
+
+  await expect(page.getByText('degraded', { exact: true }).first()).toBeVisible();
+});
+
 test('odds page distinguishes an API failure from an empty market', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('vit_token', 'playwright-test-placeholder');
