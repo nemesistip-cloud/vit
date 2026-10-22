@@ -145,28 +145,22 @@ class VITChain:
                 ))
 
                 # Index block into ChainBlock, ChainTransaction, ChainAccount.
-                try:
-                    from vit_chain.storage.indexer import ChainIndexer
-                    await ChainIndexer().index_block(db, block)
-                except Exception as exc:
-                    logger.warning("[vitchain] Could not index block: %s", exc)
+                from vit_chain.storage.indexer import ChainIndexer
+                await ChainIndexer().index_block(db, block)
 
                 # Persist into the legacy Block model when available.
-                try:
-                    from app.db.models import Block
-                    res = await db.execute(select(Block).where(Block.height == block.height))
-                    if not res.scalar_one_or_none():
-                        db.add(Block(
-                            height=block.height,
-                            chain_id=self.CHAIN_ID,
-                            hash=block.block_hash,
-                            parent_hash=block.prev_hash,
-                            proposer=block.validator_id,
-                            tx_count=block.tx_count,
-                            extra_data=f"VIT Chain block height={block.height}",
-                        ))
-                except Exception as exc:
-                    logger.warning("[vitchain] Could not persist Block model: %s", exc)
+                from app.db.models import Block
+                res = await db.execute(select(Block).where(Block.height == block.height))
+                if not res.scalar_one_or_none():
+                    db.add(Block(
+                        height=block.height,
+                        chain_id=self.CHAIN_ID,
+                        hash=block.block_hash,
+                        parent_hash=block.prev_hash,
+                        proposer=block.validator_id,
+                        tx_count=block.tx_count,
+                        extra_data=f"VIT Chain block height={block.height}",
+                    ))
         except _BlockTransactionRejected:
             return False
 

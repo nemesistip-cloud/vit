@@ -6,6 +6,7 @@ from vit_chain.consensus.models import Validator
 @pytest.mark.asyncio
 async def test_validator_registration():
     db = AsyncMock()
+    db.add = MagicMock()
     registry = ValidatorRegistry()
 
     # Mock existing check
@@ -23,6 +24,7 @@ async def test_validator_registration():
 @pytest.mark.asyncio
 async def test_validator_jailing():
     db = AsyncMock()
+    db.add = MagicMock()
     registry = ValidatorRegistry()
 
     node_id = "did:vit:agent:bad-node"
