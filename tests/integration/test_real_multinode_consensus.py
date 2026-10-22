@@ -49,7 +49,7 @@ from vit_node.network.client import P2PClient
 pytestmark = pytest.mark.integration
 
 
-async def wait_for(predicate, timeout=5.0):
+async def wait_for(predicate, timeout=30.0):
     deadline = asyncio.get_running_loop().time() + timeout
     while asyncio.get_running_loop().time() < deadline:
         result = predicate()

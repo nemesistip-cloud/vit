@@ -145,11 +145,8 @@ class VITChain:
                 ))
 
                 # Index block into ChainBlock, ChainTransaction, ChainAccount.
-                try:
-                    from vit_chain.storage.indexer import ChainIndexer
-                    await ChainIndexer().index_block(db, block)
-                except Exception as exc:
-                    logger.warning("[vitchain] Could not index block: %s", exc)
+                from vit_chain.storage.indexer import ChainIndexer
+                await ChainIndexer().index_block(db, block)
 
                 # Persist into the legacy Block model when available.
                 try:
