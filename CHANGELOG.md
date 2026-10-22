@@ -1,3 +1,5 @@
+- 2026-10-22 `e27634f` build(deps): bump the npm_and_yarn group across 2 directories with 2 updates
+
 - 2026-10-21 `e3ae71a` Fix/dynamic storage quota 15621807443065477901
 
 - 2026-10-21 `74bce3f` fix: compute storage quota dynamically instead of hardcoding 100 GB
