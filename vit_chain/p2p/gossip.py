@@ -60,15 +60,7 @@ class GossipHandler:
         elif msg_type == MessageType.BLOCKS_RESPONSE:
             await self._handle_blocks_response(msg["blocks"], from_node_id, db)
         elif msg_type == MessageType.PROPOSAL and self.consensus:
-            accepted = await self.consensus.receive_proposal(db, msg)
-            if accepted:
-                vote = self.consensus.create_vote(msg["height"], msg["round"], msg["block"]["block_hash"])
-                await self.consensus.receive_vote(db, vote)
-                vote_message = {"type": MessageType.CONSENSUS_VOTE, **vote.to_dict()}
-                if self.consensus.broadcast:
-                    await self.consensus.broadcast(vote_message)
-                else:
-                    await self.connection_manager.broadcast(vote_message, exclude=from_node_id)
+            await self.consensus.receive_proposal(db, msg)
         elif msg_type == MessageType.CONSENSUS_VOTE and self.consensus:
             vote_data = {key: value for key, value in msg.items() if key != "type"}
             await self.consensus.receive_vote(db, ConsensusVote(**vote_data))

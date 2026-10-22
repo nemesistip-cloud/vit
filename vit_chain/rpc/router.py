@@ -44,10 +44,24 @@ class AccountSummary(BaseModel):
     
 # ── RPC Endpoint ─────────────────────────────────────────────────────────────
 
+MAX_RPC_PAYLOAD_SIZE = 2 * 1024 * 1024  # 2MB
+
 @router.post("/chain/rpc")
 async def rpc_endpoint(request: Request, db: AsyncSession = Depends(get_db)):
-    """Accepts JSON-RPC 2.0 request body"""
-    body = await request.json()
+    """Accepts JSON-RPC 2.0 request body with payload size enforcement."""
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_RPC_PAYLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="Payload too large")
+
+    raw_body = await request.body()
+    if len(raw_body) > MAX_RPC_PAYLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="Payload too large")
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
     response = await rpc_server.handle(body, db)
     return response
 

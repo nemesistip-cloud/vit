@@ -18,6 +18,7 @@ def mock_redis():
 @pytest.mark.asyncio
 async def test_consensus_flow(mock_redis):
     db = AsyncMock()
+    db.add = MagicMock()
     priv, pub = generate_keypair(); addr = public_key_to_address(pub)
     node = UserStorageNode(user_id=1, status="active")
     proof = StorageProof(id=1, content_id=10, prover_user_id=1, proof_data="hash")
