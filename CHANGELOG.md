@@ -1,3 +1,5 @@
+- 2026-10-25 `4ec1914` build(deps): bump the npm_and_yarn group across 2 directories with 3 updates
+
 - 2026-10-25 `39e5a16` Fix account creation duplicate email and username checks
 
 - 2026-10-25 `9bfb686` fix: resolve explorer build and postgres ssl connection issues
