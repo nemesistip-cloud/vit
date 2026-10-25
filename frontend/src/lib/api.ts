@@ -358,7 +358,7 @@ export const storageApi = {
       const size = res.size ?? res.size_bytes ?? file.size
       const contentType = res.contentType || file.type || 'application/octet-stream'
       const lastModified = res.lastModified || res.created_at || new Date().toISOString()
-      const url = res.url ? (res.url.startsWith("http") ? res.url : ENDPOINTS.storage.replace(/\/$/, "") + (res.url.startsWith("/") ? "" : "/") + res.url) : `/api/v1/download/${key}`
+      const url = res.url || `/api/v1/download/${key}`
       return { key, size, contentType, lastModified, url, filename }
     }
 

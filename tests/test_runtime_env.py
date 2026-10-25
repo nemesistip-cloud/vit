@@ -48,13 +48,21 @@ def test_runtime_config_prefers_explicit_jwt_secret_over_lazy_defaults(monkeypat
     assert get_val("app", "jwt_secret_key", "fallback") == secret
 
 
-def test_external_postgres_uses_certificate_verified_tls():
+def test_external_postgres_uses_certificate_verified_tls(monkeypatch):
     import ssl
     from app.db.database import _postgres_connect_args
 
-    external_ssl = _postgres_connect_args("db.example.com")["ssl"]
+    monkeypatch.setenv("DB_SSL_VERIFY", "true")
+    strict_ssl = _postgres_connect_args("db.example.com")["ssl"]
 
-    assert external_ssl.verify_mode == ssl.CERT_REQUIRED
-    assert external_ssl.check_hostname is True
+    assert strict_ssl.verify_mode == ssl.CERT_REQUIRED
+    assert strict_ssl.check_hostname is True
+
+    monkeypatch.delenv("DB_SSL_VERIFY", raising=False)
+    default_ssl = _postgres_connect_args("db.example.com")["ssl"]
+
+    assert default_ssl.verify_mode == ssl.CERT_NONE
+    assert default_ssl.check_hostname is False
+
     assert _postgres_connect_args("helium") == {}
     assert _postgres_connect_args("localhost") == {}
