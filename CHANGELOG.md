@@ -1,3 +1,5 @@
+- 2026-10-25 `d7a8364` Fix storage file upload and deletion HTTP 405 error
+
 - 2026-10-25 `5a65377` fix(vitchain): validate validator status before auto-voting on propos…
 
 - 2026-10-22 `9f260e3` Fix database errors and improve network health in VIT Chain
