@@ -1,3 +1,5 @@
+- 2026-10-25 `5a65377` fix(vitchain): validate validator status before auto-voting on propos…
+
 - 2026-10-22 `9f260e3` Fix database errors and improve network health in VIT Chain
 
 - 2026-10-22 `e27634f` build(deps): bump the npm_and_yarn group across 2 directories with 2 updates
