@@ -305,14 +305,42 @@ export const aiApi = {
 export const storageApi = {
   health:  (signal?: AbortSignal) => get<StorageHealth>(`${ENDPOINTS.storage}/health`, signal),
   list:    async (signal?: AbortSignal) => {
+    const normalizeListRes = (res: any): StorageList => {
+      const objects = (res.objects || res.manifests || []).map((r: any) => {
+        const key = r.key || r.file_id || r.id || ''
+        const filename = r.filename || key
+        const size = r.size ?? r.size_bytes ?? 0
+        const contentType = r.contentType || 'application/octet-stream'
+        const lastModified = r.lastModified || r.created_at || null
+        let url = r.url
+        if (!url && key) {
+          url = `${ENDPOINTS.storage}/api/v1/download/${encodeURIComponent(key)}`
+        } else if (url && !url.startsWith('http')) {
+          const base = ENDPOINTS.storage.replace(/\/$/, '')
+          url = base + (url.startsWith('/') ? '' : '/') + url
+        }
+        return { key, size, contentType, lastModified, url, filename }
+      })
+      return { total: res.total ?? objects.length, objects }
+    }
+
     try {
-      return await get<StorageList>(`${ENDPOINTS.storage}/api/v1/files`, signal)
+      const res = await get<any>(`${ENDPOINTS.storage}/api/v1/files`, signal)
+      return normalizeListRes(res)
     } catch (err: any) {
       if (err?.status === 405 || err?.status === 404) {
-        try {
-          return await get<StorageList>(`${ENDPOINTS.storage}/api/tachyon/files`, signal)
-        } catch {
-          // preserve original error
+        const fallbacks = [
+          `${ENDPOINTS.storage}/api/tachyon/files`,
+          `${ENDPOINTS.storage}/api/v1/manifests`,
+          `${ENDPOINTS.storage}/api/tachyon/manifests`,
+        ]
+        for (const fbUrl of fallbacks) {
+          try {
+            const res = await get<any>(fbUrl, signal)
+            return normalizeListRes(res)
+          } catch {
+            // try next fallback
+          }
         }
       }
       throw err
