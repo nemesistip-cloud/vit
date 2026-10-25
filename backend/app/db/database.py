@@ -39,9 +39,18 @@ def _postgres_connect_args(host: str) -> dict:
     if host in ("helium", "localhost", "127.0.0.1", ""):
         return {}
 
+    import os
     import ssl
 
-    return {"ssl": ssl.create_default_context()}
+    ssl_context = ssl.create_default_context()
+    if os.getenv("DB_SSL_VERIFY", "").lower() in ("true", "1", "yes", "strict"):
+        ssl_context.check_hostname = True
+        ssl_context.verify_mode = ssl.CERT_REQUIRED
+    else:
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+
+    return {"ssl": ssl_context}
 
 # SQLite needs a single shared connection for in-memory databases; PostgreSQL uses queue pool
 if _is_sqlite:
