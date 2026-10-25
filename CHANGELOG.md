@@ -1,3 +1,5 @@
+- 2026-10-25 `9bfb686` fix: resolve explorer build and postgres ssl connection issues
+
 - 2026-10-25 `d7a8364` Fix storage file upload and deletion HTTP 405 error
 
 - 2026-10-25 `5a65377` fix(vitchain): validate validator status before auto-voting on propos…
