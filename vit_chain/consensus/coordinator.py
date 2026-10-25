@@ -70,6 +70,15 @@ class ConsensusCoordinator:
         self.pending_blocks[(height, round)] = block
         await db.commit()
         logger.info("proposal_validated node=%s height=%s round=%s block_hash=%s", self.node_id, height, round, block.block_hash)
+
+        if self.node_id in self.validator_keys:
+            vote = self.create_vote(height, round, block.block_hash)
+            await self.receive_vote(db, vote)
+            if self.broadcast:
+                vote_msg = vote.to_dict()
+                vote_msg["type"] = "consensus_vote"
+                await self.broadcast(vote_msg)
+
         return True
 
     def create_vote(self, height: int, round: int, block_hash: str, vote_type: str = "precommit") -> ConsensusVote:
@@ -97,7 +106,8 @@ class ConsensusCoordinator:
         if existing is not None:
             if existing.block_hash != vote.block_hash:
                 logger.warning("vote_rejected height=%s round=%s validator=%s reason=double_vote", vote.height, vote.round, vote.validator_id)
-            return False
+                return False
+            return True
         bucket[vote.validator_id] = vote
         await self._persist_state(db, vote.height, vote.round, "vote", vote.block_hash, vote.validator_id)
         await db.commit()
