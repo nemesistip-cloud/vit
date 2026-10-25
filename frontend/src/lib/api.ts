@@ -79,7 +79,11 @@ async function get<T>(url: string, signal?: AbortSignal, attempt = 0): Promise<T
         window.location.href = '/login?reason=session_expired'
       }
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`)
+    if (!res.ok) {
+      const err: any = new Error(`HTTP ${res.status} — ${url}`)
+      err.status = res.status
+      throw err
+    }
     const data = await res.json()
     return { ...data, _latency: latency } as T
   } catch (err: unknown) {
@@ -112,7 +116,11 @@ async function postForm<T>(url: string, body: FormData, signal?: AbortSignal): P
   try {
     const res = await fetch(url, { method: 'POST', body, signal: combined })
     clearTimeout(timer)
-    if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`)
+    if (!res.ok) {
+      const err: any = new Error(`HTTP ${res.status} — ${url}`)
+      err.status = res.status
+      throw err
+    }
     return res.json() as Promise<T>
   } catch (err) {
     clearTimeout(timer)
@@ -137,7 +145,11 @@ async function del(url: string, signal?: AbortSignal): Promise<void> {
   try {
     const res = await fetch(url, { method: 'DELETE', signal: combined })
     clearTimeout(timer)
-    if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`)
+    if (!res.ok) {
+      const err: any = new Error(`HTTP ${res.status} — ${url}`)
+      err.status = res.status
+      throw err
+    }
   } catch (err) {
     clearTimeout(timer)
     throw err
@@ -239,6 +251,7 @@ export interface StorageObject {
   lastModified?: string
   contentType?: string
   url?: string
+  filename?: string
 }
 
 export interface StorageList {
@@ -292,29 +305,108 @@ export const aiApi = {
 export const storageApi = {
   health:  (signal?: AbortSignal) => get<StorageHealth>(`${ENDPOINTS.storage}/health`, signal),
   list:    async (signal?: AbortSignal) => {
+    const normalizeListRes = (res: any): StorageList => {
+      const objects = (res.objects || res.manifests || []).map((r: any) => {
+        const key = r.key || r.file_id || r.id || ''
+        const filename = r.filename || key
+        const size = r.size ?? r.size_bytes ?? 0
+        const contentType = r.contentType || 'application/octet-stream'
+        const lastModified = r.lastModified || r.created_at || null
+        let url = r.url
+        if (!url && key) {
+          url = `${ENDPOINTS.storage}/api/v1/download/${encodeURIComponent(key)}`
+        } else if (url && !url.startsWith('http')) {
+          const base = ENDPOINTS.storage.replace(/\/$/, '')
+          url = base + (url.startsWith('/') ? '' : '/') + url
+        }
+        return { key, size, contentType, lastModified, url, filename }
+      })
+      return { total: res.total ?? objects.length, objects }
+    }
+
     try {
-      return await get<StorageList>(`${ENDPOINTS.storage}/api/v1/files`, signal)
+      const res = await get<any>(`${ENDPOINTS.storage}/api/v1/files`, signal)
+      return normalizeListRes(res)
     } catch (err: any) {
       if (err?.status === 405 || err?.status === 404) {
-        try {
-          return await get<StorageList>(`${ENDPOINTS.storage}/api/tachyon/files`, signal)
-        } catch {
-          // preserve original error
+        const fallbacks = [
+          `${ENDPOINTS.storage}/api/tachyon/files`,
+          `${ENDPOINTS.storage}/api/v1/manifests`,
+          `${ENDPOINTS.storage}/api/tachyon/manifests`,
+        ]
+        for (const fbUrl of fallbacks) {
+          try {
+            const res = await get<any>(fbUrl, signal)
+            return normalizeListRes(res)
+          } catch {
+            // try next fallback
+          }
         }
       }
       throw err
     }
   },
   metrics: (signal?: AbortSignal) => get<unknown>(`${ENDPOINTS.storage}/metrics`, signal),
-  /** Upload a file — POST multipart/form-data to /api/v1/files */
-  upload:  (file: File, signal?: AbortSignal) => {
+  /** Upload a file — POST multipart/form-data to /api/v1/files with legacy fallback */
+  upload:  async (file: File, signal?: AbortSignal): Promise<StorageObject> => {
     const form = new FormData()
     form.append('file', file)
-    return postForm<StorageObject>(`${ENDPOINTS.storage}/api/v1/files`, form, signal)
+
+    const normalizeUploadRes = (res: any, file: File): StorageObject => {
+      const key = res.key || res.file_id || res.id || ''
+      const filename = res.filename || file.name
+      const size = res.size ?? res.size_bytes ?? file.size
+      const contentType = res.contentType || file.type || 'application/octet-stream'
+      const lastModified = res.lastModified || res.created_at || new Date().toISOString()
+      const url = res.url ? (res.url.startsWith("http") ? res.url : ENDPOINTS.storage.replace(/\/$/, "") + (res.url.startsWith("/") ? "" : "/") + res.url) : `/api/v1/download/${key}`
+      return { key, size, contentType, lastModified, url, filename }
+    }
+
+    try {
+      const res = await postForm<any>(`${ENDPOINTS.storage}/api/v1/files`, form, signal)
+      return normalizeUploadRes(res, file)
+    } catch (err: any) {
+      if (err?.status === 405 || err?.status === 404) {
+        const fallbacks = [
+          `${ENDPOINTS.storage}/api/v1/upload`,
+          `${ENDPOINTS.storage}/api/tachyon/upload`,
+          `${ENDPOINTS.storage}/upload`,
+        ]
+        for (const fbUrl of fallbacks) {
+          try {
+            const res = await postForm<any>(fbUrl, form, signal)
+            return normalizeUploadRes(res, file)
+          } catch {
+            // try next fallback
+          }
+        }
+      }
+      throw err
+    }
   },
-  /** Delete an object by key — DELETE /api/v1/files/{key} */
-  delete:  (key: string, signal?: AbortSignal) =>
-    del(`${ENDPOINTS.storage}/api/v1/files/${encodeURIComponent(key)}`, signal),
+  /** Delete an object by key — DELETE /api/v1/files/{key} with legacy fallback */
+  delete:  async (key: string, signal?: AbortSignal): Promise<void> => {
+    try {
+      await del(`${ENDPOINTS.storage}/api/v1/files/${encodeURIComponent(key)}`, signal)
+    } catch (err: any) {
+      if (err?.status === 405 || err?.status === 404) {
+        const fallbacks = [
+          `${ENDPOINTS.storage}/api/v1/manifests/${encodeURIComponent(key)}`,
+          `${ENDPOINTS.storage}/api/tachyon/manifests/${encodeURIComponent(key)}`,
+          `${ENDPOINTS.storage}/manifests/${encodeURIComponent(key)}`,
+        ]
+        for (const fbUrl of fallbacks) {
+          try {
+            await del(fbUrl, signal)
+            return
+          } catch {
+            // try next fallback
+          }
+        }
+      }
+      throw err
+    }
+  },
 }
 
 export const chainApi = {
