@@ -36,7 +36,7 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
 
       - name: Install dependencies
-        run: pip install .[dev]
+        run: pip install ".[dev]"
 
       - name: Run Alembic migrations against test DB
         env:
