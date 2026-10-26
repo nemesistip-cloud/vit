@@ -1,3 +1,5 @@
+- 2026-10-26 `6e2201f` Fix governance_router and leaderboard_router mounting failure due to Query() enum argument
+
 - 2026-10-26 `152a44b` Fix HTTP 503 site availability issue on vitnetwork Render deployment
 
 - 2026-10-26 `67c03e3` Fix FastAPI Query enum kwarg startup error causing HTTP 503
