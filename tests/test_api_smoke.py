@@ -86,3 +86,32 @@ async def test_compatibility_aliases_exist_for_frontend_routes():
                     headers={"Authorization": f"Bearer {token}"},
                 )
                 assert admin_appeals.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_leaderboard_and_governance_route_validation():
+    from app.auth.jwt_utils import create_access_token
+    token = create_access_token({"sub": "1", "role": "user"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        # 1. Leaderboard public endpoint
+        res = await client.get("/api/leaderboard")
+        assert res.status_code in {200, 503}  # 200 if DB available, 503 if DB unavail
+
+        # Valid category param
+        res_winrate = await client.get("/api/leaderboard?category=win_rate")
+        assert res_winrate.status_code in {200, 503}
+
+        # Invalid category param should trigger validation error (422)
+        res_invalid = await client.get("/api/leaderboard?category=invalid_cat")
+        assert res_invalid.status_code == 422
+
+        # 2. Governance proposals endpoint (unauthenticated)
+        gov_unauth = await client.get("/api/governance/proposals")
+        assert gov_unauth.status_code in {401, 403}
+
+        # Governance proposals with invalid status param and token
+        gov_invalid = await client.get("/api/governance/proposals?status=invalid_status", headers=headers)
+        assert gov_invalid.status_code in {400, 401, 422, 503}
