@@ -4,6 +4,7 @@ v4.6: Fixed win_rate and ROI to use actual match outcomes (bet_side vs actual_ou
       and CLVEntry.profit / Prediction.settled_profit instead of final_ev.
 """
 
+from typing import Literal
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func, desc, case, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/api/leaderboard", tags=["Leaderboard"])
 
 @router.get("")
 async def get_leaderboard(
-    category: str = Query("win_rate", enum=["win_rate", "xp", "streak", "predictions"]),
+    category: Literal["win_rate", "xp", "streak", "predictions"] = Query("win_rate"),
     limit: int = Query(20, le=100),
     db: AsyncSession = Depends(get_db),
 ):
