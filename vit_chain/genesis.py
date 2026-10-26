@@ -75,10 +75,17 @@ async def ensure_genesis(db: AsyncSession):
     Idempotent: if block at height 0 exists, return it
     Otherwise build and persist genesis block
     """
+    from sqlalchemy import select
+    from vit_chain.storage.db import ChainBlock
+
     chain = VITChain()
     latest = await chain.get_latest_block(db)
     if latest and latest.height >= 0:
         return latest
+
+    cb_res = await db.execute(select(ChainBlock).where(ChainBlock.height == 0))
+    if cb_res.scalar_one_or_none() is not None:
+        return build_genesis_block()
 
     genesis_block = build_genesis_block()
     success = await chain.add_block(db, genesis_block)

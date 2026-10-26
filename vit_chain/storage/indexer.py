@@ -13,6 +13,11 @@ class ChainIndexer:
         if not db.is_active:
             await db.begin()
 
+        # 0. Idempotency check: skip if ChainBlock for this height exists
+        existing = await db.execute(select(ChainBlock).where(ChainBlock.height == block.height))
+        if existing.scalar_one_or_none() is not None:
+            return
+
         # 1. Create ChainBlock
         cb = ChainBlock(
             height=block.height,
