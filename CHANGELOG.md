@@ -1,3 +1,5 @@
+- 2026-10-26 `27ddb9b` Fix server failure bugs, container OOM kills, and startup health timeouts
+
 - 2026-10-26 `2fb6ff1` fix(api): replace unsupported enum kwarg in Query() with Literal
 
 - 2026-10-26 `6e2201f` Fix governance_router and leaderboard_router mounting failure due to Query() enum argument
