@@ -1,3 +1,5 @@
+- 2026-10-26 `67c03e3` Fix FastAPI Query enum kwarg startup error causing HTTP 503
+
 - 2026-10-25 `5d3c013` fix(build): resolve Render build failure and normalize storage downlo…
 
 - 2026-10-25 `4ec1914` build(deps): bump the npm_and_yarn group across 2 directories with 3 updates
