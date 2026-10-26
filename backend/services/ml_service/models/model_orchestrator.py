@@ -227,6 +227,7 @@ class ModelOrchestrator:
     def load_all_models(self):
         use_real = _use_real_ml_models()
         cache_on = _ml_cache_enabled()
+        enabled_list = _get_enabled_models()
         models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "models")
 
         for spec in _MODEL_SPECS:
@@ -235,6 +236,19 @@ class ModelOrchestrator:
             self.models[key] = _BaseModel(key, spec["markets"], spec["sigma"], spec["market_trust"])
             model_obj = self.models[key]
             loaded = False
+
+            if enabled_list is not None and key.lower() not in enabled_list:
+                logger.info("Model %s excluded by ENABLED_MODELS filter", key)
+                self._pkl_loaded[key] = False
+                self.model_meta[key] = {
+                    "model_name": spec["name"],
+                    "weight": 1.0,
+                    "pkl_loaded": False,
+                    "model_type": "algorithmic",
+                    "supported_markets": spec["markets"],
+                    "parent_version": parent_version,
+                }
+                continue
 
             if use_real:
                 payload = self._try_load_pkl(key, models_dir, cache_on)
@@ -261,7 +275,7 @@ class ModelOrchestrator:
                 "pkl_loaded": loaded,
                 "model_type": "algorithmic",
                 "supported_markets": spec["markets"],
-                "parent_version": parent_version
+                "parent_version": parent_version,
             }
 
 
@@ -337,11 +351,44 @@ class ModelOrchestrator:
         model_obj.trained_matches_count = payload.get("training_samples", 1)
         logger.info(f"✅ Attached real weights for {key}")
 
+    def _ensure_model_loaded(self, key: str) -> None:
+        pkl_loaded = getattr(self, "_pkl_loaded", {})
+        if pkl_loaded.get(key, False):
+            return
+        models_dict = getattr(self, "models", {})
+        model_obj = models_dict.get(key)
+        if not model_obj:
+            return
+        enabled_list = _get_enabled_models()
+        if enabled_list is not None and key.lower() not in enabled_list:
+            return
+        if not _use_real_ml_models():
+            return
+        models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "models")
+        cache_on = _ml_cache_enabled()
+        payload = self._try_load_pkl(key, models_dir, cache_on)
+        if payload is None:
+            payload = self._try_tachyon_load(key, cache_on)
+        spec = next((s for s in _MODEL_SPECS if s["key"] == key), None)
+        parent_version = spec.get("parent") if spec else None
+        if payload is None and parent_version:
+            payload = self._try_load_pkl(parent_version, models_dir, cache_on)
+            if payload is None:
+                payload = self._try_tachyon_load(parent_version, cache_on)
+        if payload is not None:
+            self._attach_sklearn_payload(model_obj, key, payload)
+            if hasattr(self, "_pkl_loaded"):
+                self._pkl_loaded[key] = True
+            model_meta = getattr(self, "model_meta", {})
+            if key in model_meta:
+                model_meta[key]["pkl_loaded"] = True
+
     def _sklearn_predict(self, model_obj, lam_h: float, lam_a: float,
                          base_hp: float, base_dp: float, base_ap: float,
                          market_odds: Optional[Dict[str, Any]] = None,
                          match_features: Optional[Dict[str, Any]] = None,
                          ) -> Optional[Tuple[float, float, float]]:
+        self._ensure_model_loaded(model_obj.key)
         sk_model   = getattr(model_obj, "_sklearn_model",    None)
         sk_scaler  = getattr(model_obj, "_sklearn_scaler",   None)
         sk_features = getattr(model_obj, "_sklearn_features", [])

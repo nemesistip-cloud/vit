@@ -50,14 +50,21 @@ async def seed_genesis(db: AsyncSession) -> bool:
     """
     try:
         from app.db.models import Block, ValidatorStake
+        from vit_chain.storage.db import ChainBlock
         from vit_chain.genesis import ensure_genesis
 
-        result = await db.execute(
+        cb_result = await db.execute(
+            select(func.count()).select_from(ChainBlock).where(ChainBlock.height == 0)
+        )
+        if cb_result.scalar_one() > 0:
+            logger.info("[genesis] Genesis block already present in chain_blocks — skipping seed.")
+            return False
+
+        b_result = await db.execute(
             select(func.count()).select_from(Block).where(Block.height == 0)
         )
-        count = result.scalar_one()
-        if count > 0:
-            logger.info("[genesis] Genesis block already present — skipping seed.")
+        if b_result.scalar_one() > 0:
+            logger.info("[genesis] Genesis block already present in blocks — skipping seed.")
             return False
 
         logger.info("[genesis] Seeding genesis block & initial validators (chain_id=%d)...", CHAIN_ID)

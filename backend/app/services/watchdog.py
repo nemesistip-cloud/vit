@@ -45,7 +45,7 @@ class Watchdog:
     async def probe(self, name: str, client: httpx.AsyncClient | None = None) -> ServiceState:
         service = self.states[name]
         owns_client = client is None
-        client = client or httpx.AsyncClient(timeout=10)
+        client = client or httpx.AsyncClient(timeout=5)
         started = time.monotonic()
         try:
             response = await client.get(f"{service.url}{service.health_path}")
@@ -56,7 +56,7 @@ class Watchdog:
             service.consecutive_failures = 0
             service.error = None
             service.state = "HEALTHY" if response.status_code == 200 else "DEGRADED"
-        except Exception as exc:
+        except (httpx.HTTPError, httpx.TimeoutException, RuntimeError, ConnectionResetError, OSError) as exc:
             service.last_failure = time.time()
             service.consecutive_failures += 1
             service.error = type(exc).__name__
@@ -64,14 +64,19 @@ class Watchdog:
                 service.state = "UNHEALTHY"
             else:
                 service.state = "DEGRADED"
+        except Exception as exc:
+            service.last_failure = time.time()
+            service.consecutive_failures += 1
+            service.error = type(exc).__name__
+            service.state = "UNHEALTHY"
         finally:
             if owns_client:
                 await client.aclose()
         return service
 
     async def snapshot(self) -> list[dict[str, Any]]:
-        async with httpx.AsyncClient(timeout=10) as client:
-            await asyncio.gather(*(self.probe(name, client) for name in self.states))
+        async with httpx.AsyncClient(timeout=5) as client:
+            await asyncio.gather(*(self.probe(name, client) for name in self.states), return_exceptions=True)
         return [
             {
                 "service": state.name,

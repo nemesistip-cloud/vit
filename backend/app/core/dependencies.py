@@ -52,7 +52,6 @@ def get_orchestrator() -> Optional[ModelOrchestrator]:
 
     try:
         orch = ModelOrchestrator()
-        orch.load_all_models()
         logger.info("Orchestrator initialized: %d models ready", orch.num_models_ready())
         return orch
     except Exception as e:

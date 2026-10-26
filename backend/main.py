@@ -84,6 +84,7 @@ async def lifespan(app: FastAPI):
                 _schema_exc,
                 exc_info=True,
             )
+        await asyncio.sleep(0)
 
         try:
             await bootstrap_default_admin()
@@ -94,6 +95,7 @@ async def lifespan(app: FastAPI):
                 _bootstrap_exc,
                 exc_info=True,
             )
+        await asyncio.sleep(0)
 
         try:
             await kernel.boot()
@@ -104,6 +106,7 @@ async def lifespan(app: FastAPI):
                 "[lifespan] kernel.boot() failed — service starting in DEGRADED state: %s",
                 _boot_exc, exc_info=True,
             )
+        await asyncio.sleep(0)
 
         # Phase 0: connect event bus Redis layer so events persist across restarts
         try:
@@ -551,6 +554,12 @@ async def deep_health(request: Request, db: AsyncSession = Depends(get_db)):
 async def _watchdog_loop(stop_event: asyncio.Event) -> None:
     from app.db.database import AsyncSessionLocal
     from app.services.watchdog import watchdog
+    try:
+        await asyncio.wait_for(stop_event.wait(), timeout=5)
+        if stop_event.is_set():
+            return
+    except asyncio.TimeoutError:
+        pass
     while not stop_event.is_set():
         try:
             snapshot = await watchdog.snapshot()
