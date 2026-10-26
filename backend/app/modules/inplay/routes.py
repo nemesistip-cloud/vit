@@ -170,8 +170,8 @@ async def live_matches():
     upcoming_list = res.get("upcoming", [])
 
     return {
-        "matches": [m.dict() for m in live_list],
-        "upcoming": [m.dict() for m in upcoming_list],
+        "matches": [m.model_dump() for m in live_list],
+        "upcoming": [m.model_dump() for m in upcoming_list],
         "total_live": len(live_list),
         "total": len(live_list),
         "total_upcoming": len(upcoming_list),
