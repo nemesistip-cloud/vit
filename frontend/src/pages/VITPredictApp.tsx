@@ -1,12 +1,31 @@
 import { useQuery } from '@tanstack/react-query'
-import { Activity, ArrowRight, Brain, CircleAlert, LineChart, ShieldCheck } from 'lucide-react'
+import { Activity, ArrowRight, Brain, CircleAlert, LineChart, ShieldCheck, Layers, ExternalLink, Lock } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ENDPOINTS } from '@/lib/api'
+import { vitpredictApiPath } from '@/lib/vitpredictApi'
 
 interface AppHealth {
   app_id: string
   status: string
   checks: Record<string, string>
+}
+
+interface AccumulatorLeg {
+  match_id: number
+  home_team: string
+  away_team: string
+  selection: string
+  model_prob: number
+  market_odds: number
+}
+
+interface AccumulatorData {
+  legs?: AccumulatorLeg[]
+  total_odds?: number
+  expected_value?: number
+  combined_probability?: number
+  recommended_stake_pct?: number
+  error?: string
 }
 
 export default function VITPredictApp() {
@@ -20,6 +39,16 @@ export default function VITPredictApp() {
     },
     retry: false,
     refetchInterval: 60_000,
+  })
+
+  const accumulator = useQuery<AccumulatorData>({
+    queryKey: ['vitpredict-daily-accumulator'],
+    queryFn: async ({ signal }) => {
+      const response = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/predict/accumulator?limit=3')}`, { signal })
+      if (!response.ok) return {}
+      return response.json()
+    },
+    retry: false,
   })
 
   const features = [
@@ -53,6 +82,48 @@ export default function VITPredictApp() {
         </aside>
       </section>
 
+      {/* Daily Accumulator Value Showcase */}
+      <section className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-6 backdrop-blur-sm">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400/15 text-emerald-300">
+              <Layers className="h-4 w-4" />
+            </span>
+            <div>
+              <h3 className="font-semibold text-white">Daily High-Value Accumulator</h3>
+              <p className="text-xs text-white/50">AI-selected combination based on vig-free probability edge</p>
+            </div>
+          </div>
+          {accumulator.data?.total_odds && (
+            <div className="text-right">
+              <span className="text-xs text-white/40 block">Combined Odds</span>
+              <span className="text-lg font-bold text-emerald-300">{accumulator.data.total_odds.toFixed(2)}x</span>
+            </div>
+          )}
+        </div>
+
+        {accumulator.isPending ? (
+          <p className="text-xs text-white/40 py-2">Analyzing market probabilities...</p>
+        ) : accumulator.data?.legs && accumulator.data.legs.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-3 mt-4">
+            {accumulator.data.legs.map((leg, i) => (
+              <div key={i} className="rounded-lg border border-white/10 bg-white/5 p-3.5 text-xs">
+                <div className="flex justify-between font-medium text-white/90 mb-1">
+                  <span>{leg.home_team} vs {leg.away_team}</span>
+                  <span className="text-emerald-300 font-semibold">{(leg.market_odds || 1.0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-white/50">
+                  <span>Selection: <strong className="text-white/80 capitalize">{leg.selection}</strong></span>
+                  <span>Model: {((leg.model_prob || 0) * 100).toFixed(0)}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-white/40 py-2">No high-edge accumulator combinations found for today's matches.</p>
+        )}
+      </section>
+
       <section aria-labelledby="vitpredict-capabilities">
         <div className="mb-4 flex items-end justify-between gap-4"><div><p className="text-xs uppercase text-white/35">Workspace</p><h2 id="vitpredict-capabilities" className="mt-1 text-xl font-semibold">Prediction intelligence</h2></div><span className="text-xs text-white/35">App ID: app:vitpredict</span></div>
         <div className="divide-y divide-white/10 border-y border-white/10">
@@ -64,7 +135,15 @@ export default function VITPredictApp() {
             </Link>
           ))}
         </div>
-        <p className="mt-5 max-w-3xl text-xs leading-5 text-white/35">VITPredict provides analysis and forecasts, not wagers or bet placement. Identity is shared with VIT Network; application permissions and data ownership remain scoped to VITPredict.</p>
+
+        {/* Wallet Segregation & Regulatory Disclaimer */}
+        <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.02] p-4 text-xs text-white/50 flex gap-3 items-start">
+          <Lock className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+          <div>
+            <span className="font-medium text-white/80 block mb-0.5">Sports Market Wallet Protection</span>
+            VITPredict provides AI analysis and model forecasts only. In strict accordance with VIT platform policy, sports markets do not process deposits, withdrawals, or direct wallet wagers. External execution is handled via licensed affiliate partner links.
+          </div>
+        </div>
       </section>
     </div>
   )
