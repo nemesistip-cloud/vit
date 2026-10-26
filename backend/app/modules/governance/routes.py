@@ -2,7 +2,7 @@
 """Governance Layer REST API — Module M."""
 
 import logging
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -87,7 +87,7 @@ def _fmt_config(c) -> dict:
 
 @router.get("/proposals", summary="List governance proposals")
 async def list_proposals(
-    status:    Optional[str] = Query(None, enum=["draft", "active", "passed", "rejected", "cancelled", "executed"]),
+    status:    Optional[Literal["draft", "active", "passed", "rejected", "cancelled", "executed"]] = Query(None),
     category:  Optional[str] = None,
     page:      int           = Query(default=1, ge=1),
     page_size: int           = Query(default=20, ge=1, le=100),
