@@ -37,12 +37,12 @@ test('prediction history distinguishes an API failure from an empty history', as
     localStorage.setItem('vit_user', JSON.stringify({ id: 7, username: 'test-user', role: 'user' }));
   });
 
-  await page.route('**/api/predict/history**', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/predict/history**', route => route.fulfill({
     status: 503,
     contentType: 'application/json',
     body: JSON.stringify({ detail: 'temporarily unavailable' }),
   }));
-  await page.route('**/api/predict/accuracy', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/predict/accuracy', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ total: 0, win_rate: 0, current_streak: 0 }),
@@ -71,12 +71,12 @@ test('prediction accuracy labels its settled denominator', async ({ page }) => {
     contentType: 'application/json',
     body: JSON.stringify({ verified: true }),
   }));
-  await page.route('**/api/predict/history**', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/predict/history**', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify([]),
   }));
-  await page.route('**/api/predict/accuracy', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/predict/accuracy', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ total: 7, settled: 6, win_rate: 0.833, current_streak: 3, best_league: 'League B' }),
@@ -153,7 +153,7 @@ test('odds page distinguishes an API failure from an empty market', async ({ pag
     contentType: 'application/json',
     body: JSON.stringify({ verified: true }),
   }));
-  await page.route('**/api/odds/compare**', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/odds/compare**', route => route.fulfill({
     status: 503,
     contentType: 'application/json',
     body: JSON.stringify({ detail: 'temporarily unavailable' }),
@@ -177,7 +177,7 @@ test('odds page labels database fallback data', async ({ page }) => {
     contentType: 'application/json',
     body: JSON.stringify({ verified: true }),
   }));
-  await page.route('**/api/odds/compare**', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/odds/compare**', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({
@@ -197,6 +197,138 @@ test('odds page labels database fallback data', async ({ page }) => {
 
   await expect(page.getByText('Database fallback', { exact: true })).toBeVisible();
   await expect(page.getByText(/Fallback Home.*Fallback Away/i)).toBeVisible();
+});
+
+test('navigation menus avoid duplicate destinations and search works in both shells', async ({ page }) => {
+  await page.route('**/api/**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: '{}',
+  }));
+  await page.route('**/ready', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: '{"status":"ok"}',
+  }));
+
+  await page.goto('/');
+  const publicHeaderPaths = await page.getByRole('navigation', { name: 'Primary navigation' })
+    .locator('a[href^="/"]')
+    .evaluateAll(links => links.map(link => new URL((link as HTMLAnchorElement).href).pathname));
+  expect(new Set(publicHeaderPaths).size).toBe(publicHeaderPaths.length);
+  await page.getByRole('button', { name: 'Search navigation' }).click();
+  await expect(page.getByPlaceholder(/search pages and applications/i)).toBeVisible();
+  await page.getByPlaceholder(/search pages and applications/i).press('Escape');
+  await expect(page.getByPlaceholder(/search pages and applications/i)).toBeHidden();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const publicTrigger = page.getByRole('button', { name: 'Open navigation menu' });
+  await publicTrigger.click();
+  const publicMenu = page.getByRole('dialog', { name: 'Mobile navigation' });
+  const publicPaths = await publicMenu.locator('a').evaluateAll(links =>
+    links.map(link => new URL((link as HTMLAnchorElement).href).pathname),
+  );
+  expect(new Set(publicPaths).size).toBe(publicPaths.length);
+  await expect(publicMenu.getByRole('link', { name: 'Applications', exact: true })).toHaveAttribute('href', '/applications');
+  await expect(publicMenu.getByRole('link', { name: 'Sign in', exact: true })).toHaveAttribute('href', '/login');
+  await expect(publicMenu.locator('a').first()).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(publicMenu).toBeHidden();
+  await expect(publicTrigger).toBeFocused();
+
+  await page.evaluate(() => {
+    localStorage.setItem('vit_token', 'playwright-navigation-placeholder');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 7, username: 'test-user', role: 'user' }));
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/about');
+  await expect(page.getByRole('navigation', { name: 'Sidebar navigation' })).toHaveCount(0);
+  const primaryPaths = await page.getByRole('navigation', { name: 'Primary navigation' })
+    .locator('a[href^="/"]')
+    .evaluateAll(links => links.map(link => new URL((link as HTMLAnchorElement).href).pathname));
+  expect(new Set(primaryPaths).size).toBe(primaryPaths.length);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/odds');
+  await expect(page).toHaveURL(/\/apps\/vitpredict\/odds$/);
+  await page.goto('/predictions');
+  await expect(page).toHaveURL(/\/apps\/vitpredict\/predictions$/);
+  await page.goto('/analytics-studio');
+  await expect(page).toHaveURL(/\/apps\/vitpredict\/analytics$/);
+  await page.goto('/dashboard');
+  await page.getByRole('button', { name: 'Search navigation' }).click();
+  const search = page.getByPlaceholder(/search pages and applications/i);
+  await expect(search).toBeVisible();
+  await search.fill('VITPredict');
+  await expect(page.getByRole('button', { name: /VITPredict/ })).toHaveCount(1);
+  await search.press('Escape');
+  await expect(search).toBeHidden();
+  const authTrigger = page.getByRole('button', { name: 'Open navigation menu' });
+  await authTrigger.click();
+  const authenticatedMenu = page.getByRole('dialog', { name: 'Mobile navigation' });
+  const authenticatedPaths = await authenticatedMenu.locator('a').evaluateAll(links =>
+    links.map(link => new URL((link as HTMLAnchorElement).href).pathname),
+  );
+  expect(new Set(authenticatedPaths).size).toBe(authenticatedPaths.length);
+  await expect(authenticatedMenu.getByRole('link', { name: 'Admin Control' })).toHaveCount(0);
+  await expect(page.locator('body')).toHaveCSS('overflow', 'hidden');
+  await page.keyboard.press('Escape');
+  await expect(authenticatedMenu).toBeHidden();
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
+  await expect(authTrigger).toBeFocused();
+
+  await page.setViewportSize({ width: 1440, height: 1200 });
+  const sidebar = page.getByRole('navigation', { name: 'Sidebar navigation' });
+  await page.goto('/workspace');
+  await expect(sidebar.getByRole('link', { name: 'Workspace' })).toHaveAttribute('aria-current', 'page');
+  const sidebarPaths = await sidebar.locator('a').evaluateAll(links =>
+    links.map(link => new URL((link as HTMLAnchorElement).href).pathname),
+  );
+  expect(new Set(sidebarPaths).size).toBe(sidebarPaths.length);
+
+  const footerPaths = await page.locator('footer a[href^="/"]').evaluateAll(links =>
+    links.map(link => new URL((link as HTMLAnchorElement).href).pathname),
+  );
+  expect(new Set(footerPaths).size).toBe(footerPaths.length);
+
+  await page.getByRole('button', { name: 'Open application switcher' }).click();
+  const switcher = page.locator('#application-switcher-menu');
+  await expect(switcher.getByRole('link', { name: /VITPredict/ })).toHaveAttribute('href', '/apps/vitpredict');
+  await switcher.getByRole('link', { name: /VITPredict/ }).click();
+  await expect(page).toHaveURL(/\/apps\/vitpredict$/);
+  await page.reload();
+  await expect(page).toHaveURL(/\/apps\/vitpredict$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/workspace$/);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/apps\/vitpredict$/);
+});
+
+test('authenticated navigation and footer destinations resolve to application routes', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'navigation-route-sweep-token');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'route-sweeper', role: 'user' }));
+  });
+  await page.route('**/api/**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: '{}',
+  }));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/workspace');
+
+  const sidebar = page.getByRole('navigation', { name: 'Sidebar navigation' });
+  const destinations = await sidebar.locator('a[href^="/"]').evaluateAll(links =>
+    links.map(link => new URL((link as HTMLAnchorElement).href).pathname),
+  );
+  const footerDestinations = await page.locator('footer a[href^="/"]').evaluateAll(links =>
+    links.map(link => new URL((link as HTMLAnchorElement).href).pathname),
+  );
+
+  for (const destination of new Set([...destinations, ...footerDestinations])) {
+    await page.goto(destination);
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toHaveCount(0, { timeout: 1000 });
+  }
 });
 
 test('Matches page renders its real tabs, summary count, and search', async ({ page }) => {
@@ -365,30 +497,25 @@ test('admin Users and System tabs render authorized read data', async ({ page })
   expect(authorizedReads.every(value => value.startsWith('Bearer '))).toBe(true);
 });
 
-test('authenticated shell exposes product layers and mobile More navigation', async ({ page }) => {
+test('authenticated shell exposes unique navigation and admin entry only for admins', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('vit_token', 'ui-shell-smoke-token');
     localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'operator', role: 'admin' }));
   });
 
   await page.goto('/workspace');
-  const sidebar = page.getByRole('complementary');
-  await expect(sidebar.getByText('Explore', { exact: true })).toBeVisible();
+  const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' });
+  await expect(sidebar.getByRole('heading', { name: 'Network' })).toBeVisible();
   await expect(sidebar.getByText('Workspace', { exact: true })).toBeVisible();
   await expect(sidebar.getByText('Ecosystem', { exact: true })).toBeVisible();
   await expect(sidebar.getByText('Admin Control', { exact: true })).toBeVisible();
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole('button', { name: 'Open more navigation' })).toBeVisible();
-  await page.getByRole('button', { name: 'Open more navigation' }).click();
-  const moreMenu = page.locator('div.absolute.bottom-full');
-  await expect(moreMenu.getByRole('link', { name: 'Explorer', exact: true })).toBeVisible();
-  await expect(moreMenu.getByRole('link', { name: 'Governance', exact: true })).toBeVisible();
-
-  await page.screenshot({ path: 'authenticated-shell-mobile.png' });
+  const destinations = await sidebar.locator('a').evaluateAll(links =>
+    links.map(link => new URL((link as HTMLAnchorElement).href).pathname),
+  );
+  expect(new Set(destinations).size).toBe(destinations.length);
 });
 
-test('authenticated mobile navigation starts with workspace actions', async ({ page }) => {
+test('authenticated mobile drawer exposes one navigation surface without admin privileges', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('vit_token', 'ui-mobile-nav-token');
     localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'operator', role: 'user' }));
@@ -396,12 +523,16 @@ test('authenticated mobile navigation starts with workspace actions', async ({ p
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/dashboard');
-  await page.getByRole('button', { name: /open menu/i }).click();
+  await page.getByRole('button', { name: 'Open navigation menu' }).click();
 
-  const menu = page.locator('header').getByText('Workspace', { exact: true });
-  await expect(menu).toBeVisible();
-  await expect(page.locator('header').getByText('Explore', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible();
+  const menu = page.getByRole('dialog', { name: 'Mobile navigation' });
+  await expect(menu.getByText('Workspace', { exact: true })).toBeVisible();
+  await expect(menu.getByRole('link', { name: 'Governance', exact: true })).toBeVisible();
+  await expect(menu.getByRole('link', { name: 'Admin Control' })).toHaveCount(0);
+  const destinations = await menu.locator('a').evaluateAll(links =>
+    links.map(link => new URL((link as HTMLAnchorElement).href).pathname),
+  );
+  expect(new Set(destinations).size).toBe(destinations.length);
 });
 
 test('genesis initialization wizard exposes the bootstrap stages and readiness flow', async ({ page }) => {
@@ -639,29 +770,29 @@ test('unverified genesis does not block VIT sports prediction workflows', async 
     contentType: 'application/json',
     body: JSON.stringify({ current_stage: 9, total_stages: 10, verified: false, status: 'bootstrapping' }),
   }));
-  await page.route('**/api/odds/compare**', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/odds/compare**', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ data_status: 'database_fallback', events: [] }),
   }));
-  await page.route('**/api/predict/history**', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/predict/history**', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify([]),
   }));
-  await page.route('**/api/predict/accuracy', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/predict/accuracy', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ total: 0, settled: 0, win_rate: 0, current_streak: 0 }),
   }));
 
   await page.goto('/odds');
-  await expect(page).toHaveURL(/\/odds$/);
+  await expect(page).toHaveURL(/\/apps\/vitpredict\/odds$/);
   await expect(page.getByRole('heading', { name: 'Odds Comparison' })).toBeVisible();
   await expect(page.getByText('Database fallback', { exact: true })).toBeVisible();
 
   await page.goto('/predictions');
-  await expect(page).toHaveURL(/\/predictions$/);
+  await expect(page).toHaveURL(/\/apps\/vitpredict\/predictions$/);
   await expect(page.getByRole('heading', { name: 'My Predictions' })).toBeVisible();
 });
 

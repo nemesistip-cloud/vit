@@ -4,33 +4,26 @@ import { useNavigate } from 'react-router-dom'
 import {
   Activity,
   ArrowRight,
-  Brain,
-  LayoutDashboard,
   Search,
-  Settings,
-  Shield,
   Sparkles,
-  Store,
-  Trophy,
-  Wallet,
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getAuthToken, getStoredUser } from '@/hooks/useAuth'
 import { getAppRegistry } from '@/lib/appRegistry'
+import { getNavigationGroups } from '@/lib/navigation'
 import { useWorkspaceStore } from '@/lib/workspacePersistence'
 import { workspaceProcessManager } from '@/lib/processManager'
 
-type PaletteItemType = 'app' | 'navigation' | 'action'
+type PaletteItemType = 'navigation' | 'action'
 
 interface PaletteItem {
   id: string
   type: PaletteItemType
   label: string
   sub: string
-  path: string
+  path?: string
   icon: React.ElementType
-  appId?: string
-  windowId?: string
 }
 
 interface Props {
@@ -39,44 +32,50 @@ interface Props {
 }
 
 export function CommandPalette({ open, onClose }: Props) {
-  const [q, setQ] = useState('')
+  const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
   const workspace = useWorkspaceStore()
+  const isAuthenticated = Boolean(getAuthToken())
+  const user = getStoredUser()
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
 
   useEffect(() => {
-    if (open) {
-      setQ('')
-      setCursor(0)
-      window.setTimeout(() => inputRef.current?.focus(), 50)
-    }
+    if (!open) return
+    setQuery('')
+    setCursor(0)
+    window.setTimeout(() => inputRef.current?.focus(), 50)
   }, [open])
 
   useEffect(() => {
     setCursor(0)
-  }, [q])
+  }, [query])
 
   const results = useMemo(() => {
-    const registryItems = getAppRegistry().map((app) => {
-      const openWindow = Object.values(workspace.windows).find((window) => window.appKey === app.id && window.visible)
-      return {
+    const navigationItems: PaletteItem[] = getNavigationGroups(isAuthenticated, isAdmin)
+      .flatMap((group) => group.items)
+      .map((item) => ({
+        id: item.id,
+        type: 'navigation',
+        label: item.label,
+        sub: item.path,
+        path: item.path,
+        icon: item.icon,
+      }))
+
+    const navigationPaths = new Set(navigationItems.map((item) => item.path))
+    for (const app of getAppRegistry().filter((item) => item.category === 'Applications')) {
+      if (navigationPaths.has(app.route)) continue
+      navigationItems.push({
         id: `app-${app.id}`,
-        type: 'app' as const,
-        label: openWindow ? `${app.name} (open)` : app.name,
-        sub: openWindow ? 'Focus the existing window' : app.description,
+        type: 'navigation',
+        label: app.name,
+        sub: app.description,
         path: app.route,
         icon: app.icon,
-        appId: app.id,
-        windowId: openWindow?.id,
-      }
-    })
-
-    const navigationItems: PaletteItem[] = [
-      { id: 'nav-workspace', type: 'navigation', label: 'Workspace', sub: 'Open the workspace overview', path: '/workspace', icon: LayoutDashboard },
-      { id: 'nav-assistant', type: 'navigation', label: 'Assistant', sub: 'Open the AI assistant', path: '/assistant', icon: Brain },
-      { id: 'nav-settings', type: 'navigation', label: 'Settings', sub: 'Open workspace settings', path: '/settings', icon: Settings },
-    ]
+      })
+    }
 
     const actionItems: PaletteItem[] = []
     if (workspace.activeWindowId) {
@@ -84,75 +83,54 @@ export function CommandPalette({ open, onClose }: Props) {
         id: 'action-focus',
         type: 'action',
         label: 'Focus active window',
-        sub: 'Bring the current window to the front',
-        path: '',
+        sub: 'Bring the current workspace window to the front',
         icon: Sparkles,
       })
       actionItems.push({
         id: 'action-close',
         type: 'action',
         label: 'Close active window',
-        sub: 'Close the currently active workspace window',
-        path: '',
+        sub: 'Close the current workspace window',
         icon: X,
       })
     }
 
-    const allItems = [...registryItems, ...navigationItems, ...actionItems]
+    const uniqueItems = [...navigationItems, ...actionItems]
+      .filter((item, index, all) =>
+        item.type === 'action' || all.findIndex((other) => other.type !== 'action' && other.path === item.path) === index,
+      )
 
-    if (!q.trim()) return allItems.slice(0, 8)
+    if (!query.trim()) return uniqueItems.slice(0, 8)
 
-    const query = q.toLowerCase()
-    return allItems
+    const normalizedQuery = query.trim().toLowerCase()
+    return uniqueItems
       .filter((item) =>
-        item.label.toLowerCase().includes(query) ||
-        item.sub.toLowerCase().includes(query) ||
-        item.type.toLowerCase().includes(query),
+        item.label.toLowerCase().includes(normalizedQuery) ||
+        item.sub.toLowerCase().includes(normalizedQuery) ||
+        item.type.toLowerCase().includes(normalizedQuery),
       )
       .slice(0, 10)
-  }, [q, workspace])
+  }, [isAdmin, isAuthenticated, query, workspace])
 
   function handleSelection(item: PaletteItem) {
-    if (item.type === 'app') {
-      if (item.windowId) {
-        const processId = Object.keys(workspace.processes ?? {}).find((candidate) => {
-          const process = (workspace.processes ?? {})[candidate]
-          return process.windowId === item.windowId
-        })
-        if (processId) {
-          workspaceProcessManager.focusProcess(processId)
-        }
-      } else {
-        workspaceProcessManager.launchProcess(item.appId!)
-      }
-      onClose()
-      return
-    }
-
-    if (item.type === 'navigation') {
+    if (item.type === 'navigation' && item.path) {
       navigate(item.path)
       onClose()
       return
     }
 
     if (item.id === 'action-focus' && workspace.activeWindowId) {
-      const processId = Object.keys(workspace.processes ?? {}).find((candidate) => {
-        const process = (workspace.processes ?? {})[candidate]
-        return process.windowId === workspace.activeWindowId
-      })
-      if (processId) {
-        workspaceProcessManager.focusProcess(processId)
-      }
+      const processId = Object.keys(workspace.processes ?? {}).find((candidate) =>
+        workspace.processes?.[candidate]?.windowId === workspace.activeWindowId,
+      )
+      if (processId) workspaceProcessManager.focusProcess(processId)
     }
 
     if (item.id === 'action-close' && workspace.activeWindowId) {
-      const processId = Object.keys(workspace.processes ?? {}).find((candidate) => {
-        const process = (workspace.processes ?? {})[candidate]
-        return process.windowId === workspace.activeWindowId
-      })
-      if (processId) {
-        workspaceProcessManager.closeProcess(processId)
-      }
+      const processId = Object.keys(workspace.processes ?? {}).find((candidate) =>
+        workspace.processes?.[candidate]?.windowId === workspace.activeWindowId,
+      )
+      if (processId) workspaceProcessManager.closeProcess(processId)
     }
 
     onClose()
@@ -181,45 +159,56 @@ export function CommandPalette({ open, onClose }: Props) {
     <AnimatePresence>
       {open && (
         <>
-          <motion.div
+          <motion.button
+            type="button"
+            aria-label="Close search"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm"
             onClick={onClose}
           />
 
-          <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[15vh] pointer-events-none">
+          <div className="pointer-events-none fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto px-4 pt-[12vh]">
             <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: -16 }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Search navigation"
+              initial={{ opacity: 0, scale: 0.98, y: -8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: -16 }}
+              exit={{ opacity: 0, scale: 0.98, y: -8 }}
               transition={{ duration: 0.15 }}
-              className="w-full max-w-xl overflow-hidden rounded-2xl border border-white/12 bg-surface-900/98 shadow-2xl pointer-events-auto"
+              className="pointer-events-auto w-full max-w-xl overflow-hidden rounded-2xl border border-white/12 bg-surface-900 shadow-2xl shadow-black/50"
             >
               <div className="flex items-center gap-3 border-b border-white/8 px-4 py-3.5">
-                <Search className="h-4 w-4 shrink-0 text-white/30" />
+                <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-white/35" />
                 <input
                   ref={inputRef}
-                  value={q}
-                  onChange={(event) => setQ(event.target.value)}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
                   onKeyDown={handleKey}
-                  placeholder="Search apps, navigation, commands…"
-                  className="flex-1 bg-transparent text-sm text-white outline-none placeholder-white/25"
+                  placeholder="Search pages and applications"
+                  aria-label="Search pages and applications"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder-white/30"
                 />
-                {q && (
-                  <button onClick={() => setQ('')} className="text-white/25 transition-colors hover:text-white/60">
-                    <X className="h-4 w-4" />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery('')}
+                    aria-label="Clear search"
+                    className="rounded p-1 text-white/35 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vit-400"
+                  >
+                    <X aria-hidden="true" className="h-4 w-4" />
                   </button>
                 )}
-                <kbd className="rounded bg-white/6 px-2 py-0.5 text-[10px] font-mono text-white/20">ESC</kbd>
+                <kbd className="rounded bg-white/6 px-2 py-0.5 font-mono text-[10px] text-white/35">ESC</kbd>
               </div>
 
-              <div className="max-h-80 overflow-y-auto py-2">
+              <div className="max-h-[min(60vh,24rem)] overflow-y-auto py-2">
                 {results.length === 0 && (
-                  <div className="flex flex-col items-center justify-center gap-1.5 py-10">
-                    <Search className="h-6 w-6 text-white/10" />
-                    <p className="text-sm text-white/25">No results for "{q}"</p>
+                  <div className="flex flex-col items-center justify-center gap-2 py-10">
+                    <Activity aria-hidden="true" className="h-6 w-6 text-white/15" />
+                    <p className="text-sm text-white/40">No results for “{query}”</p>
                   </div>
                 )}
 
@@ -228,26 +217,28 @@ export function CommandPalette({ open, onClose }: Props) {
                   return (
                     <button
                       key={item.id}
+                      type="button"
                       onClick={() => handleSelection(item)}
+                      aria-current={index === cursor ? 'true' : undefined}
                       className={cn(
-                        'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
+                        'flex min-h-12 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-vit-400',
                         index === cursor ? 'bg-white/8' : 'hover:bg-white/5',
                       )}
                     >
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/5">
-                        <Icon className="h-3.5 w-3.5 text-white/40" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-white">{item.label}</p>
-                        {item.sub && <p className="truncate text-xs text-white/35">{item.sub}</p>}
-                      </div>
-                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-white/15" />
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5">
+                        <Icon aria-hidden="true" className="h-4 w-4 text-white/50" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-white">{item.label}</span>
+                        {item.sub && <span className="block truncate text-xs text-white/40">{item.sub}</span>}
+                      </span>
+                      <ArrowRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-white/25" />
                     </button>
                   )
                 })}
               </div>
 
-              <div className="flex items-center gap-4 border-t border-white/6 px-4 py-2.5 text-[10px] text-white/20">
+              <div className="flex items-center gap-4 border-t border-white/6 px-4 py-2.5 text-[10px] text-white/35">
                 <span><kbd className="font-mono">↑↓</kbd> navigate</span>
                 <span><kbd className="font-mono">↵</kbd> open</span>
                 <span><kbd className="font-mono">esc</kbd> close</span>

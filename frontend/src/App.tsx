@@ -5,6 +5,7 @@ import { getAuthToken } from '@/hooks/useAuth'
 import { RouteErrorBoundary } from '@/components/ErrorBoundary'
 import { Spinner } from '@/components/ui/Spinner'
 import { VITPredictShell } from '@/components/shell/VITPredictShell'
+import { ROUTES } from '@/lib/navigation'
 
 // ── Page-level loading fallback ───────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ function RequireAuth() {
   const token    = getAuthToken()
   const location = useLocation()
   if (!token) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />
+    return <Navigate to={ROUTES.login} state={{ from: location.pathname }} replace />
   }
   return <Outlet />
 }
@@ -52,19 +53,19 @@ function RequireGuest() {
   const location = useLocation()
   if (token) {
     const from = (location.state as { from?: string } | null)?.from
-    return <Navigate to={from && from.startsWith('/') ? from : '/dashboard'} replace />
+    return <Navigate to={from && from.startsWith('/') ? from : ROUTES.dashboard} replace />
   }
   return <Outlet />
 }
 
 
 function PublicHomeGate() {
-  return getAuthToken() ? <Navigate to="/dashboard" replace /> : <NetworkOverview />
+  return getAuthToken() ? <Navigate to={ROUTES.dashboard} replace /> : <NetworkOverview />
 }
 
 function LegacyMatchRedirect() {
   const { id } = useParams()
-  return <Navigate to={`/apps/vitpredict/matches/${id ?? ''}`} replace />
+  return <Navigate to={`${ROUTES.vitpredictMatches}/${id ?? ''}`} replace />
 }
 
 function ValidatorsShell() {
@@ -150,46 +151,46 @@ export default function App() {
     <Routes>
       {/* ── Public / marketing ─────────────────────────────────────────────── */}
       <Route element={<PublicShell />}>
-        <Route path="/"                element={wrap(<PublicHomeGate />)} />
-        <Route path="/platform"        element={wrap(<Platform />)}       />
-        <Route path="/ai"              element={wrap(<AI />)}             />
-        <Route path="/storage"         element={wrap(<Storage />)}        />
-        <Route path="/status-page"    element={wrap(<Status />)}         />
-        <Route path="/verification"    element={<Navigate to="/apps/vitpredict/verification" replace />} />
-        <Route path="/developers"      element={wrap(<Developers />)}     />
-        <Route path="/docs"            element={wrap(<Documentation />)}  />
-        <Route path="/responsible-use" element={wrap(<ResponsibleUse />)} />
-        <Route path="/roadmap"         element={wrap(<Roadmap />)}        />
-        <Route path="/about"           element={wrap(<About />)}          />
-        <Route path="/applications"   element={wrap(<Applications />)}  />
+        <Route path={ROUTES.home}           element={wrap(<PublicHomeGate />)} />
+        <Route path={ROUTES.platform}       element={wrap(<Platform />)} />
+        <Route path={ROUTES.ai}             element={wrap(<AI />)} />
+        <Route path={ROUTES.storage}        element={wrap(<Storage />)} />
+        <Route path={ROUTES.status}         element={wrap(<Status />)} />
+        <Route path={ROUTES.verification}   element={<Navigate to={ROUTES.vitpredictVerification} replace />} />
+        <Route path={ROUTES.developers}     element={wrap(<Developers />)} />
+        <Route path={ROUTES.docs}           element={wrap(<Documentation />)} />
+        <Route path={ROUTES.responsibleUse} element={wrap(<ResponsibleUse />)} />
+        <Route path={ROUTES.roadmap}        element={wrap(<Roadmap />)} />
+        <Route path={ROUTES.about}          element={wrap(<About />)} />
+        <Route path={ROUTES.applications}   element={wrap(<Applications />)} />
         {/* Legacy product URLs remain compatible while the app owns its routes. */}
-        <Route path="/matches"         element={<Navigate to="/apps/vitpredict/matches" replace />} />
+        <Route path={ROUTES.matches}       element={<Navigate to={ROUTES.vitpredictMatches} replace />} />
         <Route path="/matches/:id"     element={<LegacyMatchRedirect />} />
-        <Route path="/predictions"     element={<Navigate to="/apps/vitpredict/predictions" replace />} />
-        <Route path="/odds"            element={<Navigate to="/apps/vitpredict/odds" replace />} />
-        <Route path="/analytics-studio" element={<Navigate to="/apps/vitpredict/analytics" replace />} />
+        <Route path={ROUTES.predictions} element={<Navigate to={ROUTES.vitpredictPredictions} replace />} />
+        <Route path={ROUTES.odds}        element={<Navigate to={ROUTES.vitpredictOdds} replace />} />
+        <Route path={ROUTES.analyticsStudio} element={<Navigate to={ROUTES.vitpredictAnalytics} replace />} />
         <Route path="/leaderboard"     element={wrap(<Leaderboard />)}    />
-        <Route path="/governance"      element={wrap(<Governance />)}     />
-        <Route path="/marketplace"     element={wrap(<Marketplace />)}    />
-        <Route path="/chain"           element={wrap(<Explorer />)}       />
+        <Route path={ROUTES.governance} element={wrap(<Governance />)} />
+        <Route path={ROUTES.marketplace} element={wrap(<Marketplace />)} />
+        <Route path={ROUTES.explorer} element={wrap(<Explorer />)} />
         <Route path="/validators/:validatorId"     element={wrap(<Validators />)} />
         <Route path="/validators/:validatorId/:tab" element={wrap(<Validators />)} />
         <Route path="/network/validators"          element={wrap(<Validators />)} />
-        <Route path="/explorer"        element={<Navigate to="/chain" replace />} />
+        <Route path="/explorer"        element={<Navigate to={ROUTES.explorer} replace />} />
         <Route element={<RequireGuest />}>
-          <Route path="/login"           element={wrap(<Login />)}          />
-          <Route path="/register"        element={wrap(<Login />)}          />
+          <Route path={ROUTES.login}    element={wrap(<Login />)} />
+          <Route path={ROUTES.register} element={wrap(<Login />)} />
         </Route>
-        <Route path="/forgot-password" element={wrap(<ForgotPassword />)} />
-        <Route path="/reset-password"  element={wrap(<ResetPassword />)}  />
-        <Route path="/verify-email"    element={wrap(<VerifyEmail />)}    />
+        <Route path={ROUTES.forgotPassword} element={wrap(<ForgotPassword />)} />
+        <Route path={ROUTES.resetPassword}  element={wrap(<ResetPassword />)} />
+        <Route path={ROUTES.verifyEmail}    element={wrap(<VerifyEmail />)} />
       </Route>
 
       <Route element={<ValidatorsShell />}>
-        <Route path="/validators" element={wrap(<Validators />)} />
+        <Route path={ROUTES.validators} element={wrap(<Validators />)} />
       </Route>
 
-      <Route path="/apps/vitpredict" element={<VITPredictShell />}>
+      <Route path={ROUTES.vitpredict} element={<VITPredictShell />}>
         <Route index element={wrap(<VITPredictApp />)} />
         <Route path="home" element={wrap(<Home />)} />
         <Route path="verification" element={wrap(<Verification />)} />
@@ -208,25 +209,22 @@ export default function App() {
       {/* ── Authenticated app ──────────────────────────────────────────────── */}
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
-            <Route path="/dashboard"        element={wrap(<NetworkOverview />)}  />
-            <Route path="/workspace"        element={wrap(<Workspace />)}       />
-            <Route path="/settings"         element={wrap(<Settings />)}        />
-            <Route path="/subscription"     element={wrap(<Subscription />)}    />
-            <Route path="/predictions"      element={wrap(<Predictions />)}     />
-            <Route path="/odds"             element={wrap(<Odds />)}            />
-            <Route path="/analytics"        element={wrap(<Analytics />)}       />
-            <Route path="/analytics-studio" element={wrap(<AnalyticsStudio />)} />
-            <Route path="/assistant"        element={wrap(<Assistant />)}       />
-            <Route path="/tasks"            element={wrap(<Tasks />)}           />
-            <Route path="/wallet"           element={wrap(<Wallet />)}          />
-            <Route path="/defi"             element={wrap(<DeFi />)}            />
-            <Route path="/inplay"           element={wrap(<InPlay />)}          />
-            <Route path="/genesis"          element={wrap(<Genesis />)}         />
-            <Route path="/referral"         element={wrap(<Referral />)}        />
-            <Route path="/treasury"         element={wrap(<Treasury />)}        />
-            <Route path="/social"           element={wrap(<Social />)}          />
-            <Route path="/ecosystem"        element={wrap(<Ecosystem />)}       />
-            <Route path="/enterprise"       element={wrap(<Enterprise />)}      />
+            <Route path={ROUTES.dashboard}      element={wrap(<NetworkOverview />)} />
+            <Route path={ROUTES.workspace}      element={wrap(<Workspace />)} />
+            <Route path={ROUTES.settings}       element={wrap(<Settings />)} />
+            <Route path={ROUTES.subscription}   element={wrap(<Subscription />)} />
+            <Route path={ROUTES.analytics}      element={wrap(<Analytics />)} />
+            <Route path={ROUTES.assistant}      element={wrap(<Assistant />)} />
+            <Route path={ROUTES.tasks}          element={wrap(<Tasks />)} />
+            <Route path={ROUTES.wallet}         element={wrap(<Wallet />)} />
+            <Route path={ROUTES.defi}           element={wrap(<DeFi />)} />
+            <Route path={ROUTES.inPlay}         element={wrap(<InPlay />)} />
+            <Route path={ROUTES.genesis}        element={wrap(<Genesis />)} />
+            <Route path={ROUTES.referral}       element={wrap(<Referral />)} />
+            <Route path={ROUTES.treasury}       element={wrap(<Treasury />)} />
+            <Route path={ROUTES.social}         element={wrap(<Social />)} />
+            <Route path={ROUTES.ecosystem}      element={wrap(<Ecosystem />)} />
+            <Route path={ROUTES.enterprise}     element={wrap(<Enterprise />)} />
             <Route path="/accumulator"      element={wrap(<Accumulator />)}     />
             <Route path="/rollover"         element={wrap(<Rollover />)}        />
             <Route path="/backtest"         element={wrap(<Backtest />)}        />
@@ -235,8 +233,8 @@ export default function App() {
             <Route path="/exchange"         element={wrap(<Exchange />)}        />
             <Route path="/vaults"           element={wrap(<Vaults />)}          />
             <Route path="/bridge"           element={wrap(<Bridge />)}          />
-            <Route path="/admin"            element={wrap(<Admin />)}           />
-            <Route path="/admin/:tab"       element={wrap(<Admin />)}           />
+            <Route path={ROUTES.admin}      element={wrap(<Admin />)} />
+            <Route path={`${ROUTES.admin}/:tab`} element={wrap(<Admin />)} />
             <Route path="*"                 element={wrap(<NotFound />)}        />
           </Route>
       </Route>

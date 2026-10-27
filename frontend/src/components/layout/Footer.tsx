@@ -1,48 +1,9 @@
 import { Link } from 'react-router-dom'
 import { Github, Twitter, ExternalLink, Zap, Shield, Globe } from 'lucide-react'
 import { useGatewayHealth } from '@/hooks/useHealth'
+import { FOOTER_LEGAL_LINKS, FOOTER_NAVIGATION_GROUPS, ROUTES } from '@/lib/navigation'
 
 // ── Link columns ──────────────────────────────────────────────────────────────
-
-const COLUMNS = [
-  {
-    heading: 'Platform',
-    links: [
-      { label: 'Overview',       path: '/platform' },
-      { label: 'AI Oracle',      path: '/ai' },
-      { label: 'Storage',        path: '/storage' },
-      { label: 'Chain Explorer', path: '/chain' },
-      { label: 'System Status',  path: '/status-page' },
-    ],
-  },
-  {
-    heading: 'Applications',
-    links: [
-      { label: 'Application directory', path: '/applications' },
-      { label: 'VITPredict', path: '/apps/vitpredict' },
-    ],
-  },
-  {
-    heading: 'Ecosystem',
-    links: [
-      { label: 'Marketplace',      path: '/marketplace' },
-      { label: 'Treasury',         path: '/treasury' },
-      { label: 'DeFi Pools',       path: '/defi' },
-      { label: 'Governance',       path: '/governance' },
-      { label: 'Validators',       path: '/validators' },
-    ],
-  },
-  {
-    heading: 'Developer',
-    links: [
-      { label: 'Analytics Studio', path: '/analytics-studio' },
-      { label: 'Enterprise',       path: '/enterprise' },
-      { label: 'Subscription',     path: '/subscription' },
-      { label: 'Docs',            path: '/docs' },
-      { label: 'Contact',         path: '/about' },
-    ],
-  },
-]
 
 const SOCIALS = [
   { href: 'https://github.com/vitnetwork', icon: Github,  label: 'GitHub' },
@@ -59,8 +20,10 @@ const CHAIN_STATS = [
 
 export function Footer() {
   const { data: health } = useGatewayHealth()
-  const healthLabel = health?.status === 'degraded' ? 'Network degraded' : health?.status === 'healthy' || health?.status === 'ok' ? 'All systems operational' : 'Status unavailable'
-  const healthClass = health?.status === 'degraded' ? 'text-amber-400/80' : health?.status === 'healthy' || health?.status === 'ok' ? 'text-emerald-400/70' : 'text-white/40'
+  const isHealthy = health?.status === 'healthy' || health?.status === 'ok'
+  const healthLabel = health?.status === 'degraded' ? 'Network degraded' : isHealthy ? 'All systems operational' : 'Status unavailable'
+  const healthClass = health?.status === 'degraded' ? 'text-amber-400/80' : isHealthy ? 'text-emerald-400/70' : 'text-white/40'
+  const healthDotClass = health?.status === 'degraded' ? 'bg-amber-400' : isHealthy ? 'bg-emerald-400 animate-pulse' : 'bg-white/35'
   return (
     <footer className="mt-24 border-t border-white/6 bg-gradient-to-b from-surface-800/40 to-surface-900">
 
@@ -78,9 +41,13 @@ export function Footer() {
               ))}
             </div>
             <div className="flex items-center gap-1.5 text-xs shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className={`${healthClass} font-medium`}>{healthLabel}</span>
-              <Link to="/status-page" className="text-white/25 hover:text-white/50 transition-colors ml-1">
+              <Link
+                to={ROUTES.status}
+                aria-label={`View system status: ${healthLabel}`}
+                className="inline-flex items-center gap-1.5 text-white/40 hover:text-white/70 transition-colors"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${healthDotClass}`} />
+                <span className={`${healthClass} font-medium`}>{healthLabel}</span>
                 <ExternalLink className="w-3 h-3" />
               </Link>
             </div>
@@ -126,22 +93,17 @@ export function Footer() {
               ))}
             </div>
 
-            <Link
-              to="/status-page"
-              className="inline-flex items-center gap-1.5 text-xs text-white/25 hover:text-white/50 transition-colors"
-            >
-              <ExternalLink className="w-3 h-3" /> Status page
-            </Link>
           </div>
 
           {/* Link columns */}
-          {COLUMNS.map(col => (
-            <div key={col.heading}>
+          <nav aria-label="Footer navigation" className="col-span-2 grid grid-cols-2 gap-x-6 gap-y-10 sm:col-span-3 lg:col-span-5 lg:grid-cols-4">
+          {FOOTER_NAVIGATION_GROUPS.map(group => (
+            <div key={group.label}>
               <h4 className="text-[10px] font-semibold uppercase tracking-widest text-white/25 mb-4">
-                {col.heading}
+                {group.label}
               </h4>
               <ul className="space-y-2.5">
-                {col.links.map(item => (
+                {group.items.map(item => (
                   <li key={item.path}>
                     <Link
                       to={item.path}
@@ -154,6 +116,7 @@ export function Footer() {
               </ul>
             </div>
           ))}
+          </nav>
         </div>
 
         {/* ── Bottom bar ─────────────────────────────────────────────────── */}
@@ -162,13 +125,7 @@ export function Footer() {
             © {new Date().getFullYear()} VIT Network. Built on VIT Chain (Chain ID 7764).
           </p>
           <div className="flex items-center gap-4 order-1 sm:order-2 flex-wrap">
-            {[
-              { label: 'Responsible use', path: '/responsible-use' },
-              { label: 'Privacy',         path: '/docs#privacy' },
-              { label: 'Terms',           path: '/docs#terms' },
-              { label: 'Security',        path: '/docs#security' },
-              { label: 'Status',          path: '/status-page' },
-            ].map(({ label, path }) => (
+            {FOOTER_LEGAL_LINKS.map(({ label, path }) => (
               <Link key={label} to={path} className="text-xs text-white/30 hover:text-white/60 transition-colors">
                 {label}
               </Link>
