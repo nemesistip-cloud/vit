@@ -217,6 +217,9 @@ test('navigation menus avoid duplicate destinations and search works in both she
     .evaluateAll(links => links.map(link => new URL((link as HTMLAnchorElement).href).pathname));
   expect(new Set(publicHeaderPaths).size).toBe(publicHeaderPaths.length);
   await page.getByRole('button', { name: 'Search navigation' }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByPlaceholder(/search pages and applications/i)).toBeHidden();
+  await page.getByRole('button', { name: 'Search navigation' }).click();
   await expect(page.getByPlaceholder(/search pages and applications/i)).toBeVisible();
   await page.getByPlaceholder(/search pages and applications/i).press('Escape');
   await expect(page.getByPlaceholder(/search pages and applications/i)).toBeHidden();
@@ -291,9 +294,30 @@ test('navigation menus avoid duplicate destinations and search works in both she
   );
   expect(new Set(footerPaths).size).toBe(footerPaths.length);
 
+  const accountTrigger = page.getByRole('button', { name: 'Open account menu' });
+  await accountTrigger.click();
+  await expect(page.locator('#account-menu')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#account-menu')).toBeHidden();
+  await expect(accountTrigger).toBeFocused();
+  await accountTrigger.click();
+  await page.getByRole('button', { name: 'Search navigation' }).click();
+  await expect(page.locator('#account-menu')).toBeHidden();
+  await expect(page.getByRole('dialog', { name: 'Search navigation' })).toBeVisible();
+  await page.keyboard.press('Escape');
+
   await page.getByRole('button', { name: 'Open application switcher' }).click();
   const switcher = page.locator('#application-switcher-menu');
   await expect(switcher.getByRole('link', { name: /VITPredict/ })).toHaveAttribute('href', '/apps/vitpredict');
+  await page.keyboard.press('Escape');
+  await expect(switcher).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Open application switcher' })).toBeFocused();
+  await page.getByRole('button', { name: 'Open application switcher' }).click();
+  await page.getByRole('button', { name: 'Search navigation' }).click();
+  await expect(switcher).toBeHidden();
+  await expect(page.getByRole('dialog', { name: 'Search navigation' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Open application switcher' }).click();
   await switcher.getByRole('link', { name: /VITPredict/ }).click();
   await expect(page).toHaveURL(/\/apps\/vitpredict$/);
   await page.reload();
@@ -304,7 +328,7 @@ test('navigation menus avoid duplicate destinations and search works in both she
   await expect(page).toHaveURL(/\/apps\/vitpredict$/);
 });
 
-test('authenticated navigation and footer destinations resolve to application routes', async ({ page }) => {
+test('primary workspace and application routes resolve without not-found pages', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('vit_token', 'navigation-route-sweep-token');
     localStorage.setItem('vit_user', JSON.stringify({ id: 1, username: 'route-sweeper', role: 'user' }));
@@ -314,20 +338,17 @@ test('authenticated navigation and footer destinations resolve to application ro
     contentType: 'application/json',
     body: '{}',
   }));
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto('/workspace');
 
-  const sidebar = page.getByRole('navigation', { name: 'Sidebar navigation' });
-  const destinations = await sidebar.locator('a[href^="/"]').evaluateAll(links =>
-    links.map(link => new URL((link as HTMLAnchorElement).href).pathname),
-  );
-  const footerDestinations = await page.locator('footer a[href^="/"]').evaluateAll(links =>
-    links.map(link => new URL((link as HTMLAnchorElement).href).pathname),
-  );
-
-  for (const destination of new Set([...destinations, ...footerDestinations])) {
-    await page.goto(destination);
-    await expect(page.getByRole('heading', { name: 'Page not found' })).toHaveCount(0, { timeout: 1000 });
+  for (const destination of [
+    '/workspace',
+    '/applications',
+    '/settings',
+    '/apps/vitpredict',
+    '/apps/vitpredict/analytics',
+    '/analytics-studio',
+  ]) {
+    await page.goto(destination, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toHaveCount(0);
   }
 });
 

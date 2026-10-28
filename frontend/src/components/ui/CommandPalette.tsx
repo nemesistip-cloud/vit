@@ -35,6 +35,7 @@ export function CommandPalette({ open, onClose }: Props) {
   const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const onCloseRef = useRef(onClose)
   const navigate = useNavigate()
   const workspace = useWorkspaceStore()
   const isAuthenticated = Boolean(getAuthToken())
@@ -42,10 +43,29 @@ export function CommandPalette({ open, onClose }: Props) {
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
 
   useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  useEffect(() => {
     if (!open) return
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setQuery('')
     setCursor(0)
-    window.setTimeout(() => inputRef.current?.focus(), 50)
+
+    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 50)
+    function handleGlobalKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKey)
+    return () => {
+      window.clearTimeout(focusTimer)
+      window.removeEventListener('keydown', handleGlobalKey)
+      if (previousFocus?.isConnected) previousFocus.focus()
+    }
   }, [open])
 
   useEffect(() => {
@@ -148,10 +168,6 @@ export function CommandPalette({ open, onClose }: Props) {
     if (event.key === 'Enter' && results[cursor]) {
       event.preventDefault()
       handleSelection(results[cursor])
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      onClose()
     }
   }
 

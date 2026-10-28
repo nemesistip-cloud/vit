@@ -8,6 +8,8 @@ from vit_chain.storage.db import ChainBlock, ChainTransaction, ChainAccount
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from app.db.database import Base
+from starlette.requests import Request
+from fastapi import HTTPException
 
 @pytest.fixture
 async def engine():
@@ -40,6 +42,40 @@ async def test_rpc_handlers(db):
     req = {"jsonrpc": "2.0", "method": "eth_blockNumber", "params": [], "id": 3}
     resp = await rpc.handle(req, db)
     assert resp["result"] == "0x0"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("content_length", "expected_status"),
+    (("invalid", 400), ("-1", 400), ("2097153", 413)),
+)
+async def test_rpc_rejects_invalid_or_oversized_content_length(content_length, expected_status):
+    from vit_chain.rpc.router import rpc_endpoint
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    request = Request(
+        {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": "/chain/rpc",
+            "raw_path": b"/chain/rpc",
+            "query_string": b"",
+            "headers": [(b"content-length", content_length.encode())],
+            "client": ("127.0.0.1", 12345),
+            "server": ("test", 80),
+            "root_path": "",
+        },
+        receive,
+    )
+
+    with pytest.raises(HTTPException) as error:
+        await rpc_endpoint(request, None)
+    assert error.value.status_code == expected_status
 
 @pytest.mark.asyncio
 async def test_indexing_and_rpc_balance(db):

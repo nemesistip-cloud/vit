@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronDown, PanelsTopLeft } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -7,16 +7,43 @@ import { cn } from '@/lib/utils'
 
 export function ApplicationSwitcher() {
   const [open, setOpen] = useState(false)
+  const switcherRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const applications = getAppRegistry().filter((app) => app.category === 'Applications')
+
+  useEffect(() => {
+    if (!open) return
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!switcherRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open])
 
   if (applications.length === 0) return null
 
   return (
-    <div className="relative">
+    <div ref={switcherRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((value) => !value)}
-        aria-label="Open application switcher"
+        aria-label={open ? 'Close application switcher' : 'Open application switcher'}
         aria-expanded={open}
         aria-controls="application-switcher-menu"
         className={cn(
@@ -33,45 +60,37 @@ export function ApplicationSwitcher() {
 
       <AnimatePresence>
         {open && (
-          <>
-            <button
-              type="button"
-              aria-label="Close application switcher"
-              onClick={() => setOpen(false)}
-              className="fixed inset-0 z-40 cursor-default"
-            />
-            <motion.div
-              id="application-switcher-menu"
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.12 }}
-              className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl border border-white/10 bg-surface-800 p-2 shadow-2xl shadow-black/40"
-            >
-              <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-white/35">
-                VIT applications
-              </p>
-              <div className="space-y-1">
-                {applications.map((application) => {
-                  const Icon = application.icon
-                  return (
-                    <Link
-                      key={application.id}
-                      to={application.route}
-                      onClick={() => setOpen(false)}
-                      className="flex min-h-12 items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vit-400"
-                    >
-                      <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-vit-300" />
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-white">{application.name}</span>
-                        <span className="block truncate text-xs text-white/40">{application.description}</span>
-                      </span>
-                    </Link>
-                  )
-                })}
-              </div>
-            </motion.div>
-          </>
+          <motion.div
+            id="application-switcher-menu"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.12 }}
+            className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl border border-white/10 bg-surface-800 p-2 shadow-2xl shadow-black/40"
+          >
+            <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-white/35">
+              VIT applications
+            </p>
+            <div className="space-y-1">
+              {applications.map((application) => {
+                const Icon = application.icon
+                return (
+                  <Link
+                    key={application.id}
+                    to={application.route}
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-12 items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vit-400"
+                  >
+                    <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-vit-300" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-white">{application.name}</span>
+                      <span className="block truncate text-xs text-white/40">{application.description}</span>
+                    </span>
+                  </Link>
+                )
+              })}
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

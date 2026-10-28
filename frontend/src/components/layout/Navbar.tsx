@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -37,6 +37,8 @@ export function Navbar({
   const [storedUser, setStoredUser] = useState(getStoredUser)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
+  const accountMenuRef = useRef<HTMLDivElement>(null)
+  const accountTriggerRef = useRef<HTMLButtonElement>(null)
   const location = useLocation()
   const navigate = useNavigate()
   const { data: health } = useGatewayHealth()
@@ -74,6 +76,30 @@ export function Navbar({
     setUserMenuOpen(false)
     setActivityOpen(false)
   }, [location.pathname])
+
+  useEffect(() => {
+    if (!userMenuOpen) return
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setUserMenuOpen(false)
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setUserMenuOpen(false)
+        accountTriggerRef.current?.focus()
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [userMenuOpen])
 
   function logout() {
     clearAuth()
@@ -201,8 +227,9 @@ export function Navbar({
                 </button>
                 <NotificationBell />
 
-                <div className="relative">
+                <div ref={accountMenuRef} className="relative">
                   <button
+                    ref={accountTriggerRef}
                     type="button"
                     onClick={() => setUserMenuOpen((value) => !value)}
                     aria-label="Open account menu"
@@ -224,45 +251,37 @@ export function Navbar({
 
                   <AnimatePresence>
                     {userMenuOpen && (
-                      <>
+                      <motion.div
+                        id="account-menu"
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 4 }}
+                        transition={{ duration: 0.12 }}
+                        className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-surface-800 shadow-2xl shadow-black/40"
+                      >
+                        <div className="border-b border-white/8 px-4 py-3">
+                          <p className="truncate text-sm font-semibold text-white">{storedUser?.username ?? 'Account'}</p>
+                          <p className="mt-1 text-xs capitalize text-white/45">
+                            {storedUser?.role ? `${storedUser.role} account` : 'Signed in'}
+                          </p>
+                        </div>
+                        <Link
+                          to="/settings"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex min-h-11 items-center gap-3 px-4 text-sm text-white/70 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vit-400"
+                        >
+                          <Settings aria-hidden="true" className="h-4 w-4" />
+                          Personal settings
+                        </Link>
                         <button
                           type="button"
-                          aria-label="Close account menu"
-                          onClick={() => setUserMenuOpen(false)}
-                          className="fixed inset-0 z-40 cursor-default"
-                        />
-                        <motion.div
-                          id="account-menu"
-                          initial={{ opacity: 0, y: 4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 4 }}
-                          transition={{ duration: 0.12 }}
-                          className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-surface-800 shadow-2xl shadow-black/40"
+                          onClick={logout}
+                          className="flex min-h-11 w-full items-center gap-3 border-t border-white/8 px-4 text-left text-sm text-red-300 transition-colors hover:bg-red-500/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
                         >
-                          <div className="border-b border-white/8 px-4 py-3">
-                            <p className="truncate text-sm font-semibold text-white">{storedUser?.username ?? 'Account'}</p>
-                            <p className="mt-1 text-xs capitalize text-white/45">
-                              {storedUser?.role ? `${storedUser.role} account` : 'Signed in'}
-                            </p>
-                          </div>
-                          <Link
-                            to="/settings"
-                            onClick={() => setUserMenuOpen(false)}
-                            className="flex min-h-11 items-center gap-3 px-4 text-sm text-white/70 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vit-400"
-                          >
-                            <Settings aria-hidden="true" className="h-4 w-4" />
-                            Personal settings
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={logout}
-                            className="flex min-h-11 w-full items-center gap-3 border-t border-white/8 px-4 text-left text-sm text-red-300 transition-colors hover:bg-red-500/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-                          >
-                            <LogOut aria-hidden="true" className="h-4 w-4" />
-                            Sign out
-                          </button>
-                        </motion.div>
-                      </>
+                          <LogOut aria-hidden="true" className="h-4 w-4" />
+                          Sign out
+                        </button>
+                      </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
