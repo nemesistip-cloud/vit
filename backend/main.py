@@ -1450,6 +1450,8 @@ except Exception as _e:
 try:
     from app.api.routes.search import router as global_search_router
     app.include_router(global_search_router, tags=["Global Search"])
+    from app.modules.creator_studio.routes import router as creator_studio_router
+    app.include_router(creator_studio_router, tags=["VIT Creator Studio"])
 except Exception as _e:
     logging.error("global_search router not mounted: %s", _e, exc_info=True)
 

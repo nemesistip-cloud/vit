@@ -30,6 +30,19 @@ export interface AppRegistryItem {
 
 const appRegistry: AppRegistryItem[] = [
   {
+    id: 'creator-studio',
+    name: 'Creator Studio',
+    icon: Sparkles,
+    category: 'Applications',
+    description: 'Autonomous X Creator Management Platform',
+    route: '/creator-studio',
+    component: lazy(() => import('@/pages/CreatorStudio')),
+    defaultWindowSize: { width: 720, height: 560 },
+    minimumWindowSize: { width: 360, height: 320 },
+    enabled: true,
+    pinned: true,
+  },
+  {
     id: 'dashboard',
     name: 'Dashboard',
     icon: LayoutDashboard,

@@ -120,7 +120,8 @@ async def initialize_schema() -> None:
     import app.modules.identity.models  # noqa: F401
     import app.modules.tasks.models  # noqa: F401
     import app.modules.notifications.models  # noqa: F401
-    import app.modules.trust.models  # noqa: F401
+    import app.modules.trust.models
+    import app.modules.creator_studio.models  # noqa: F401  # noqa: F401
     from sqlalchemy.exc import OperationalError
 
     async with engine.begin() as conn:
