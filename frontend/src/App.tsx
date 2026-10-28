@@ -141,6 +141,7 @@ const Bridge   = lazy(() => import('@/pages/Bridge'))
 
 // ── Admin & 404 (lazy) ────────────────────────────────────────────────────────
 const Admin    = lazy(() => import('@/pages/Admin'))
+const CreatorStudio = lazy(() => import('@/pages/CreatorStudio'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 const VITPredictApp = lazy(() => import('@/pages/VITPredictApp'))
 
@@ -233,6 +234,7 @@ export default function App() {
             <Route path="/exchange"         element={wrap(<Exchange />)}        />
             <Route path="/vaults"           element={wrap(<Vaults />)}          />
             <Route path="/bridge"           element={wrap(<Bridge />)}          />
+                        <Route path={ROUTES.creatorStudio} element={wrap(<CreatorStudio />)} />
             <Route path={ROUTES.admin}      element={wrap(<Admin />)} />
             <Route path={`${ROUTES.admin}/:tab`} element={wrap(<Admin />)} />
             <Route path="*"                 element={wrap(<NotFound />)}        />

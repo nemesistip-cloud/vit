@@ -1,4 +1,5 @@
 import {
+  Sparkles,
   Activity,
   BarChart3,
   Boxes,
@@ -83,6 +84,7 @@ export const ROUTES = {
   exchange: '/exchange',
   vaults: '/vaults',
   bridge: '/bridge',
+  creatorStudio: '/creator-studio',
   admin: '/admin',
 } as const
 
@@ -133,6 +135,7 @@ const items = {
   tasks: { id: 'tasks', label: 'Tasks', path: ROUTES.tasks, icon: Radio, audience: 'authenticated' },
   subscription: { id: 'subscription', label: 'Subscription', path: ROUTES.subscription, icon: Coins, audience: 'authenticated' },
   settings: { id: 'settings', label: 'Settings', path: ROUTES.settings, icon: Settings, audience: 'authenticated' },
+  creatorStudio: { id: 'creator-studio', label: 'Creator Studio', path: ROUTES.creatorStudio, icon: Sparkles, audience: 'authenticated' },
   admin: { id: 'admin', label: 'Admin Control', path: ROUTES.admin, icon: ShieldCheck, audience: 'admin' },
 } satisfies Record<string, NavigationItem>
 
@@ -150,7 +153,7 @@ export const AUTHENTICATED_NAVIGATION_GROUPS: NavigationGroup[] = [
   },
   {
     label: 'Applications',
-    items: [items.applications],
+    items: [items.applications, items.creatorStudio],
   },
   {
     label: 'Ecosystem',
