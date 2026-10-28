@@ -119,9 +119,34 @@ class RedisSubsystem(Subsystem):
 
         class MockApp:
             state = type('State', (), {'redis': None})
-        await require_redis(MockApp())
+        try:
+            await require_redis(
+                MockApp(),
+                socket_connect_timeout=2,
+                socket_timeout=2,
+                ping_timeout=2.5,
+            )
+        except Exception as exc:
+            obs_manager.health.update_status(
+                "redis",
+                HealthStatus.DEGRADED,
+                "Redis unavailable; using service-level fallbacks",
+            )
+            logger.warning("[kernel] Redis unavailable; continuing in degraded mode (%s).", type(exc).__name__)
+            return
         obs_manager.health.update_status("redis", HealthStatus.HEALTHY, "Connected")
         logger.info("[kernel] Redis configured.")
+
+    async def health_check(self) -> bool:
+        from app.core.redis import redis_client
+
+        if redis_client is None:
+            return False
+        try:
+            await asyncio.wait_for(redis_client.ping(), timeout=1.5)
+            return True
+        except Exception:
+            return False
 
 class AISubsystem(Subsystem):
     name = "ai"
