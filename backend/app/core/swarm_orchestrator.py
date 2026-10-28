@@ -142,6 +142,8 @@ class SwarmOrchestrator:
                 try:
                     await agent.run_once()
                     logger.debug("[swarm] agent '%s' cycle complete", name)
+                except asyncio.CancelledError:
+                    logger.debug("[swarm] agent '%s' cycle cancelled", name)
                 except Exception as exc:
                     logger.warning("[swarm] agent '%s' error: %s", name, exc)
 

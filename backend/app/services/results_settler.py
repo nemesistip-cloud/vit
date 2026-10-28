@@ -353,10 +353,10 @@ async def fetch_live_matches() -> list:
                     })
             elif r.status_code == 429:
                 logger.warning("[live] Football-Data API rate limit hit (429) on /matches")
-        except httpx.ConnectTimeout:
+        except (httpx.ConnectTimeout, httpx.TimeoutException) as exc:
             _API_UNREACHABLE = True
             _API_UNREACHABLE_UNTIL = _lt.time() + 600  # backoff 10 min
-            logger.warning("[live] Football-Data API unreachable (ConnectTimeout) — circuit open for 10 min")
+            logger.warning("[live] Football-Data API unreachable (%s) — circuit open for 10 min", type(exc).__name__)
         except Exception as e:
             logger.warning(f"Live-match fetch failed: {e}")
 
