@@ -141,6 +141,12 @@ class TaskSubsystem(Subsystem):
     dependencies = ["database", "redis", "observability"]
 
     async def _on_start(self):
+        from app.config import in_process_schedulers_enabled
+
+        if not in_process_schedulers_enabled():
+            logger.info("[kernel] In-process task schedules disabled for this service role.")
+            return
+
         try:
             from app.tasks.ticker_sync import start_ticker_sync
             from app.tasks.settlement_task import start_settlement_worker

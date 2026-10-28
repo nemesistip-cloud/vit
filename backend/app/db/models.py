@@ -1,6 +1,6 @@
 # app/db/models.py
 import uuid
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, JSON, Text, Index, CheckConstraint
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, JSON, Text, Index, CheckConstraint, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .database import Base
@@ -634,6 +634,60 @@ class BackgroundTaskStatus(Base):
     last_crashed_at = Column(DateTime(timezone=True), nullable=True)
     last_error = Column(Text, nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class ScheduledJobRun(Base):
+    """Durable idempotency and lease record for externally scheduled jobs."""
+    __tablename__ = "scheduled_job_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_name = Column(String(80), nullable=False)
+    schedule_key = Column(String(100), nullable=False)
+    dry_run = Column(Boolean, nullable=False, default=True)
+    status = Column(String(20), nullable=False, default="queued", index=True)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=3)
+    current_attempt = Column(Integer, nullable=True)
+    claimed_by = Column(String(100), nullable=True)
+    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
+    next_attempt_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    attempts = relationship(
+        "ScheduledJobAttempt",
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="ScheduledJobAttempt.attempt_number",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("job_name", "schedule_key", name="uq_scheduled_job_period"),
+        Index("idx_scheduled_job_claim", "status", "next_attempt_at", "lease_expires_at"),
+    )
+
+
+class ScheduledJobAttempt(Base):
+    """Append-only execution history for each successful atomic claim."""
+    __tablename__ = "scheduled_job_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    run_id = Column(Integer, ForeignKey("scheduled_job_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    attempt_number = Column(Integer, nullable=False)
+    runner_id = Column(String(100), nullable=False)
+    claim_token_hash = Column(String(64), nullable=False)
+    status = Column(String(20), nullable=False, default="running")
+    started_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    error_code = Column(String(80), nullable=True)
+    result = Column(JSON, nullable=True)
+
+    run = relationship("ScheduledJobRun", back_populates="attempts")
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "attempt_number", name="uq_scheduled_job_attempt"),
+    )
 
 
 # ── VIT Chain Models ──────────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import pytest
 from types import SimpleNamespace
 
 from app.core.swarm_orchestrator import SwarmOrchestrator
@@ -27,7 +28,35 @@ def test_swarm_summary_matches_legacy_coordinator_contract():
     assert summary["agents"][0]["name"] == "alpha"
     assert summary["agents"][0]["status"] == "ok"
     assert summary["agents"][0]["contribution_score"] == 7.5
-import pytest
+
+
+def test_in_process_schedulers_default_to_enabled(monkeypatch):
+    from app.config import in_process_schedulers_enabled
+
+    monkeypatch.delenv("ENABLE_IN_PROCESS_SCHEDULERS", raising=False)
+
+    assert in_process_schedulers_enabled() is True
+
+
+@pytest.mark.parametrize("value", ["1", "true", "yes", "on"])
+def test_in_process_schedulers_accept_truthy_values(monkeypatch, value):
+    from app.config import in_process_schedulers_enabled
+
+    monkeypatch.setenv("ENABLE_IN_PROCESS_SCHEDULERS", value)
+
+    assert in_process_schedulers_enabled() is True
+
+
+@pytest.mark.parametrize("value", ["0", "false", "no", "off", ""])
+def test_in_process_schedulers_can_be_disabled(monkeypatch, value):
+    from app.config import in_process_schedulers_enabled
+
+    monkeypatch.setenv("ENABLE_IN_PROCESS_SCHEDULERS", value)
+
+    assert in_process_schedulers_enabled() is False
+
+
+
 import os
 import asyncio
 from app.core.swarm_orchestrator import init_swarm, get_swarm, set_swarm, SwarmOrchestrator

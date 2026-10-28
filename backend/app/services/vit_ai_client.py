@@ -33,7 +33,7 @@ class VitAIClient:
         if self._initialized:
             return
         # Fetch base url from config
-        self.base_url = get_env("VIT_AI_URL", "https://vit-ai.onrender.com").rstrip("/")
+        self.base_url = get_env("VIT_AI_URL", "https://vit-ai-z3d4.onrender.com").rstrip("/")
         # Outgoing API key for vit-ai inter-service auth (X-API-KEY header)
         self._api_key = get_env("VIT_AI_API_KEY", "")
         self.client = httpx.AsyncClient(

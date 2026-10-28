@@ -1,0 +1,50 @@
+name: Staging Scheduled Health Audit
+
+on:
+  schedule:
+    # Daily recovery tick; the ledger deduplicates by UTC date if delivery is delayed.
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+    inputs:
+      confirm_staging_run:
+        description: Run the read-only staging health audit
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: vit-staging-scheduled-health-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  staging-health:
+    if: >-
+      ${{
+        vars.VIT_SCHEDULER_STAGING_ENABLED == 'true' &&
+        (github.event_name == 'schedule' || inputs.confirm_staging_run == true)
+      }}
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 20
+    env:
+      DRY_RUN: 'true'
+      STAGING_GATEWAY_URL: ${{ vars.STAGING_GATEWAY_URL }}
+      STAGING_VIT_AI_URL: ${{ vars.STAGING_VIT_AI_URL }}
+      STAGING_VIT_CHAIN_URL: ${{ vars.STAGING_VIT_CHAIN_URL }}
+      STAGING_VIT_STORAGE_URL: ${{ vars.STAGING_VIT_STORAGE_URL }}
+      STAGING_GITHUB_SCHEDULER_TOKEN: ${{ secrets.STAGING_GITHUB_SCHEDULER_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run read-only staging audit
+        run: python scripts/run_staging_scheduled_health.py
+
+      - name: Report audit failure
+        if: failure()
+        run: |
+          echo "::error::The staging scheduled health audit failed; inspect the durable run and attempt history."
+          echo "## Staging health audit failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
