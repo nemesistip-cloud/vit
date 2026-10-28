@@ -45,13 +45,14 @@ async def test_chain_rpc_uses_100_request_sliding_window(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_chain_rpc_fails_closed_without_shared_redis_in_production(monkeypatch):
+async def test_chain_rpc_falls_back_to_in_memory_without_shared_redis_in_production(monkeypatch):
     monkeypatch.setattr(rate_limit, "_rate_limiting_enabled", lambda: False)
     monkeypatch.setattr(rate_limit, "_get_redis", lambda: None)
     monkeypatch.setattr(rate_limit, "ENVIRONMENT", "production")
     middleware = RateLimitMiddleware(lambda *_args: _send_ok(*_args))
 
-    assert await _call_middleware(middleware) == 503
+    # Should fall back gracefully to in-memory rate limiting and return 200 rather than 503
+    assert await _call_middleware(middleware) == 200
 
 
 async def _send_ok(scope, _receive, send):

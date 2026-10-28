@@ -28,7 +28,7 @@ class LiveMatchTrackerAgent(BaseAgent):
     def __init__(self) -> None:
         super().__init__(
             name="live-match-tracker",
-            interval_seconds=30,
+            interval_seconds=120,
             initial_delay_seconds=10,
         )
 

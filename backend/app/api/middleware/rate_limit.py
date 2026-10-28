@@ -114,12 +114,11 @@ async def _redis_sliding_window(
     key: str,
     limit: int,
     window: int,
-    fail_closed: bool = False,
 ) -> tuple[bool, int, int]:
     """Lua-atomic sliding-window rate check. Falls back gracefully on any error."""
     global _redis_disabled
     if _redis_disabled:
-        return (False, 0, 1) if fail_closed else (True, limit, 0)
+        return (True, limit, 0)
 
     now_ms       = int(time.time() * 1000)
     window_ms    = window * 1000
@@ -152,7 +151,7 @@ end
     except Exception as exc:
         log.warning("Redis sliding window error: %s", exc)
         _mark_redis_failure()
-        return (False, 0, 1) if fail_closed else (True, limit, 0)
+        return (True, limit, 0)
 
 class RateLimitMiddleware:
     ANON_LIMIT           = 180
@@ -233,24 +232,16 @@ class RateLimitMiddleware:
 
         redis = _get_redis()
         now   = time.time()
-        if is_chain_rpc and ENVIRONMENT == "production" and redis is None:
-            res = error_response(
-                request=request,
-                status_code=503,
-                code="rpc_rate_limiter_unavailable",
-                message="Chain RPC is temporarily unavailable because shared rate limiting is unavailable.",
-                headers={"Retry-After": "1"},
-            )
-            await res(scope, receive, send)
-            return
         if redis:
             allowed, remaining, retry_after = await _redis_sliding_window(
                 redis,
                 f"rl:{key}",
                 limit,
                 self.WINDOW_SECONDS,
-                fail_closed=is_chain_rpc and ENVIRONMENT == "production",
             )
+            # If Redis failed/errored, fall back to in-memory check to ensure local rate limit
+            if _redis_disabled:
+                allowed, remaining, retry_after = self._in_memory_check(key, limit, now)
         else:
             allowed, remaining, retry_after = self._in_memory_check(key, limit, now)
 
