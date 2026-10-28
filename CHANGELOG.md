@@ -1,3 +1,5 @@
+- 2026-10-28 `bb97a74` feat(creator-studio): add autonomous co-pilot and scheduled auto-publish pipeline
+
 - 2026-10-28 `23f7d21` Stabilize vitnetwork startup for Render Free
 
 - 2026-10-28 `140d03b` feat(creator-studio): build autonomous X Creator Management Platform
