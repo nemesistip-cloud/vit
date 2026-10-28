@@ -122,6 +122,7 @@ async def lifespan(app: FastAPI):
             logging.getLogger(__name__).info("[lifespan] Agent Workflow Dispatcher started")
         except Exception as _we:
             logging.getLogger(__name__).warning("[lifespan] workflow dispatcher start failed: %s", _we)
+        await asyncio.sleep(0)
 
         # TRACK-008: Start Tachyon Storage Challenge Scheduler
         try:
@@ -130,6 +131,7 @@ async def lifespan(app: FastAPI):
             logging.getLogger(__name__).info("[lifespan] Tachyon Challenge Scheduler started")
         except Exception as _ce:
             logging.getLogger(__name__).warning("[lifespan] challenge scheduler start failed: %s", _ce)
+        await asyncio.sleep(0)
 
         # TRACK-008: Start Tachyon Verification Worker
         try:
@@ -141,6 +143,7 @@ async def lifespan(app: FastAPI):
             logging.getLogger(__name__).info("[lifespan] Tachyon Verification Worker started")
         except Exception as _te:
             logging.getLogger(__name__).warning("[lifespan] tachyon verification worker failed: %s", _te)
+        await asyncio.sleep(0)
 
         # TRACK-009: Start in-process APScheduler for autonomous agents (replaces Celery Beat)
         try:
@@ -150,6 +153,7 @@ async def lifespan(app: FastAPI):
             logging.getLogger(__name__).info("[lifespan] SwarmOrchestrator APScheduler started (%d agents)", len(_swarm._agents))
         except Exception as _sch_e:
             logging.getLogger(__name__).warning("[lifespan] swarm scheduler start failed (agents will not auto-run): %s", _sch_e)
+        await asyncio.sleep(0)
 
         # Bootstrap AI Engine model registry — ensures ModelMetadata table is populated
         # for dashboard and admin endpoints. Must run after kernel.boot() so orchestrator
@@ -164,6 +168,7 @@ async def lifespan(app: FastAPI):
                 break
         except Exception as _reg_err:
             logging.getLogger(__name__).warning("[lifespan] Model registry bootstrap failed (dashboard model-confidence may return empty): %s", _reg_err, exc_info=True)
+        await asyncio.sleep(0)
 
         try:
             from app.services.ensure_forecasts import ensure_upcoming_forecasts
@@ -446,41 +451,44 @@ async def system_status(db: AsyncSession = Depends(get_db)):
     total_predictions_all = 0
 
     try:
-        total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
-    except Exception:
-        pass
+        try:
+            total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
+        except Exception as _e:
+            logging.getLogger(__name__).debug("system_status user count query failed: %s", _e)
 
-    try:
-        from app.db.models import Prediction
-        total_predictions_all = (await db.execute(select(func.count(Prediction.id)))).scalar() or 0
-        active_users_30d = (
-            await db.execute(
-                select(func.count(func.distinct(Prediction.user_id)))
-                .where(Prediction.timestamp >= thirty_days_ago.replace(tzinfo=None))
-            )
-        ).scalar() or 0
-    except Exception:
-        pass
-
-    try:
-        from app.modules.blockchain.models import ValidatorNode, ValidatorStatus
-        active_validators = (
-            await db.execute(
-                select(func.count(ValidatorNode.id)).where(
-                    ValidatorNode.status == "ACTIVE"
+        try:
+            from app.db.models import Prediction
+            total_predictions_all = (await db.execute(select(func.count(Prediction.id)))).scalar() or 0
+            active_users_30d = (
+                await db.execute(
+                    select(func.count(func.distinct(Prediction.user_id)))
+                    .where(Prediction.timestamp >= thirty_days_ago.replace(tzinfo=None))
                 )
-            )
-        ).scalar() or 0
-    except Exception:
-        pass
+            ).scalar() or 0
+        except Exception as _e:
+            logging.getLogger(__name__).debug("system_status prediction query failed: %s", _e)
 
-    try:
-        from app.modules.wallet.models import Wallet
-        total_staked_vit = float(
-            (await db.execute(select(func.sum(Wallet.vitcoin_balance)))).scalar() or 0
-        )
-    except Exception:
-        pass
+        try:
+            from app.modules.blockchain.models import ValidatorNode, ValidatorStatus
+            active_validators = (
+                await db.execute(
+                    select(func.count(ValidatorNode.id)).where(
+                        ValidatorNode.status == "ACTIVE"
+                    )
+                )
+            ).scalar() or 0
+        except Exception as _e:
+            logging.getLogger(__name__).debug("system_status validator query failed: %s", _e)
+
+        try:
+            from app.modules.wallet.models import Wallet
+            total_staked_vit = float(
+                (await db.execute(select(func.sum(Wallet.vitcoin_balance)))).scalar() or 0
+            )
+        except Exception as _e:
+            logging.getLogger(__name__).debug("system_status staked vit query failed: %s", _e)
+    except Exception as _global_sys_err:
+        logging.getLogger(__name__).warning("system_status metrics collection failed: %s", _global_sys_err)
 
     return {
         "status": "ok",
