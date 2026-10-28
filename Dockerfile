@@ -36,6 +36,8 @@ FROM python:3.11-slim
     # live at the repo root (pnpm-workspace.yaml), not inside frontend/.
     COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
     COPY frontend/package.json frontend/
+    COPY explorer/package.json explorer/
+    COPY packages/sdk/package.json packages/sdk/
     RUN pnpm install --frozen-lockfile
 
     # Inject build-time Vite env vars so the frontend bundle bakes in the correct
@@ -56,9 +58,6 @@ FROM python:3.11-slim
     COPY scripts/check-frontend-assets.mjs scripts/
     COPY frontend/ frontend/
     RUN cd frontend && pnpm run build
-
-    COPY explorer/package*.json explorer/
-    RUN cd explorer && npm install
 
     COPY explorer/ explorer/
     RUN cd explorer && npm run build

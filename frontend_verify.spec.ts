@@ -20,7 +20,7 @@ test('Match detail page renders the actual fixture heading and title', async ({ 
     },
   };
 
-  await page.route('**/api/matches/360', async route => {
+  await page.route('**/api/apps/vitpredict/matches/360', async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(match) });
   });
 
@@ -89,12 +89,12 @@ test('prediction accuracy labels its settled denominator', async ({ page }) => {
 });
 
 test('verification distinguishes an API failure from an empty public record', async ({ page }) => {
-  await page.route('**/api/matches/upcoming**', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/matches/upcoming**', route => route.fulfill({
     status: 503,
     contentType: 'application/json',
     body: JSON.stringify({ detail: 'temporarily unavailable' }),
   }));
-  await page.route('**/api/matches/recent**', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/matches/recent**', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify([]),
@@ -108,12 +108,12 @@ test('verification distinguishes an API failure from an empty public record', as
 });
 
 test('verification calls scored matches final without claiming proof verification', async ({ page }) => {
-  await page.route('**/api/matches/upcoming**', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/matches/upcoming**', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify([{ id: 360, home_team: 'Arsenal', away_team: 'Liverpool', kickoff_time: '2026-09-18T19:45:00Z', home_score: 2, away_score: 1 }]),
   }));
-  await page.route('**/api/matches/recent**', route => route.fulfill({
+  await page.route('**/api/apps/vitpredict/matches/recent**', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify([]),
@@ -137,7 +137,7 @@ test('home status follows readiness when health checks disagree', async ({ page 
     body: JSON.stringify({ overall_status: 'HEALTHY', details: {} }),
   }));
 
-  await page.goto('/');
+  await page.goto('/apps/vitpredict/home');
 
   await expect(page.getByText('degraded', { exact: true }).first()).toBeVisible();
 });
@@ -751,7 +751,7 @@ test('subscription page shows catalog errors instead of invented fallback pricin
 
   await page.goto('/subscription');
 
-  await expect(page.getByRole('alert')).toContainText('No fallback prices are shown');
+  await expect(page.getByText('Current plan pricing is unavailable. No fallback prices are shown.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Continue to checkout' })).toHaveCount(0);
 });
 
@@ -777,7 +777,7 @@ test('unverified genesis keeps the authenticated workspace available', async ({ 
   await page.goto('/dashboard');
 
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole('heading', { name: 'boot-gate-admin' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Network overview' })).toBeVisible();
 });
 
 test('unverified genesis does not block VIT sports prediction workflows', async ({ page }) => {
