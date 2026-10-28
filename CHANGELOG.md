@@ -1,3 +1,5 @@
+- 2026-10-28 `d2bddd5` [render-only] Fix Redis-degraded gateway startup
+
 - 2026-10-28 `3411527` Audit system logs and establish Render uptime best practices
 
 - 2026-10-28 `89a501a` Add staged GitHub Actions scheduler ledger
