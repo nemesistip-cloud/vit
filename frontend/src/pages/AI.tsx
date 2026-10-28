@@ -43,10 +43,15 @@ function useAiService() {
   return useQuery({
     queryKey: ['ai-service'],
     queryFn: async ({ signal }) => {
-      const response = await fetch(`${ENDPOINTS.gateway}/api/registry`, { signal })
-      if (!response.ok) throw new Error(`AI service discovery unavailable (${response.status})`)
-      const registry = await response.json()
-      return registry?.services?.ai ?? null
+      try {
+        const response = await fetch(`${ENDPOINTS.gateway}/api/registry`, { signal })
+        if (!response.ok) return { status: 'degraded', url: ENDPOINTS.ai }
+        const registry = await response.json()
+        return registry?.services?.ai ?? { status: 'degraded', url: ENDPOINTS.ai }
+      } catch (err: any) {
+        if (signal?.aborted) throw err
+        return { status: 'degraded', url: ENDPOINTS.ai }
+      }
     },
     staleTime: 15_000, refetchInterval: 30_000,
   })
