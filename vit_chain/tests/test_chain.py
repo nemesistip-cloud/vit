@@ -1,5 +1,6 @@
 import pytest
 from decimal import Decimal
+from unittest.mock import AsyncMock
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from vit_chain.core.transaction import VITTransaction, create_transaction, verify_transaction, Mempool
@@ -139,6 +140,54 @@ async def test_rejected_block_rolls_back_prior_transaction_mutations(monkeypatch
             assert chain.state.applied == 2
             await db.commit()
 
+            balance = await db.scalar(text("SELECT balance FROM test_balances WHERE id = 1"))
+            assert balance == 0
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_indexer_failure_rolls_back_block_and_returns_rejected(monkeypatch):
+    from vit_chain.core.chain import VITChain
+    from vit_chain.core.block import VITBlock
+
+    class State:
+        async def apply_transaction(self, *_args):
+            return True
+
+        async def apply_block_reward(self, db, *_args):
+            await db.execute(text("UPDATE test_balances SET balance = balance + 1 WHERE id = 1"))
+
+    async def fail_indexing(*_args):
+        raise RuntimeError("index write failed")
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as connection:
+        await connection.execute(text("CREATE TABLE test_balances (id INTEGER PRIMARY KEY, balance INTEGER NOT NULL)"))
+        await connection.execute(text("INSERT INTO test_balances (id, balance) VALUES (1, 0)"))
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    try:
+        async with session_factory() as db:
+            chain = VITChain()
+            chain.state = State()
+            chain.get_latest_block = AsyncMock(return_value=None)
+            monkeypatch.setattr("vit_chain.core.chain.validate_block", lambda *_args, **_kwargs: True)
+            monkeypatch.setattr("vit_chain.storage.indexer.ChainIndexer.index_block", fail_indexing)
+            block = VITBlock(
+                height=0,
+                prev_hash="0" * 64,
+                merkle_root="0" * 64,
+                timestamp=1,
+                validator_id="VIT" + "1" * 40,
+                transactions=[],
+                tx_count=0,
+                total_fees=Decimal("0"),
+                block_reward=Decimal("1"),
+            )
+
+            assert await chain.add_block(db, block) is False
+            await db.commit()
             balance = await db.scalar(text("SELECT balance FROM test_balances WHERE id = 1"))
             assert balance == 0
     finally:

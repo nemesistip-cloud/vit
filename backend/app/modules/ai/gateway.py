@@ -50,6 +50,67 @@ class AIGateway:
 
         return "conversational"
 
+    @staticmethod
+    def _prediction_features(kwargs: dict) -> Optional[Dict[str, Any]]:
+        """Return caller-supplied structured match evidence, never synthetic odds."""
+        for key in ("features", "feature_vector", "match_data"):
+            value = kwargs.get(key)
+            if isinstance(value, dict) and value:
+                return value
+
+        features: Dict[str, Any] = {}
+        for key in ("market_odds", "home_team", "away_team", "league", "match_features"):
+            value = kwargs.get(key)
+            if value not in (None, {}, []):
+                features[key] = value
+        return features or None
+
+    def _unavailable_response(self, message: str, model_id: str, start_time: float) -> Dict[str, Any]:
+        response = self._wrap_response(message, "unavailable", model_id, start_time, is_fallback=True)
+        response["status"] = "unavailable"
+        return response
+
+    async def _local_prediction_fallback(
+        self,
+        kwargs: dict,
+        model_id: str,
+        start_time: float,
+    ) -> Dict[str, Any]:
+        features = self._prediction_features(kwargs)
+        if not features:
+            return self._unavailable_response(
+                "No match data was supplied, so a local prediction fallback cannot be generated.",
+                model_id,
+                start_time,
+            )
+
+        orch = get_orchestrator()
+        if not orch:
+            return self._unavailable_response(
+                "The VIT AI service is unavailable and no local prediction engine is ready.",
+                model_id,
+                start_time,
+            )
+
+        try:
+            result = await orch.predict(features, "gateway_fallback")
+            pred = result.get("predictions", result)
+            required = ("home_prob", "draw_prob", "away_prob")
+            if not isinstance(pred, dict) or any(pred.get(key) is None for key in required):
+                raise ValueError("local prediction engine returned incomplete probabilities")
+            formatted = (
+                "Local prediction fallback (based on supplied match inputs; not an LLM response): "
+                f"Home={pred['home_prob']}, Draw={pred['draw_prob']}, Away={pred['away_prob']}."
+            )
+            return self._wrap_response(formatted, "local_orchestrator", model_id, start_time, is_fallback=True)
+        except Exception as exc:
+            logger.warning("[AIGateway] Local prediction fallback failed: %s", exc)
+            return self._unavailable_response(
+                "The VIT AI service and local prediction fallback are unavailable.",
+                model_id,
+                start_time,
+            )
+
     async def route_chat(
         self,
         prompt: str,
@@ -73,46 +134,52 @@ class AIGateway:
                     response = await vit_ai_client.call_ai(prompt, model=manual_model_id, intent=intent, **kwargs_clean)
                     return self._wrap_response(response, "vit-ai", manual_model_id, t0)
                 except Exception as e:
-                    logger.warning(f"[AIGateway] External call failed, falling back to local ensemble: {e}")
-
-            orch = get_orchestrator()
-            if orch:
-                try:
-                    res = await orch.predict({"prompt": prompt, "market_odds": kwargs.get("market_odds") or {"home": 2.0, "draw": 3.0, "away": 3.5}}, "manual_gate_id")
-                    pred = res.get("predictions", {})
-                    formatted = f"Ensemble prediction: Win probability Home={pred.get('home_prob')}, Draw={pred.get('draw_prob')}, Away={pred.get('away_prob')}"
-                    return self._wrap_response(formatted, "local_orchestrator", manual_model_id, t0)
-                except Exception:
-                    pass
+                    logger.warning(f"[AIGateway] External call failed: {e}")
+            if intent == "prediction":
+                return await self._local_prediction_fallback(kwargs, manual_model_id, t0)
+            return self._unavailable_response(
+                "The requested AI model is unavailable; a prediction model cannot substitute for conversational reasoning.",
+                manual_model_id,
+                t0,
+            )
 
         # ── 2. Fastest Routing Mode ─────────────────────────────────────────
         if mode == "fastest":
-            logger.info("[AIGateway] Fastest route chosen. Routing directly to local XGBoost / Logistic regressor.")
-            orch = get_orchestrator()
-            if orch:
-                res = await orch.predict({"prompt": prompt, "market_odds": kwargs.get("market_odds") or {"home": 2.0, "draw": 3.0, "away": 3.5}}, "fastest_gate_id")
-                pred = res.get("predictions", {})
-                formatted = f"Fast-route prediction generated. Home Win Prob: {pred.get('home_prob', 0)*100:.1f}%, Draw: {pred.get('draw_prob', 0)*100:.1f}%, Away: {pred.get('away_prob', 0)*100:.1f}%."
-                return self._wrap_response(formatted, "local_orchestrator", "xgb_v2", t0)
+            logger.info("[AIGateway] Fastest route selected.")
+            if intent == "prediction":
+                return await self._local_prediction_fallback(kwargs, "local_fast", t0)
+            return self._unavailable_response(
+                "The local fast route requires structured prediction inputs and cannot answer a general chat request.",
+                "local_fast",
+                t0,
+            )
 
         # ── 3. Cheapest Routing Mode ────────────────────────────────────────
         if mode == "cheapest":
-            logger.info("[AIGateway] Cheapest route chosen. Routing locally to preserve external tokens.")
-            orch = get_orchestrator()
-            if orch:
-                res = await orch.predict({"prompt": prompt, "market_odds": kwargs.get("market_odds") or {"home": 2.0, "draw": 3.0, "away": 3.5}}, "cheapest_gate_id")
-                pred = res.get("predictions", {})
-                formatted = f"Cheapest local route: Home={pred.get('home_prob')} | Draw={pred.get('draw_prob')} | Away={pred.get('away_prob')}"
-                return self._wrap_response(formatted, "local_orchestrator", "poisson_v2", t0)
+            logger.info("[AIGateway] Cheapest route selected.")
+            if intent == "prediction":
+                return await self._local_prediction_fallback(kwargs, "local_market_fallback", t0)
+            return self._unavailable_response(
+                "The local route only supports predictions with supplied structured match inputs.",
+                "local_market_fallback",
+                t0,
+            )
 
         # ── 4. Highest Accuracy Mode ────────────────────────────────────────
         if mode == "highest_accuracy" or mode == "accuracy":
-            logger.info("[AIGateway] Highest accuracy route chosen. Delegating to LLM Consensus microservice.")
+            logger.info("[AIGateway] Accuracy route selected; no accuracy advantage is assumed.")
             try:
                 response = await vit_ai_client.call_ai(prompt, routing="accuracy", intent=intent, model="llm_consensus_v1", **kwargs)
                 return self._wrap_response(response, "vit-ai", "llm_consensus_v1", t0)
             except Exception as e:
                 logger.warning(f"[AIGateway] Microservice accuracy route failed: {e}")
+                if intent == "prediction":
+                    return await self._local_prediction_fallback(kwargs, "local_market_fallback", t0)
+                return self._unavailable_response(
+                    "The VIT AI service is unavailable; no accuracy-verified conversational fallback is configured.",
+                    "llm_consensus_v1",
+                    t0,
+                )
 
         # ── 5. Default Ensemble / Consensus Mode ────────────────────────────
         target_model = kwargs.get("model") or ("ensemble_v1" if intent == "prediction" else "llm_consensus_v1")
@@ -125,25 +192,12 @@ class AIGateway:
         except Exception as e:
             logger.warning(f"[AIGateway] External call failed. Falling back to local orchestrator: {e}")
 
-        orch = get_orchestrator()
-        if orch:
-            try:
-                res = await orch.predict(
-                    {"prompt": prompt, "market_odds": kwargs.get("market_odds") or {"home": 2.0, "draw": 3.0, "away": 3.5}},
-                    "ensemble_fallback_gate_id"
-                )
-                pred = res.get("predictions", {})
-                formatted = f"Ensemble prediction: Win probability Home={pred.get('home_prob')}, Draw={pred.get('draw_prob')}, Away={pred.get('away_prob')}"
-                return self._wrap_response(formatted, "local_orchestrator", "ensemble_v2", t0, is_fallback=True)
-            except Exception as e:
-                logger.error(f"[AIGateway] Local ensemble fallback failed: {e}")
-
-        return self._wrap_response(
-            "Intelligence layer is offline. Running on offline failover buffer.",
-            "fallback_buffer",
-            "offline_heuristic",
+        if intent == "prediction":
+            return await self._local_prediction_fallback(kwargs, "local_market_fallback", t0)
+        return self._unavailable_response(
+            "VIT AI is temporarily unavailable. No conversational response was generated; please try again later.",
+            target_model,
             t0,
-            is_fallback=True
         )
 
     def _wrap_response(self, text: str, provider: str, model_id: str, start_time: float, is_fallback: bool = False) -> Dict[str, Any]:

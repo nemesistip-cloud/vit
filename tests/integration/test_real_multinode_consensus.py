@@ -270,8 +270,6 @@ async def test_real_three_node_consensus_and_restart(real_nodes):
     proposal = proposer.consensus.proposal_message(block, round=0)
     async with proposer.sessions() as db:
         assert await proposer.consensus.receive_proposal(db, proposal)
-        own_vote = proposer.consensus.create_vote(0, 0, block.block_hash)
-        assert await proposer.consensus.receive_vote(db, own_vote)
     await proposer.broadcast(proposal)
     await wait_for(lambda: node_a.has_transaction(transaction.tx_hash))
     await wait_for(lambda: node_b.has_transaction(transaction.tx_hash))

@@ -6,6 +6,7 @@ from httpx import AsyncClient, Response, Request
 from main import app
 from app.services.vit_ai_client import VitAIClient, CircuitBreakerOpenException
 from app.modules.ai.gateway import AIGateway
+from services.ml_service.models.model_orchestrator import ModelOrchestrator
 from app.modules.ai.routes import router as ai_module_router
 from app.api.routes.predict import validate_prediction_response
 from app.services.deterministic_insights import generate_match_insights
@@ -62,18 +63,19 @@ async def test_hot_register_duplicate_fails(client: AsyncClient, db_session):
 async def test_ai_gateway_routing_manual():
     """Verify AI Gateway manual routing fallback."""
     gw = AIGateway()
-    res = await gw.route_chat("Explain blockchain consensus", routing_mode="manual", manual_model_id="llm_consensus_v1")
-    assert res["status"] in ("success", "fallback")
+    with patch("app.modules.ai.gateway.vit_ai_client.call_ai", new_callable=AsyncMock, return_value="Consensus explanation"):
+        res = await gw.route_chat("Explain blockchain consensus", routing_mode="manual", manual_model_id="llm_consensus_v1")
+    assert res["status"] == "success"
     assert res["model_id"] == "llm_consensus_v1"
-    assert "response" in res
+    assert res["response"] == "Consensus explanation"
 
 async def test_ai_gateway_routing_fastest():
-    """Verify AI Gateway fastest routing mode directs to local direct model."""
+    """Verify the fastest route does not claim a chat model answered without one."""
     gw = AIGateway()
     res = await gw.route_chat("Match forecast query", routing_mode="fastest")
-    assert res["status"] in ("success", "fallback")
-    assert res["model_id"] == "xgb_v2"
-    assert "response" in res
+    assert res["status"] == "unavailable"
+    assert res["model_id"] == "local_fast"
+    assert "structured prediction inputs" in res["response"]
 
 async def test_vit_ai_client_circuit_breaker():
     """Verify VitAIClient circuit breaker states."""
@@ -166,11 +168,35 @@ async def test_deterministic_insights_reproducibility():
 
 
 async def test_ai_gateway_ensemble_fallback_no_recursion():
-    """Verify AI Gateway ensemble fallback routes to local orchestrator without infinite recursion."""
+    """A missing match payload cannot be replaced with synthetic local predictions."""
     gw = AIGateway()
-    with patch("app.services.vit_ai_client.vit_ai_client.call_ai", side_effect=RuntimeError("External service offline")):
-        res = await gw.route_chat("Arsenal vs Chelsea match prediction", routing_mode="ensemble")
-        assert res["status"] == "fallback"
+    with patch("app.services.vit_ai_client.vit_ai_client.call_ai", side_effect=RuntimeError("External service offline")), \
+         patch("app.modules.ai.gateway.get_orchestrator") as get_orchestrator:
+        res = await gw.route_chat("predict match Arsenal vs Chelsea", routing_mode="ensemble")
+        assert res["status"] == "unavailable"
         assert res["is_fallback"] is True
-        assert res["provider"] in ("local_orchestrator", "fallback_buffer")
-        assert "response" in res
+        assert "No match data was supplied" in res["response"]
+        get_orchestrator.assert_not_called()
+
+
+async def test_orchestrator_status_does_not_invent_model_accuracy():
+    orchestrator = ModelOrchestrator.__new__(ModelOrchestrator)
+    orchestrator.model_meta = {
+        "callable": {"model_name": "Callable", "weight": 1.0, "pkl_loaded": False},
+        "trained": {"model_name": "Trained", "weight": 1.0, "pkl_loaded": True},
+        "unavailable": {"model_name": "Unavailable", "weight": 100.0, "pkl_loaded": False},
+    }
+    orchestrator.models = {"callable": object(), "trained": object()}
+
+    status = orchestrator.get_model_status()
+    models = {model["key"]: model for model in status["models"]}
+
+    assert status["ready"] == 2
+    assert status["trained"] == 1
+    assert models["callable"]["accuracy"] is None
+    assert models["callable"]["status"] == "callable_untrained"
+    assert models["trained"]["accuracy"] is None
+    assert models["trained"]["status"] == "trained_weights_loaded"
+    assert models["callable"]["weight_pct"] == 50.0
+    assert models["trained"]["weight_pct"] == 50.0
+    assert models["unavailable"]["weight_pct"] is None

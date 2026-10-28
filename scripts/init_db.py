@@ -22,12 +22,16 @@ if "postgres" not in DATABASE_URL:
     log.info("No Postgres DATABASE_URL — skipping init_db.")
     sys.exit(0)
 
-# Normalise URL to psycopg2/psycopg form (synchronous).
+# Normalise URL to the installed psycopg2 driver (synchronous).
 sync_url = DATABASE_URL
 for old, new in [
-    ("postgresql+asyncpg://", "postgresql://"),
-    ("postgres+asyncpg://",   "postgresql://"),
-    ("postgres://",            "postgresql://"),
+    ("postgresql+asyncpg://", "postgresql+psycopg2://"),
+    ("postgres+asyncpg://",   "postgresql+psycopg2://"),
+    ("postgresql+psycopg://", "postgresql+psycopg2://"),
+    ("postgres+psycopg://",   "postgresql+psycopg2://"),
+    ("postgres+psycopg2://",  "postgresql+psycopg2://"),
+    ("postgres://",            "postgresql+psycopg2://"),
+    ("postgresql://",          "postgresql+psycopg2://"),
 ]:
     if sync_url.startswith(old):
         sync_url = new + sync_url[len(old):]

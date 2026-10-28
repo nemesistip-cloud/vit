@@ -12,7 +12,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Match, Prediction
@@ -79,12 +79,12 @@ class PredictionEvaluationService:
                 "evaluated_count": 0,
             }
 
-        actual_outcome = verification.verified_outcome
-        if not actual_outcome:
+        actual_outcome = (verification.verified_outcome or "").lower()
+        if actual_outcome not in {"home", "draw", "away"}:
             return {
                 "match_id": match_id,
                 "status": "SKIPPED",
-                "reason": "Verified outcome is missing",
+                "reason": "Verified outcome is missing or invalid",
                 "evaluated_count": 0,
             }
 
@@ -95,9 +95,14 @@ class PredictionEvaluationService:
         if not match:
             return {"match_id": match_id, "status": "ERROR", "reason": "Match record not found", "evaluated_count": 0}
 
-        # Exclude demo/synthetic matches from production performance evaluation
         if match.source in ("seed_demo", "demo", "synthetic", "live_generated") or match.market_type == "demo":
-            logger.info("Excluding demo/synthetic match %s from production evaluation claims", match_id)
+            logger.info("Skipping demo/synthetic match %s from prediction evaluation", match_id)
+            return {
+                "match_id": match_id,
+                "status": "SKIPPED",
+                "reason": "Demo or synthetic matches are excluded from prediction evaluation.",
+                "evaluated_count": 0,
+            }
 
         # Fetch predictions for match
         p_stmt = select(Prediction).where(Prediction.match_id == match_id)
@@ -121,12 +126,9 @@ class PredictionEvaluationService:
                     skipped_temporal += 1
                     continue
 
-            # Determine predicted outcome from probabilities or bet_side
-            if pred.bet_side:
-                predicted_side = pred.bet_side
-            else:
-                probs = {"home": pred.home_prob, "draw": pred.draw_prob, "away": pred.away_prob}
-                predicted_side = max(probs, key=probs.get)
+            # Evaluate the 1X2 forecast, not an optional market selection such as over/under.
+            probs = {"home": pred.home_prob, "draw": pred.draw_prob, "away": pred.away_prob}
+            predicted_side = max(probs, key=probs.get)
 
             was_correct = (predicted_side == actual_outcome)
             pred.was_correct = was_correct
@@ -180,14 +182,19 @@ class PredictionEvaluationService:
             .join(ResultVerification, Match.id == ResultVerification.match_id)
             .where(
                 ResultVerification.verification_status == "VERIFIED",
+                func.lower(ResultVerification.verified_outcome).in_(("home", "draw", "away")),
                 Prediction.was_correct.isnot(None),
             )
         )
 
         if exclude_demo:
             query = query.where(
-                Match.source.notin_(["seed_demo", "demo", "synthetic"]),
-                Match.market_type != "demo"
+                or_(
+                    Match.source.is_(None),
+                    Match.source.notin_(["seed_demo", "demo", "synthetic", "live_generated"]),
+                ),
+                or_(Match.market_type.is_(None), Match.market_type != "demo"),
+                Prediction.is_seed.is_(False),
             )
 
         if sport and sport.lower() != "all":
@@ -234,7 +241,7 @@ class PredictionEvaluationService:
             if pred.was_correct:
                 correct_count += 1
 
-            actual = ver.verified_outcome
+            actual = (ver.verified_outcome or "").lower()
             bri = compute_multiclass_brier(pred.home_prob, pred.draw_prob, pred.away_prob, actual)
             ll = compute_log_loss(pred.home_prob, pred.draw_prob, pred.away_prob, actual)
 

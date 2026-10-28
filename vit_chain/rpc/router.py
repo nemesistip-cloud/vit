@@ -50,8 +50,15 @@ MAX_RPC_PAYLOAD_SIZE = 2 * 1024 * 1024  # 2MB
 async def rpc_endpoint(request: Request, db: AsyncSession = Depends(get_db)):
     """Accepts JSON-RPC 2.0 request body with payload size enforcement."""
     content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > MAX_RPC_PAYLOAD_SIZE:
-        raise HTTPException(status_code=413, detail="Payload too large")
+    if content_length:
+        try:
+            declared_size = int(content_length)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length") from exc
+        if declared_size < 0:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length")
+        if declared_size > MAX_RPC_PAYLOAD_SIZE:
+            raise HTTPException(status_code=413, detail="Payload too large")
 
     raw_body = await request.body()
     if len(raw_body) > MAX_RPC_PAYLOAD_SIZE:
