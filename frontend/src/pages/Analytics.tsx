@@ -56,9 +56,32 @@ function useSystemHealth() {
   return useQuery<SystemHealth>({
     queryKey: ['system-health'],
     queryFn: async ({ signal }) => {
-      const r = await fetch(`${ENDPOINTS.gateway}/api/registry`, { signal })
-      if (!r.ok) throw new Error(`System health could not be loaded (${r.status})`)
-      return r.json()
+      try {
+        const r = await fetch(`${ENDPOINTS.gateway}/api/registry`, { signal })
+        if (!r.ok) {
+          return {
+            status: 'degraded',
+            services: {
+              gateway: { status: 'degraded' },
+              ai: { status: 'degraded' },
+              storage: { status: 'degraded' },
+              blockchain: { status: 'degraded' },
+            },
+          }
+        }
+        return await r.json()
+      } catch (err: any) {
+        if (signal?.aborted) throw err
+        return {
+          status: 'degraded',
+          services: {
+            gateway: { status: 'degraded' },
+            ai: { status: 'degraded' },
+            storage: { status: 'degraded' },
+            blockchain: { status: 'degraded' },
+          },
+        }
+      }
     },
     retry: false,
     staleTime: 60_000,
