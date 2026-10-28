@@ -1,3 +1,5 @@
+- 2026-10-28 `102be93` Fix/render free tier wake retries
+
 - 2026-10-26 `27ddb9b` Fix server failure bugs, container OOM kills, and startup health timeouts
 
 - 2026-10-26 `2fb6ff1` fix(api): replace unsupported enum kwarg in Query() with Literal
