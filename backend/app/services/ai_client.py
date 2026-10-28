@@ -92,7 +92,7 @@ async def _call_gemini_fallback(prompt: str, **kwargs) -> Optional[str]:
     return None
 
 
-async def call_ai(prompt: str, **kwargs) -> str:
+async def _call_ai_with_provider(prompt: str, **kwargs) -> Tuple[str, str]:
     """
     Main entry point for Native AI inference.
     Routes queries through the AI Gateway, delegating to the live microservice
@@ -103,80 +103,41 @@ async def call_ai(prompt: str, **kwargs) -> str:
     from app.modules.ai.gateway import ai_gateway
     routing_mode = kwargs.get("routing_mode", "ensemble")
 
-    # Check if we have explicit context/heuristics to emulate a natural response
-    context = kwargs.get("context", {})
-    health = context.get("health", {})
-    accuracy = context.get("accuracy", 0.0)
-    match_data = context.get("match", {})
-    prediction = context.get("prediction", {})
-
     # Call the AI Gateway
     gateway_res = await ai_gateway.route_chat(prompt, routing_mode=routing_mode, **kwargs)
-    response_text = gateway_res.get("response", "")
+    response_text = gateway_res.get("response") or ""
 
-    if "offline failover" in response_text or not response_text or gateway_res.get("is_fallback"):
-        gemini_response = await _call_gemini_fallback(prompt, **kwargs)
-        if gemini_response:
-            return gemini_response
+    if not response_text or gateway_res.get("is_fallback"):
+        intent = ai_gateway.detect_intent(prompt, kwargs)
+        if intent != "prediction":
+            gemini_response = await _call_gemini_fallback(prompt, **kwargs)
+            if gemini_response:
+                return gemini_response, "gemini"
 
-        aiml_response = await _call_aimlapi_fallback(prompt, **kwargs)
-        if aiml_response:
-            return aiml_response
+            aiml_response = await _call_aimlapi_fallback(prompt, **kwargs)
+            if aiml_response:
+                return aiml_response, "aimlapi"
 
-        # Fallback to local heuristic templates if both microservice and local model fail
-        try:
-            orch = get_orchestrator()
-            ready_models = health.get("ai_models_ready") or (orch.num_models_ready() if orch else 0)
-        except Exception:
-            ready_models = 13
+        if response_text:
+            return response_text, gateway_res.get("provider", "unavailable")
+        return "VIT AI and its configured fallback providers are unavailable; no response was generated.", "unavailable"
 
-        svi = health.get("svi", 0.0) or 1.04
-        svi_status = health.get("svi_status", "stable")
-        acc_str = f"{accuracy * 100:.1f}%" if accuracy > 0 else "72.0%"
+    return response_text, gateway_res.get("provider", "unknown")
 
-        p = prompt.lower()
-        if any(k in p for k in ["predict", "forecast", "who will win"]):
-            home = match_data.get("home_team", "Home")
-            away = match_data.get("away_team", "Away")
-            home_prob = prediction.get("home_prob", 0.45)
-            draw_prob = prediction.get("draw_prob", 0.30)
-            away_prob = prediction.get("away_prob", 0.25)
-            return (
-                f"[FALLBACK NOTICE] VIT Heuristic Analysis — {home} vs {away}: "
-                f"Our {ready_models}-model ensemble assigns {home} a {home_prob * 100:.1f}% win probability, "
-                f"Draw at {draw_prob * 100:.1f}%, and {away} at {away_prob * 100:.1f}%. "
-                f"SVI stability: {svi_status} ({svi:.4f}). Accuracy baseline: {acc_str}."
-            )
 
-        return (
-            f"VIT Ecosystem Intelligence Layer is active. "
-            f"Running {ready_models} models with {acc_str} accuracy. "
-            f"SVI: {svi_status} ({svi:.4f})."
-        )
-
-    # If the gateway responded normally, prefer the native response. When a configured key is present,
-    # use the external provider as an active backup path for degraded or empty responses.
-    if GEMINI_API_KEY or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
-        gemini_response = await _call_gemini_fallback(prompt, **kwargs)
-        if gemini_response:
-            return gemini_response
-
-    if AIMLAPI_API_KEY or os.getenv("AIMLAPI_API_KEY"):
-        aiml_response = await _call_aimlapi_fallback(prompt, **kwargs)
-        if aiml_response:
-            return aiml_response
-
-    return response_text
+async def call_ai(prompt: str, **kwargs) -> str:
+    """Return a response from the gateway, using configured LLMs only as fallbacks."""
+    response, _provider = await _call_ai_with_provider(prompt, **kwargs)
+    return response
 
 
 async def call_ai_with_provider(prompt: str, **kwargs) -> Tuple[str, str]:
-    """Returns (response, provider_name). Always 'native' in v5.5.0."""
+    """Return both the assistant response and the provider that actually produced it."""
     try:
-        response = await call_ai(prompt, **kwargs)
-        return (response, "native")
+        return await _call_ai_with_provider(prompt, **kwargs)
     except Exception as e:
         logger.error(f"Critical AI failure: {e}")
-        return ("[FALLBACK NOTICE] Intelligence layer temporarily unavailable.", "native")
+        return ("VIT AI is temporarily unavailable; no response was generated.", "unavailable")
 
 
 async def provider_status() -> Dict[str, Any]:
@@ -184,47 +145,79 @@ async def provider_status() -> Dict[str, Any]:
     try:
         orch = get_orchestrator()
         ready = orch.num_models_ready() if orch else 0
-    except Exception:
+    except Exception as exc:
+        logger.warning("Native AI readiness check failed: %s", exc)
         ready = 0
         orch = None
 
-    total = 22
+    total = None
+    model_status = {}
     if orch:
         try:
-            status = orch.get_model_status()
-            total = status.get("total", 22)
-        except Exception:
-            pass
+            model_status = orch.get_model_status()
+            total = model_status.get("total")
+        except Exception as exc:
+            logger.warning("Native AI model status query failed: %s", exc)
 
-    status_str = "available" if ready > 0 else "degraded"
-    if ready == 0:
-        status_str = "offline"
+    model_entries = model_status.get("models", []) if isinstance(model_status, dict) else []
+    trained_models = sum(1 for model in model_entries if model.get("pkl_loaded") is True)
+    status_str = "market_fallback_available" if ready > 0 and trained_models == 0 else (
+        "available" if ready > 0 else "unavailable"
+    )
 
     return {
         "native": {
             "status": status_str,
-            "available": True,
+            "available": ready > 0,
             "models_ready": ready,
+            "models_callable": ready,
+            "trained_models": trained_models,
             "total_models": total,
             "orchestrator_active": orch is not None,
-            "provider_type": "internal_ensemble"
-        }
+            "provider_type": "internal_prediction_fallback",
+            "capability": "market_probability_fallback",
+        },
+        "gemini": _external_provider_status(
+            bool(GEMINI_API_KEY or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
+        ),
+        "aimlapi": _external_provider_status(
+            bool(AIMLAPI_API_KEY or os.getenv("AIMLAPI_API_KEY"))
+        ),
+    }
+
+
+def _external_provider_status(configured: bool) -> Dict[str, Any]:
+    """Report configuration only; provider connectivity is verified on inference."""
+    return {
+        "status": "configured" if configured else "not_configured",
+        "configured": configured,
+        "available": None,
+        "connectivity": "not_probed",
+        "provider_type": "external_llm",
     }
 
 
 async def verify_provider(name: str) -> bool:
-    """v5.5.0 uses native inference for all providers."""
-    return True
+    """Return readiness only when the provider is known and demonstrably available."""
+    status = (await provider_status()).get(name)
+    return bool(status and status.get("available") is True)
 
 
 def get_provider_priority() -> List[str]:
-    """VIT v5.5.0 is strictly native."""
-    return ["native"]
+    """Return the primary gateway route and configured fallback order."""
+    configured = {
+        "native": True,
+        "gemini": bool(GEMINI_API_KEY or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")),
+        "aimlapi": bool(AIMLAPI_API_KEY or os.getenv("AIMLAPI_API_KEY")),
+    }
+    return [provider for provider, is_configured in configured.items() if is_configured]
 
 
 def set_provider_priority(order: List[str]) -> List[str]:
-    """Strictly native override."""
-    return ["native"]
+    """Return the effective supported order; provider ordering is currently fixed."""
+    effective = get_provider_priority()
+    requested = [provider for provider in order if provider in effective]
+    return requested + [provider for provider in effective if provider not in requested]
 
 
 def get_provider_failures() -> Dict[str, int]:

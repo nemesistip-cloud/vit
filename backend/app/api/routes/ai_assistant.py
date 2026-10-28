@@ -1,25 +1,20 @@
 from __future__ import annotations
 import logging
-import asyncio
-import os
 import re
-import json
-from typing import List, Optional, Any, Dict, Union
-from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Optional, Any, Dict
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
 
 from app.auth.dependencies import get_current_user, get_optional_user
 from app.db.database import get_db
-from app.modules.ai.copilot import AICopilot
-from app.modules.ai.models import ModelMetadata
 from app.core.dependencies import get_orchestrator
 from app.db.models import Match
-from app.db.repositories import AIPerformanceRepository, MatchRepository
-from app.services.assistant_tools import TOOL_MAP, NATIVE_AI_TOOLS
+from app.db.repositories import MatchRepository
+from app.services.assistant_tools import TOOL_MAP
 from app.modules.ai.svi import SyntheticValueIndex
-from app.services.ai_client import call_ai
+from app.services.ai_client import call_ai_with_provider, provider_status
 from app.modules.assistant.service import AssistantConversationContext
 from app.modules.platform.integration import platform_integration
 
@@ -51,27 +46,35 @@ class PlatformAssistantResponse(BaseModel):
 
 async def _get_system_health_internal(db: AsyncSession) -> Dict[str, Any]:
     from sqlalchemy import select, func
+    database_available = True
     try:
         match_count = (await db.execute(select(func.count(Match.id)))).scalar() or 0
-    except Exception:
-        match_count = 0
+    except Exception as exc:
+        logger.warning("Assistant database health query failed: %s", exc)
+        match_count = None
+        database_available = False
 
-    orch = get_orchestrator()
-    models_ready = orch.num_models_ready() if orch else 0
+    try:
+        orch = get_orchestrator()
+        models_callable = orch.num_models_ready() if orch else 0
+    except Exception as exc:
+        logger.warning("Assistant model status query failed: %s", exc)
+        models_callable = 0
 
-    # Try to get SVI
     try:
         svi_report = await SyntheticValueIndex.get_market_health_report(db)
-        svi_val = svi_report.get("svi", 0)
+        svi_val = svi_report.get("svi")
         svi_status = svi_report.get("status", "unknown")
-    except Exception:
-        svi_val = 0
+    except Exception as exc:
+        logger.warning("Assistant SVI query failed: %s", exc)
+        svi_val = None
         svi_status = "unavailable"
 
     return {
-        "status": "operational",
+        "status": "available" if database_available else "degraded",
+        "database_available": database_available,
         "matches_in_db": match_count,
-        "ai_models_ready": models_ready,
+        "ai_models_callable": models_callable,
         "system_version": "5.5.0",
         "svi": svi_val,
         "svi_status": svi_status
@@ -85,6 +88,39 @@ async def _handle_agentic_query(
 ) -> Dict[str, Any]:
     msg = message.lower()
     thoughts: list[str] = []
+
+    live_data_groups = {
+        "network telemetry": ("block", "gas", "chain", "hash", "consensus", "node", "validator", "ledger", "proof of storage"),
+        "personal or financial data": ("wallet", "balance", "transaction", "transfer", "deposit", "withdraw", "paystack", "stripe", "credit", "debit", "convert"),
+        "network policy": ("smart contract", "contract", "scholarship", "split", "reward"),
+    }
+    for data_group, terms in live_data_groups.items():
+        if any(term in msg for term in terms):
+            reply = (
+                f"I can’t verify {data_group} from this assistant because no authorized live data source is connected "
+                "to this chat. I won’t guess balances, transaction details, validator counts, chain status, or policy values. "
+                "Please use the corresponding VIT Network application for current information."
+            )
+            return {
+                "available": False,
+                "data_status": "not_connected",
+                "reply": reply,
+                "response": reply,
+                "thoughts": ["No authorized live source is available for this request."],
+            }
+
+    if any(k in msg for k in ["deactivated", "trouble", "fail", "broken", "offline", "degraded", "cache", "flush", "developer", "api key", "swagger", "route", "hot", "register"]):
+        reply = (
+            "I can offer general guidance, but I can’t verify current platform telemetry or perform administrative actions "
+            "from this chat. Check the relevant VIT Network status or administration screen for live state."
+        )
+        return {
+            "available": False,
+            "data_status": "not_connected",
+            "reply": reply,
+            "response": reply,
+            "thoughts": ["Live operations and administrative actions are not connected to this chat."],
+        }
 
     # 1. Blockchain Data & Telemetry
     if any(k in msg for k in ["block", "gas", "chain", "hash", "consensus", "node", "validator", "ledger", "proof of storage"]):
@@ -169,21 +205,18 @@ async def _handle_agentic_query(
     if any(k in msg for k in ["svi", "market health", "collateral", "inflation", "trends", "clv"]):
         thoughts.append("Querying Synthetic Value Index & Market Trends")
         try:
-            from exchange.order_book import OrderBook
-            report = await AICopilot.get_market_copilot_report(db, OrderBook(), [], {}, {})
             svi_report = await SyntheticValueIndex.get_market_health_report(db)
-
-            insights = "\n".join([f"- {i}" for i in report.get("insights", [])])
+            svi_value = svi_report.get("svi")
+            svi_display = f"{svi_value:.4f}" if isinstance(svi_value, (int, float)) else "Unavailable"
             reply = (
                 f"### VIT Market Intelligence\n\n"
-                f"**Synthetic Value Index (SVI):** {svi_report['svi']:.4f} ({svi_report['status']})\n"
-                f"**Market Status:** The system is currently in a {svi_report['status']} state based on collateral-to-supply ratios.\n\n"
-                f"**Core Insights:**\n{insights or '- No immediate anomalies detected.'}\n"
+                f"**Synthetic Value Index (SVI):** {svi_display} ({svi_report.get('status', 'unknown')})\n"
+                "**Source:** Current SVI database report. Order-book and live market signals are not connected here.\n"
             )
 
             if "get_market_trends" in TOOL_MAP:
                 trends = await TOOL_MAP["get_market_trends"]()
-                if trends and "overall_avg_clv" in trends:
+                if trends and trends.get("total_bets", 0) > 0 and "overall_avg_clv" in trends:
                     reply += f"\n**Network CLV:** {trends['overall_avg_clv']:.4f} | **Tracked Events:** {trends['total_bets']}"
 
             return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
@@ -194,25 +227,26 @@ async def _handle_agentic_query(
 
     # 1.5 Accuracy & Performance
     if any(k in msg for k in ["accuracy", "performance", "track record", "success rate", "correct"]):
-        thoughts.append("Auditing Network Accuracy & Model Performance")
+        thoughts.append("Querying verified prediction evaluation metrics")
         try:
-            from sqlalchemy import select, func
-            stmt = select(func.avg(ModelMetadata.accuracy_1x2)).where(ModelMetadata.is_active == True)
-            ens_acc = (await db.execute(stmt)).scalar() or 0.0
-
-            perf_repo = AIPerformanceRepository(db)
-            all_perf = await perf_repo.get_all()
-            total_samples = sum(p.sample_size for p in all_perf)
-            avg_perf = sum(p.accuracy * p.sample_size for p in all_perf) / total_samples if total_samples > 0 else 0.0
-
-            reply = (
-                f"### VIT Intelligence Performance Report\n\n"
-                f"**Ensemble Accuracy (Live):** {ens_acc*100:.1f}%\n"
-                f"**Historical Success Rate:** {avg_perf*100:.1f}%\n"
-                f"**Verified Samples:** {total_samples} predictions\n\n"
-                f"The VIT Native Ensemble (v5.5.0) continuously optimizes weights based on CLV (Closing Line Value)."
-            )
-            return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
+            from app.services.prediction_evaluation_service import PredictionEvaluationService
+            metrics = await PredictionEvaluationService.get_performance_analytics(db=db, exclude_demo=True)
+            sample_size = metrics.get("sample_size", 0)
+            if sample_size:
+                reply = (
+                    "### Verified Prediction Evaluation\n\n"
+                    f"- **Evaluated predictions:** {sample_size}\n"
+                    f"- **Outcome accuracy:** {metrics['overall_accuracy']:.1%}\n"
+                    f"- **Mean multiclass Brier score:** {metrics['mean_brier_score']:.4f} (lower is better)\n"
+                    f"- **Mean log loss:** {metrics['mean_log_loss']:.4f} (lower is better)\n\n"
+                    f"{metrics.get('disclaimer', '')}"
+                )
+            else:
+                reply = (
+                    "No verified, non-demo evaluated predictions are available for this report. "
+                    "Accuracy is not reported until predictions are evaluated against verified outcomes."
+                )
+            return {"available": True, "data_status": "verified_evaluation", "reply": reply, "response": reply, "thoughts": thoughts}
         except Exception as e:
             logger.error(f"Accuracy tool error: {e}")
 
@@ -220,24 +254,28 @@ async def _handle_agentic_query(
     if any(k in msg for k in ["health", "status", "ready", "models", "agents", "guardian"]):
         thoughts.append("Auditing VIT Agent Network")
         health = await _get_system_health_internal(db)
-
+        svi = health.get("svi")
+        svi_display = f"{svi:.4f}" if isinstance(svi, (int, float)) else "Unavailable"
+        matches = health.get("matches_in_db")
+        matches_display = str(matches) if matches is not None else "Unavailable"
+        db_status = "available" if health.get("database_available") else "unavailable"
         reply = (
             f"### VIT Network Status: {health['status'].upper()}\n"
-            f"- **Intelligence Level:** v{health['system_version']}\n"
-            f"- **Active ML Models:** {health['ai_models_ready']} (Ensemble ready)\n"
-            f"- **Database Density:** {health['matches_in_db']} matches indexed\n"
-            f"- **SVI Stability:** {health['svi']:.4f}\n"
+            f"- **Database:** {db_status}\n"
+            f"- **Matches indexed:** {matches_display}\n"
+            f"- **Local model wrappers callable:** {health['ai_models_callable']} (this does not mean trained weights are loaded)\n"
+            f"- **SVI:** {svi_display} ({health['svi_status']})\n"
         )
 
         if "get_system_health" in TOOL_MAP:
             agent_health = await TOOL_MAP["get_system_health"]()
             if agent_health and "agents" in agent_health:
-                reply += f"- **Live Agents:** {len(agent_health['agents'])} operational\n"
+                reply += f"- **Reported agents:** {len(agent_health['agents'])}\n"
                 active_agents = [a['name'] for a in agent_health['agents'] if a['status'] == 'ok']
                 if active_agents:
-                    reply += f"\n**Critical Systems:** {', '.join(active_agents[:4])} are online."
+                    reply += f"\n**Agents reporting OK:** {', '.join(active_agents[:4])}."
 
-        return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
+        return {"available": health["database_available"], "data_status": health["status"], "reply": reply, "response": reply, "thoughts": thoughts}
 
     # 3. Sports Analysis & Predictions
     if any(k in msg for k in ["match", "game", "soccer", "football", "basketball", "tennis", "prediction", "confidence", "odds", "scores", "fixture", "highest", "today"]):
@@ -281,20 +319,6 @@ async def _handle_agentic_query(
                 result = await db.execute(query)
                 rows = result.all()
 
-                if not rows and is_today:
-                    fallback_query = select(Match, Prediction).join(Prediction, Match.id == Prediction.match_id, isouter=True)                         .where(Match.kickoff_time >= now_utc.replace(tzinfo=None) - timedelta(hours=12))                         .order_by(desc(Prediction.confidence), Match.kickoff_time.asc()).limit(10)
-                    if sport_filter:
-                        fallback_query = fallback_query.where(Match.sport.ilike(f"%{sport_filter}%"))
-                    fallback_res = await db.execute(fallback_query)
-                    rows = fallback_res.all()
-
-                if not rows:
-                    all_matches_query = select(Match, Prediction).join(Prediction, Match.id == Prediction.match_id, isouter=True)                         .order_by(desc(Prediction.confidence), Match.kickoff_time.desc()).limit(10)
-                    if sport_filter:
-                        all_matches_query = all_matches_query.where(Match.sport.ilike(f"%{sport_filter}%"))
-                    all_res = await db.execute(all_matches_query)
-                    rows = all_res.all()
-
                 if rows:
                     lines = []
                     for idx, (m, p) in enumerate(rows, 1):
@@ -330,16 +354,16 @@ async def _handle_agentic_query(
                         header_title += f" ({sport_filter.capitalize()})"
 
                     reply = f"### {header_title}\n\n" + "\n\n".join(lines)
-                    return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
+                    return {"available": True, "data_status": "database_records", "reply": reply, "response": reply, "thoughts": thoughts}
                 else:
                     sport_suffix = f" for {sport_filter.capitalize()}" if sport_filter else ""
-                    reply = f"I couldn't find any scheduled matches or verified AI confidence scores{sport_suffix} in the database."
-                    return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
+                    reply = f"I couldn't find any scheduled matches or recorded forecasts{sport_suffix} in the requested time range."
+                    return {"available": True, "data_status": "no_records", "reply": reply, "response": reply, "thoughts": thoughts}
 
             except Exception as e:
                 logger.error(f"Error fetching predictions for assistant query: {e}", exc_info=True)
                 reply = "I encountered an error retrieving predictions from the database."
-                return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
+                return {"available": False, "data_status": "query_failed", "reply": reply, "response": reply, "thoughts": thoughts}
 
         match_id_search = re.search(r"(?:id\s*[:#]?\s*|match\s+)(\d+)", msg)
         found_matches = []
@@ -368,14 +392,16 @@ async def _handle_agentic_query(
                 reply += f"*League: {m.get('league', 'Unknown')} | Kickoff: {m.get('kickoff_time', 'Unknown')}*\n\n"
                 if preds:
                     p = preds[0]
-                    reply += "**Native Ensemble Forecast:**\n"
+                    reply += f"**Recorded forecast ({p.get('source') or 'source unknown'}):**\n"
                     reply += f"- Home Win: {p.get('home_prob', 0)*100:.1f}%\n"
                     reply += f"- Draw: {p.get('draw_prob', 0)*100:.1f}%\n"
                     reply += f"- Away Win: {p.get('away_prob', 0)*100:.1f}%\n"
-                    reply += f"- **Confidence:** {p.get('confidence', 0)*100:.1f}%\n\n"
+                    confidence = p.get("confidence")
+                    confidence_display = f"{confidence * 100:.1f}%" if isinstance(confidence, (int, float)) else "Not reported"
+                    reply += f"- **Reported confidence (not accuracy):** {confidence_display}\n\n"
                 else:
-                    reply += "AI Models are currently processing this match. No prediction recorded yet.\n\n"
-            return {"available": True, "reply": reply.strip(), "response": reply.strip(), "thoughts": thoughts}
+                    reply += "No forecast is recorded for this match.\n\n"
+            return {"available": True, "data_status": "database_records", "reply": reply.strip(), "response": reply.strip(), "thoughts": thoughts}
 
         upcoming = await TOOL_MAP["get_upcoming_matches"](limit=5)
         if upcoming:
@@ -394,16 +420,21 @@ async def _handle_agentic_query(
     thoughts.append("Generating response via VIT Native NLP layer")
     health = await _get_system_health_internal(db)
 
-    from sqlalchemy import select, func
-    stmt = select(func.avg(ModelMetadata.accuracy_1x2)).where(ModelMetadata.is_active == True)
-    ens_acc = (await db.execute(stmt)).scalar() or 0.72
-
     ctx = {
         "health": health,
-        "accuracy": ens_acc
+        "accuracy": None,
+        "evidence_note": "Only values in this context are verified live data; do not invent missing network state or prediction results.",
     }
-    reply = await call_ai(message, context=ctx)
-    return {"available": True, "reply": reply, "response": reply, "thoughts": thoughts}
+    reply, provider = await call_ai_with_provider(message, context=ctx)
+    available = provider != "unavailable"
+    return {
+        "available": available,
+        "provider": provider,
+        "data_status": "not_connected" if not available else "generated_response",
+        "reply": reply,
+        "response": reply,
+        "thoughts": thoughts,
+    }
 
 def _platform_context(body: PlatformAssistantRequest, user: Any) -> AssistantConversationContext:
     role = getattr(user, "role", None)
@@ -493,20 +524,44 @@ async def assistant_chat(body: ChatRequest, db: AsyncSession = Depends(get_db), 
     except Exception as e:
         logger.error(f"Assistant chat error: {e}", exc_info=True)
         return {
-            "available": True,
-            "reply": "The VIT Bot is temporarily unavailable. Please try again later.",
-            "response": "The VIT Bot is temporarily unavailable. Please try again later.",
+            "available": False,
+            "data_status": "error",
+            "reply": "The VIT AI Assistant is temporarily unavailable. Please try again later.",
+            "response": "The VIT AI Assistant is temporarily unavailable. Please try again later.",
             "thoughts": ["Error encountered"],
         }
 
 @router.get("/status")
 async def assistant_status(db: AsyncSession = Depends(get_db), _user=Depends(get_optional_user)):
     health = await _get_system_health_internal(db)
+    providers = await provider_status()
+    try:
+        from app.services.vit_ai_client import vit_ai_client
+        vit_ai_available = await vit_ai_client.check_health()
+    except Exception as exc:
+        logger.warning("VIT AI upstream health check failed: %s", exc)
+        vit_ai_available = False
+
+    external_configured = any(
+        bool(providers.get(name, {}).get("configured"))
+        for name in ("gemini", "aimlapi")
+    )
+    assistant_status = (
+        "available" if vit_ai_available
+        else "configured_but_unverified" if external_configured
+        else "unavailable"
+    )
     return {
-        "available": True,
-        "backend_ai_available": True,
-        "provider": "native",
-        "llm_configured": True,
-        "message": f"VIT Bot v{health['system_version']} ready.",
+        "available": vit_ai_available,
+        "status": assistant_status,
+        "backend_ai_available": health["database_available"],
+        "provider": "vit-ai" if vit_ai_available else None,
+        "llm_configured": bool(vit_ai_available or external_configured),
+        "providers": providers,
+        "message": (
+            f"VIT AI Assistant v{health['system_version']} is available."
+            if vit_ai_available
+            else "No conversational AI provider has verified availability; configured external providers are not probed here."
+        ),
         "health": health,
     }

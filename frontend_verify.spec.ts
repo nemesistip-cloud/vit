@@ -1026,3 +1026,68 @@ test('Developer Hub loads API docs and exercises a selected endpoint', async ({ 
   await page.getByRole('button', { name: 'Try It Out' }).click();
   await expect(page.getByText(/"status":\s*"ok"/)).toBeVisible();
 });
+
+test('assistant discloses unconnected live data instead of presenting it as an answer', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'assistant-test-placeholder');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 7, username: 'test-user', role: 'user' }));
+  });
+  await page.route('**/api/ai/assistant/chat', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      available: false,
+      data_status: 'not_connected',
+      response: 'I cannot verify wallet data because no authorized live source is connected.',
+    }),
+  }));
+
+  await page.goto('/assistant');
+  await expect(page.getByText(/Live wallet, chain, and administrative data are not connected/)).toBeVisible();
+  await page.getByRole('textbox').fill('What is my wallet balance?');
+  await page.getByRole('textbox').press('Enter');
+  await expect(page.getByText(/I cannot verify wallet data/)).toBeVisible();
+});
+
+test('assistant labels its response provider and evidence status', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('vit_token', 'assistant-test-placeholder');
+    localStorage.setItem('vit_user', JSON.stringify({ id: 7, username: 'test-user', role: 'user' }));
+  });
+  await page.route('**/api/ai/assistant/chat', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      available: true,
+      provider: 'vit-ai',
+      data_status: 'generated_response',
+      response: 'This is a generated explanation.',
+    }),
+  }));
+
+  await page.goto('/assistant');
+  await page.getByRole('textbox').fill('Explain a concept');
+  await page.getByRole('textbox').press('Enter');
+
+  await expect(page.getByText('This is a generated explanation.')).toBeVisible();
+  await expect(page.getByText('vit-ai · generated response')).toBeVisible();
+});
+
+test('VITPredict shows upstream failure separately from an empty forecast shortlist', async ({ page }) => {
+  await page.route('**/api/apps/vitpredict/health', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ app_id: 'app:vitpredict', status: 'degraded', checks: {} }),
+  }));
+  await page.route('**/api/apps/vitpredict/predict/accumulator**', route => route.fulfill({
+    status: 503,
+    contentType: 'application/json',
+    body: JSON.stringify({ detail: 'forecast service unavailable' }),
+  }));
+
+  await page.goto('/apps/vitpredict');
+
+  await expect(page.getByRole('heading', { name: 'Daily Forecast Shortlist' })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Forecast shortlist is unavailable');
+  await expect(page.getByText('No qualifying forecast combinations are available for today.')).toHaveCount(0);
+});

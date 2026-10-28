@@ -38,10 +38,6 @@ _TOTAL_MODEL_SPECS    = 13
 _HOME_ADVANTAGE_BIAS  = 0.014
 _MAX_STAKE            = 0.05
 
-_WEIGHT_MIN = 0.75
-_WEIGHT_MAX = 1.50
-_DISPLAY_CONF_MIN = 62.0
-_DISPLAY_CONF_MAX = 88.0
 _CS_MAX_GOALS = 10
 MODEL_VERSION = "v5.0.0"
 
@@ -462,13 +458,17 @@ class ModelOrchestrator:
         return len(self.models)
 
     def get_model_status(self) -> Dict[str, Any]:
-        w_span = _WEIGHT_MAX - _WEIGHT_MIN
+        weight_total = sum(
+            max(0.0, float(meta.get("weight", 1.0)))
+            for key, meta in self.model_meta.items()
+            if key in self.models
+        )
         models_list = []
         for key, meta in self.model_meta.items():
             w = float(meta.get("weight", 1.0))
-            display_conf = _DISPLAY_CONF_MIN + max(0.0, (w - _WEIGHT_MIN) / w_span) * (_DISPLAY_CONF_MAX - _DISPLAY_CONF_MIN)
-            display_conf = round(min(_DISPLAY_CONF_MAX, max(_DISPLAY_CONF_MIN, display_conf)), 1)
-            weight_pct = round(max(0.0, (w - _WEIGHT_MIN) / w_span) * 100, 1)
+            trained = bool(meta.get("pkl_loaded", False))
+            ready = key in self.models
+            weight_pct = round(max(0.0, w) / weight_total * 100, 1) if ready and weight_total > 0 else None
             models_list.append({
                 "key":               key,
                 "model_name":        meta.get("model_name") or key,
@@ -476,17 +476,24 @@ class ModelOrchestrator:
                 "model_type":        meta.get("model_type", "algorithmic"),
                 "weight":            w,
                 "weight_pct":        weight_pct,
-                "accuracy":          display_conf,
-                "pkl_loaded":        meta.get("pkl_loaded", False),
-                "ready":             key in self.models,
-                "is_trained":        meta.get("pkl_loaded", False),
+                "accuracy":          None,
+                "accuracy_status":   "unmeasured",
+                "pkl_loaded":        trained,
+                "ready":             ready,
+                "is_trained":        trained,
                 "trained_count":     getattr(self.models.get(key), "trained_matches_count", 0),
                 "learning_iteration": getattr(self.models.get(key), "learning_iteration", 0),
-                "is_active":         key in self.models,
-                "source":            "trained" if meta.get("pkl_loaded", False) else "algorithmic",
-                "status":            "ready",
+                "is_active":         ready,
+                "source":            "trained" if trained else "algorithmic",
+                "status":            "trained_weights_loaded" if trained else "callable_untrained" if ready else "unavailable",
             })
-        return {"ready": len(self.models), "total": _TOTAL_MODEL_SPECS, "models": models_list}
+        return {
+            "ready": len(self.models),
+            "trained": sum(bool(meta.get("pkl_loaded", False)) for meta in self.model_meta.values()),
+            "registered": len(self.model_meta),
+            "total": _TOTAL_MODEL_SPECS,
+            "models": models_list,
+        }
 
     async def predict(self, features: Dict[str, Any], match_id: str, sport: str = "soccer") -> Dict[str, Any]:
         mkt   = features.get("market_odds", {})

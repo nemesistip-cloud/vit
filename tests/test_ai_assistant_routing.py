@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from app.modules.ai.gateway import ai_gateway
-from app.services.ai_client import call_ai
+from app.modules.ai.gateway import AIGateway, ai_gateway
+from app.services.ai_client import call_ai, provider_status
 from app.services.vit_ai_client import vit_ai_client
 
 @pytest.mark.asyncio
@@ -107,6 +107,69 @@ async def test_call_ai_uses_aiml_fallback_when_gateway_fails():
         mock_aiml.assert_awaited_once_with("Launch check")
 
 
+@pytest.mark.asyncio
+async def test_call_ai_does_not_call_secondary_providers_after_primary_success():
+    with patch("app.modules.ai.gateway.ai_gateway.route_chat", new_callable=AsyncMock) as mock_gateway, \
+         patch("app.services.ai_client._call_gemini_fallback", new_callable=AsyncMock) as mock_gemini, \
+         patch("app.services.ai_client._call_aimlapi_fallback", new_callable=AsyncMock) as mock_aiml:
+        mock_gateway.return_value = {"response": "Primary response", "is_fallback": False, "provider": "vit-ai"}
+
+        assert await call_ai("Describe the network") == "Primary response"
+        mock_gemini.assert_not_awaited()
+        mock_aiml.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_provider_status_separates_configuration_from_connectivity(monkeypatch):
+    monkeypatch.setattr("app.services.ai_client.GEMINI_API_KEY", "configured-test-key")
+    monkeypatch.setattr("app.services.ai_client.AIMLAPI_API_KEY", "")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("AIMLAPI_API_KEY", raising=False)
+    with patch("app.services.ai_client.get_orchestrator", return_value=None):
+        status = await provider_status()
+
+    assert status["native"]["available"] is False
+    assert status["gemini"]["configured"] is True
+    assert status["gemini"]["available"] is None
+    assert status["gemini"]["connectivity"] == "not_probed"
+    assert status["aimlapi"]["configured"] is False
+    assert status["aimlapi"]["available"] is None
+
+
+@pytest.mark.asyncio
+async def test_gateway_does_not_use_prediction_model_for_conversation():
+    gateway = AIGateway()
+    with patch("app.modules.ai.gateway.vit_ai_client.call_ai", new_callable=AsyncMock, side_effect=RuntimeError("offline")), \
+         patch("app.modules.ai.gateway.get_orchestrator") as get_orchestrator:
+        response = await gateway.route_chat("How many validators are online?")
+
+    assert response["status"] == "unavailable"
+    assert "No conversational response was generated" in response["response"]
+    get_orchestrator.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_gateway_local_prediction_requires_and_uses_supplied_market_data():
+    gateway = AIGateway()
+    orchestrator = MagicMock()
+    orchestrator.predict = AsyncMock(return_value={
+        "predictions": {"home_prob": 0.5, "draw_prob": 0.3, "away_prob": 0.2},
+    })
+    with patch("app.modules.ai.gateway.vit_ai_client.call_ai", new_callable=AsyncMock, side_effect=RuntimeError("offline")), \
+         patch("app.modules.ai.gateway.get_orchestrator", return_value=orchestrator):
+        response = await gateway.route_chat(
+            "predict match Arsenal vs Chelsea",
+            market_odds={"home": 2.0, "draw": 3.2, "away": 4.0},
+        )
+
+    assert response["status"] == "fallback"
+    assert "based on supplied match inputs" in response["response"]
+    orchestrator.predict.assert_awaited_once_with(
+        {"market_odds": {"home": 2.0, "draw": 3.2, "away": 4.0}},
+        "gateway_fallback",
+    )
+
+
 from app.api.routes.ai_assistant import _handle_agentic_query
 from datetime import datetime, timezone
 from app.db.models import Match, Prediction
@@ -156,11 +219,20 @@ async def test_agentic_query_general_conversational():
     mock_scalar_res.scalar.return_value = 0.75
     mock_db.execute.return_value = mock_scalar_res
 
-    with patch("app.api.routes.ai_assistant.call_ai", new_callable=AsyncMock) as mock_call_ai:
-        mock_call_ai.return_value = "VIT AI is the intelligence network powering forecasts."
+    with patch("app.api.routes.ai_assistant.call_ai_with_provider", new_callable=AsyncMock) as mock_call_ai:
+        mock_call_ai.return_value = ("VIT AI is the intelligence network powering forecasts.", "vit-ai")
 
         res = await _handle_agentic_query("What is VIT AI?", mock_db)
         assert res["available"] is True
         assert "response" in res
         assert "reply" in res
         assert res["response"] == "VIT AI is the intelligence network powering forecasts."
+
+
+@pytest.mark.asyncio
+async def test_agentic_query_does_not_claim_unconnected_wallet_data():
+    response = await _handle_agentic_query("What is my wallet balance?", AsyncMock())
+
+    assert response["available"] is False
+    assert response["data_status"] == "not_connected"
+    assert "won’t guess balances" in response["response"]

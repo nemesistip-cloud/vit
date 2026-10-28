@@ -1,4 +1,6 @@
-# Qwen AI Integration & Feature Activation Blueprint
+# Qwen AI Integration Proposal (Not Implemented)
+
+> **Status: proposal only.** This document describes a possible design, not the current VIT AI runtime. Repository investigation found no Qwen client, `QWEN_API_KEY` integration, or verified Qwen inference path. The stated 60/40 prediction blend, active features, accuracy benefits, and tests below are not implemented or validated and must not be treated as production capabilities or evidence.
 
 ## 1. Executive Summary
 
@@ -92,8 +94,4 @@ $$\sum P_i = 1.0, \quad 0.01 \le P_i \le 0.98$$
 
 ## 5. Verification & Unit Tests
 
-The Qwen integration is fully covered by automated tests in `tests/test_qwen_service.py`:
-* `test_qwen_client_init`: Verifies API key and base URL configuration.
-* `test_qwen_predict_match_outcome`: Tests structured JSON parsing and fallback error handling.
-* `test_qwen_generate_tactical_analysis`: Verifies markdown analysis generation.
-* `test_orchestrator_integration_with_qwen`: Verifies Orchestrator prediction blending with Qwen active.
+No Qwen-specific test suite is present in this repository. Implement and independently evaluate a Qwen integration before adding operational or accuracy claims.

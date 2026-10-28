@@ -45,15 +45,16 @@ export default function VITPredictApp() {
     queryKey: ['vitpredict-daily-accumulator'],
     queryFn: async ({ signal }) => {
       const response = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/predict/accumulator?limit=3')}`, { signal })
-      if (!response.ok) return {}
-      return response.json()
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.detail ?? `Forecast shortlist unavailable (${response.status})`)
+      return data
     },
     retry: false,
   })
 
   const features = [
     { icon: Activity, title: 'Fixtures and match history', description: 'Explore upcoming football fixtures, results, and historical context.', to: '/apps/vitpredict/matches' },
-    { icon: Brain, title: 'Prediction intelligence', description: 'Review calibrated outcome probabilities and model explanations.', to: '/apps/vitpredict/predictions' },
+    { icon: Brain, title: 'Prediction intelligence', description: 'Review forecast probabilities, provenance, and data-quality warnings.', to: '/apps/vitpredict/predictions' },
     { icon: LineChart, title: 'Data and evaluation', description: 'Inspect odds provenance and measure model performance.', to: '/apps/vitpredict/odds' },
   ]
 
@@ -63,7 +64,7 @@ export default function VITPredictApp() {
         <div>
           <p className="mb-3 text-xs font-semibold uppercase text-emerald-300/75">VIT Network application</p>
           <h1 className="max-w-3xl text-4xl font-semibold leading-tight sm:text-5xl">VITPredict</h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-white/60">Football prediction intelligence for fixtures, market context, calibrated probabilities, and model evaluation.</p>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-white/60">Football prediction intelligence for fixtures, market context, forecast probabilities, and verified model evaluation.</p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link to="/apps/vitpredict/matches" className="inline-flex items-center gap-2 rounded-md bg-emerald-300 px-4 py-2.5 text-sm font-semibold text-[#092018] hover:bg-emerald-200">Explore fixtures <ArrowRight className="h-4 w-4" /></Link>
             <Link to="/applications" className="inline-flex items-center gap-2 rounded-md border border-white/15 px-4 py-2.5 text-sm text-white/70 hover:bg-white/5">VIT Network applications</Link>
@@ -82,7 +83,7 @@ export default function VITPredictApp() {
         </aside>
       </section>
 
-      {/* Daily Accumulator Value Showcase */}
+      {/* Daily forecast shortlist */}
       <section className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-6 backdrop-blur-sm">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
@@ -90,20 +91,26 @@ export default function VITPredictApp() {
               <Layers className="h-4 w-4" />
             </span>
             <div>
-              <h3 className="font-semibold text-white">Daily High-Value Accumulator</h3>
-              <p className="text-xs text-white/50">AI-selected combination based on vig-free probability edge</p>
+              <h3 className="font-semibold text-white">Daily Forecast Shortlist</h3>
+              <p className="text-xs text-white/50">Stored model probabilities and available market prices; not an LLM-generated forecast</p>
             </div>
           </div>
           {accumulator.data?.total_odds && (
             <div className="text-right">
-              <span className="text-xs text-white/40 block">Combined Odds</span>
+              <span className="text-xs text-white/40 block">Indicative combined odds</span>
               <span className="text-lg font-bold text-emerald-300">{accumulator.data.total_odds.toFixed(2)}x</span>
             </div>
           )}
         </div>
 
         {accumulator.isPending ? (
-          <p className="text-xs text-white/40 py-2">Analyzing market probabilities...</p>
+          <p className="text-xs text-white/40 py-2">Loading stored forecasts and market data...</p>
+        ) : accumulator.isError ? (
+          <p role="status" className="text-xs text-amber-200 py-2">
+            Forecast shortlist is unavailable. {accumulator.error instanceof Error ? accumulator.error.message : 'Try again later.'}
+          </p>
+        ) : accumulator.data?.error ? (
+          <p role="status" className="text-xs text-amber-200 py-2">{accumulator.data.error}</p>
         ) : accumulator.data?.legs && accumulator.data.legs.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-3 mt-4">
             {accumulator.data.legs.map((leg, i) => (
@@ -120,7 +127,7 @@ export default function VITPredictApp() {
             ))}
           </div>
         ) : (
-          <p className="text-xs text-white/40 py-2">No high-edge accumulator combinations found for today's matches.</p>
+          <p className="text-xs text-white/40 py-2">No qualifying forecast combinations are available for today.</p>
         )}
       </section>
 

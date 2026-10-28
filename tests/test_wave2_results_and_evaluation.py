@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Match, Prediction
 from app.services.result_verification_service import ResultVerificationService, normalize_status
 from app.services.prediction_evaluation_service import PredictionEvaluationService, compute_multiclass_brier, compute_log_loss
+from app.modules.sports.models import ResultVerification
 
 
 @pytest.mark.asyncio
@@ -252,6 +253,95 @@ async def test_temporal_integrity_rejection(db_session: AsyncSession):
     # Prediction should be skipped due to temporal integrity check
     assert eval_res["evaluated_count"] == 0
     assert eval_res["skipped_temporal_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_evaluation_scores_1x2_outcome_not_market_selection(db_session: AsyncSession):
+    kickoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=2)
+    match = Match(
+        home_team="Arsenal",
+        away_team="Chelsea",
+        league="Premier League",
+        kickoff_time=kickoff,
+        status="finished",
+        sport="football",
+        source="footballdata",
+    )
+    db_session.add(match)
+    await db_session.flush()
+
+    prediction = Prediction(
+        match_id=match.id,
+        home_prob=0.70,
+        draw_prob=0.20,
+        away_prob=0.10,
+        bet_side="over_2_5",
+        timestamp=kickoff - timedelta(hours=1),
+    )
+    db_session.add(prediction)
+    db_session.add(ResultVerification(
+        match_id=match.id,
+        verification_status="VERIFIED",
+        verified_outcome="HOME",
+        verified_home_goals=2,
+        verified_away_goals=0,
+        source_count=2,
+    ))
+    await db_session.flush()
+
+    result = await PredictionEvaluationService.evaluate_match_predictions(db_session, match.id)
+
+    assert result["status"] == "EVALUATED"
+    await db_session.refresh(prediction)
+    assert prediction.was_correct is True
+    assert prediction.model_consensus["evaluation"]["verified_outcome"] == "home"
+    analytics = await PredictionEvaluationService.get_performance_analytics(db_session)
+    assert analytics["sample_size"] == 1
+
+
+@pytest.mark.asyncio
+async def test_evaluation_skips_seed_demo_matches(db_session: AsyncSession):
+    kickoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=2)
+    match = Match(
+        home_team="Demo Home",
+        away_team="Demo Away",
+        league="Test League",
+        kickoff_time=kickoff,
+        status="finished",
+        sport="football",
+        source="seed_demo",
+    )
+    db_session.add(match)
+    await db_session.flush()
+
+    prediction = Prediction(
+        match_id=match.id,
+        home_prob=0.70,
+        draw_prob=0.20,
+        away_prob=0.10,
+        timestamp=kickoff - timedelta(hours=1),
+    )
+    db_session.add(prediction)
+    db_session.add(ResultVerification(
+        match_id=match.id,
+        verification_status="VERIFIED",
+        verified_outcome="home",
+        verified_home_goals=2,
+        verified_away_goals=0,
+        source_count=2,
+    ))
+    await db_session.flush()
+
+    result = await PredictionEvaluationService.evaluate_match_predictions(db_session, match.id)
+
+    assert result["status"] == "SKIPPED"
+    assert result["evaluated_count"] == 0
+    prediction.was_correct = True
+    await db_session.flush()
+    analytics = await PredictionEvaluationService.get_performance_analytics(db_session)
+    assert analytics["sample_size"] == 0
+    await db_session.refresh(prediction)
+    assert prediction.was_correct is True
 
 
 @pytest.mark.asyncio

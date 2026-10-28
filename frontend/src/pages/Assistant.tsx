@@ -15,6 +15,7 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   thinking?: string
+  source?: string
   ts: number
 }
 
@@ -23,7 +24,7 @@ interface Message {
 const PROMPTS = [
   'What matches have the highest AI confidence today?',
   'Explain how the VIT Score is calculated',
-  'What are the best DeFi pools for yield right now?',
+  'How are prediction probabilities evaluated against verified results?',
   'How do I become a validator on VIT Network?',
   'Show me the leaderboard leaders this week',
   'What is expected value and why does it matter?',
@@ -112,6 +113,11 @@ function Bubble({ msg }: { msg: Message }) {
         )}>
           <MessageContent text={msg.content} />
         </div>
+        {msg.source && (
+          <p className="px-1 text-[10px] text-white/35">
+            {msg.source.replace(/_/g, ' ')}
+          </p>
+        )}
         <div className={cn('flex items-center gap-2 px-1', isUser ? 'flex-row-reverse' : 'flex-row')}>
           <span className="text-[10px] text-white/25">
             {new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -164,10 +170,15 @@ export default function Assistant() {
       })
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail ?? d.message ?? `Error ${r.status}`)
+      if (d.available === false) {
+        setError(d.response ?? d.reply ?? 'The requested data or AI provider is unavailable.')
+        return
+      }
       const assistantMsg: Message = {
         role: 'assistant',
         content: d.response ?? d.message ?? d.text ?? 'No response.',
         thinking: d.thinking_chain ?? d.reasoning,
+        source: [d.provider, d.data_status].filter(value => typeof value === 'string').join(' · ') || undefined,
         ts: Date.now(),
       }
       setMessages(m => [...m, assistantMsg])
@@ -224,7 +235,7 @@ export default function Assistant() {
               </div>
               <h2 className="text-xl font-bold text-white">How can I help you?</h2>
               <p className="text-white/40 text-sm max-w-sm mx-auto">
-                Ask me about matches, predictions, DeFi, governance, or anything on the VIT platform.
+                Ask about VIT Network or prediction records. Live wallet, chain, and administrative data are not connected to this chat.
               </p>
 
               {/* Suggested prompts */}
