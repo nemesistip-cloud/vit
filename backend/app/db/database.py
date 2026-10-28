@@ -81,13 +81,12 @@ else:
     _pg_host = urlparse(DATABASE_URL).hostname or ""
     _connect_args = _postgres_connect_args(_pg_host)
 
-    # Pool sizes are config-driven via env vars (defaults tuned for Render Free Tier
-    # which allows 25 connections; keep pool_size + max_overflow ≤ 20 to leave
-    # headroom for alembic, scripts, and admin tools).
-    _pool_size    = get_int_env("DB_POOL_SIZE",    5)
-    _max_overflow = get_int_env("DB_MAX_OVERFLOW", 10)
+    # Keep defaults small for the free database and for multiple app processes.
+    # Environment variables can raise these values on larger plans.
+    _pool_size    = get_int_env("DB_POOL_SIZE",    2)
+    _max_overflow = get_int_env("DB_MAX_OVERFLOW", 1)
     _pool_recycle = get_int_env("DB_POOL_RECYCLE", 300)
-    _pool_timeout = get_int_env("DB_POOL_TIMEOUT", 30)
+    _pool_timeout = get_int_env("DB_POOL_TIMEOUT", 10)
     engine = create_async_engine(
         DATABASE_URL,
         echo=False,
