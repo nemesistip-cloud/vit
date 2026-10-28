@@ -96,6 +96,34 @@ async def test_gossip_handler_accepts_consensus():
 
 
 @pytest.mark.asyncio
+async def test_daemon_gossip_routes_native_proposal_without_duplicate_signing():
+    from vit_node.network.gossip import NodeGossipHandler
+
+    consensus = MagicMock(spec=ConsensusCoordinator)
+    consensus.receive_proposal = AsyncMock(return_value=True)
+    consensus.create_vote = MagicMock(side_effect=AssertionError("adapter must not sign votes"))
+    consensus.broadcast = AsyncMock()
+    handler = NodeGossipHandler(MagicMock(), "unused", consensus=consensus)
+    db = MagicMock()
+
+    message = {
+        "type": "proposal",
+        "chain_id": 7764,
+        "height": 2,
+        "round": 0,
+        "proposer_id": "validator-a",
+        "block": {"block_hash": "a" * 64},
+    }
+    await handler.handle_with_db(message, db)
+
+    consensus.receive_proposal.assert_awaited_once_with(db, {
+        key: value for key, value in message.items() if key != "type"
+    })
+    consensus.create_vote.assert_not_called()
+    consensus.broadcast.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_consensus_broadcast_callback():
     """Verify consensus broadcast callback works."""
     daemon = VITNodeDaemon()

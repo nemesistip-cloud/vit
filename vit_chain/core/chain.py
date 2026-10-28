@@ -163,6 +163,9 @@ class VITChain:
                     ))
         except _BlockTransactionRejected:
             return False
+        except Exception:
+            logger.exception("block_persistence_failed height=%s block_hash=%s", block.height, block.block_hash)
+            return False
 
         return True
 

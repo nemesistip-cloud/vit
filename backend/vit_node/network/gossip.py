@@ -60,7 +60,9 @@ class NodeGossipHandler:
         This ensures consensus state is properly persisted to the database.
         """
         msg_type = msg.get("type")
-        payload = msg.get("payload", {})
+        payload = msg.get("payload")
+        if not isinstance(payload, dict):
+            payload = {key: value for key, value in msg.items() if key != "type"}
 
         # Consensus messages (higher priority) - MUST process these for real consensus
         if msg_type == "proposal" and self.consensus:
@@ -70,21 +72,7 @@ class NodeGossipHandler:
                 # This is not just logging - this is the real consensus protocol execution
                 accepted = await self.consensus.receive_proposal(db, payload)
                 if accepted:
-                    self.logger.info("[CONSENSUS] PROPOSAL accepted, creating vote")
-                    # Create and send vote
-                    vote = self.consensus.create_vote(
-                        payload.get("height"),
-                        payload.get("round"),
-                        payload.get("block_hash")
-                    )
-                    # Process the vote locally
-                    await self.consensus.receive_vote(db, vote)
-                    
-                    # Broadcast vote to network
-                    vote_message = {"type": "consensus_vote", "payload": vote.to_dict()}
-                    if self.consensus.broadcast:
-                        await self.consensus.broadcast(vote_message)
-                    self.logger.info(f"[CONSENSUS] VOTE sent for height={vote.height}, round={vote.round}")
+                    self.logger.info("[CONSENSUS] PROPOSAL accepted by coordinator state machine")
                 else:
                     self.logger.warning(f"[CONSENSUS] PROPOSAL rejected for height={payload.get('height')}")
             except Exception as e:
@@ -95,7 +83,8 @@ class NodeGossipHandler:
             self.logger.info(f"[CONSENSUS] Processing VOTE: height={payload.get('height')}, round={payload.get('round')}, validator={payload.get('validator_id', '')[:16]}...")
             try:
                 # CRITICAL: Convert payload to ConsensusVote object and process
-                vote = ConsensusVote(**payload)
+                vote_payload = {key: value for key, value in payload.items() if key != "type"}
+                vote = ConsensusVote(**vote_payload)
                 await self.consensus.receive_vote(db, vote)
                 self.logger.info(f"[CONSENSUS] VOTE recorded: height={vote.height}, round={vote.round}, votes_count={len(self.consensus.votes.get((vote.height, vote.round), []))}")
             except Exception as e:

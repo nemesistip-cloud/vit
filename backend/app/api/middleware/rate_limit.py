@@ -11,7 +11,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.core.errors import error_response
 
 import os
-from app.config import RATE_LIMIT_ENABLED, _clean_redis_url
+from app.config import ENVIRONMENT, RATE_LIMIT_ENABLED, _clean_redis_url
 
 log = logging.getLogger(__name__)
 
@@ -109,11 +109,17 @@ def _reset_redis_failure():
     _redis_fail_count = 0
 
 
-async def _redis_sliding_window(redis, key: str, limit: int, window: int) -> tuple[bool, int, int]:
+async def _redis_sliding_window(
+    redis,
+    key: str,
+    limit: int,
+    window: int,
+    fail_closed: bool = False,
+) -> tuple[bool, int, int]:
     """Lua-atomic sliding-window rate check. Falls back gracefully on any error."""
     global _redis_disabled
     if _redis_disabled:
-        return True, limit, 0
+        return (False, 0, 1) if fail_closed else (True, limit, 0)
 
     now_ms       = int(time.time() * 1000)
     window_ms    = window * 1000
@@ -144,9 +150,9 @@ end
         _reset_redis_failure()
         return bool(result[0]), int(result[1]), int(result[2])
     except Exception as exc:
-        log.warning("Redis sliding window error: %s — allowing request", exc)
+        log.warning("Redis sliding window error: %s", exc)
         _mark_redis_failure()
-        return True, limit, 0
+        return (False, 0, 1) if fail_closed else (True, limit, 0)
 
 class RateLimitMiddleware:
     ANON_LIMIT           = 180
@@ -155,6 +161,7 @@ class RateLimitMiddleware:
     PREDICT_ANON_LIMIT   = 20
     PREDICT_APIKEY_LIMIT = 80
     PREDICT_JWT_LIMIT    = 120
+    CHAIN_RPC_LIMIT = 100
     WINDOW_SECONDS = 60
     EVICT_INTERVAL = 300
     _BYPASS_PREFIXES = (
@@ -193,12 +200,16 @@ class RateLimitMiddleware:
         return True, max(0, limit - len(bucket)), 0
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] != "http" or not _rate_limiting_enabled():
+        if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
         request = Request(scope, receive)
         path = request.url.path
+        is_chain_rpc = path in {"/api/chain/rpc", "/chain/rpc"}
+        if not _rate_limiting_enabled() and not is_chain_rpc:
+            await self.app(scope, receive, send)
+            return
 
         # Enhanced bypass: prefix check + extension check
         if any(path.startswith(b) for b in self._BYPASS_PREFIXES) or any(path.endswith(e) for e in self._BYPASS_EXTENSIONS):
@@ -210,7 +221,9 @@ class RateLimitMiddleware:
         is_predict = "/predict" in path
         user_key = _extract_user_id(request)
 
-        if user_key:
+        if is_chain_rpc:
+            key, limit = f"rpc-ip:{ip}", self.CHAIN_RPC_LIMIT
+        elif user_key:
             key, limit = user_key, (self.PREDICT_JWT_LIMIT if is_predict else self.JWT_LIMIT)
         elif api_key:
             key, limit = f"key:{api_key}", (self.PREDICT_APIKEY_LIMIT if is_predict else self.APIKEY_LIMIT)
@@ -220,8 +233,24 @@ class RateLimitMiddleware:
 
         redis = _get_redis()
         now   = time.time()
+        if is_chain_rpc and ENVIRONMENT == "production" and redis is None:
+            res = error_response(
+                request=request,
+                status_code=503,
+                code="rpc_rate_limiter_unavailable",
+                message="Chain RPC is temporarily unavailable because shared rate limiting is unavailable.",
+                headers={"Retry-After": "1"},
+            )
+            await res(scope, receive, send)
+            return
         if redis:
-            allowed, remaining, retry_after = await _redis_sliding_window(redis, f"rl:{key}", limit, self.WINDOW_SECONDS)
+            allowed, remaining, retry_after = await _redis_sliding_window(
+                redis,
+                f"rl:{key}",
+                limit,
+                self.WINDOW_SECONDS,
+                fail_closed=is_chain_rpc and ENVIRONMENT == "production",
+            )
         else:
             allowed, remaining, retry_after = self._in_memory_check(key, limit, now)
 
