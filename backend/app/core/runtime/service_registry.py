@@ -79,10 +79,10 @@ class ServiceRegistry:
         gateway_url = os.getenv("VITNETWORK_URL", f"http://localhost:{port}").rstrip("/")
 
         tachyon_base = os.getenv("TACHYON_URL", "").rstrip("/")
-        tachyon_url = tachyon_base or os.getenv("TACHYON_ENDPOINT", "https://vit-storage-4trt.onrender.com").rstrip("/")
+        tachyon_url = tachyon_base or os.getenv("TACHYON_ENDPOINT", "https://vitstorage.onrender.com").rstrip("/")
 
-        chain_url = os.getenv("VIT_CHAIN_URL", "https://vit-chain.onrender.com").rstrip("/")
-        ai_url = os.getenv("VIT_AI_URL", "https://vit-ai.onrender.com").rstrip("/")
+        chain_url = os.getenv("VIT_CHAIN_URL", "https://vit-chain-5bd9.onrender.com").rstrip("/")
+        ai_url = os.getenv("VIT_AI_URL", "https://vit-ai-z3d4.onrender.com").rstrip("/")
         explorer_url = os.getenv("VIT_EXPLORER_URL", "https://vit-explorer.onrender.com").rstrip("/")
 
         defaults = [
@@ -107,7 +107,7 @@ class ServiceRegistry:
             ServiceDefinition(
                 service_name="vit-storage",
                 url=tachyon_url,
-                health_endpoint="/status",
+                health_endpoint="/health",
                 ready_endpoint="/health",
                 criticality=ServiceCriticality.MEDIUM,
                 startup_timeout=60.0,

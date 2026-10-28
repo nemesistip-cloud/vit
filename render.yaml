@@ -16,6 +16,8 @@ services:
           fromDatabase:
             name: vitnetwork
             property: connectionString
+        - key: ENABLE_IN_PROCESS_SCHEDULERS
+          value: "true"
         - key: REDIS_URL
           fromService:
             type: redis
@@ -59,15 +61,17 @@ services:
           sync: false
         # ── Service integration URLs ─────────────────────────────
         - key: VIT_AI_URL
-          value: https://vit-ai.onrender.com
+          value: https://vit-ai-z3d4.onrender.com
+        - key: VIT_STORAGE_URL
+          value: https://vitstorage.onrender.com
         - key: TACHYON_URL
-          value: https://vit-storage-4trt.onrender.com
+          value: https://vitstorage.onrender.com
         - key: TACHYON_ENDPOINT
-          value: https://vit-storage-4trt.onrender.com/api/tachyon
+          value: https://vitstorage.onrender.com/api/tachyon
         - key: VIT_CHAIN_MODE
           value: external
         - key: VIT_CHAIN_URL
-          value: https://vit-chain.onrender.com
+          value: https://vit-chain-5bd9.onrender.com
         - key: SERVICE_TOKEN_SECRET
           sync: false
         - key: VIT_AI_API_KEY
@@ -80,11 +84,11 @@ services:
         - key: VITE_GATEWAY_URL
           value: https://vitnetwork-nls4.onrender.com
         - key: VITE_AI_URL
-          value: https://vit-ai.onrender.com
+          value: https://vit-ai-z3d4.onrender.com
         - key: VITE_STORAGE_URL
-          value: https://vit-storage-4trt.onrender.com
+          value: https://vitstorage.onrender.com
         - key: VITE_CHAIN_URL
-          value: https://vit-chain.onrender.com
+          value: https://vit-chain-5bd9.onrender.com
 
     - type: worker
       name: vitnetwork-worker
@@ -122,15 +126,15 @@ services:
         - key: ODDS_API_KEY
           sync: false
         - key: VIT_AI_URL
-          value: https://vit-ai.onrender.com
+          value: https://vit-ai-z3d4.onrender.com
         - key: TACHYON_URL
-          value: https://vit-storage-4trt.onrender.com
+          value: https://vitstorage.onrender.com
         - key: TACHYON_ENDPOINT
-          value: https://vit-storage-4trt.onrender.com/api/tachyon
+          value: https://vitstorage.onrender.com/api/tachyon
         - key: VIT_CHAIN_MODE
           value: external
         - key: VIT_CHAIN_URL
-          value: https://vit-chain.onrender.com
+          value: https://vit-chain-5bd9.onrender.com
         - key: SERVICE_TOKEN_SECRET
           sync: false
         - key: VIT_AI_API_KEY
@@ -143,11 +147,11 @@ services:
         - key: VITE_GATEWAY_URL
           value: https://vitnetwork-nls4.onrender.com
         - key: VITE_AI_URL
-          value: https://vit-ai.onrender.com
+          value: https://vit-ai-z3d4.onrender.com
         - key: VITE_STORAGE_URL
-          value: https://vit-storage-4trt.onrender.com
+          value: https://vitstorage.onrender.com
         - key: VITE_CHAIN_URL
-          value: https://vit-chain.onrender.com
+          value: https://vit-chain-5bd9.onrender.com
 
 databases:
   - name: vitnetwork

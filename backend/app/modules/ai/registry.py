@@ -187,7 +187,7 @@ def _row_to_dict(row: ModelMetadata) -> dict:
     }
     fallback_priority = 1 if is_llm else 2
     from app.config import VIT_AI_URL
-    _ai_base = (VIT_AI_URL or "https://vit-ai.onrender.com").rstrip("/")
+    _ai_base = (VIT_AI_URL or "https://vit-ai-z3d4.onrender.com").rstrip("/")
     endpoint = f"{_ai_base}/api/v1/models/{row.key}"
 
     return {

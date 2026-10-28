@@ -14,7 +14,7 @@ class VitChainClientError(RuntimeError):
 
 class VitChainClient:
     def __init__(self, base_url: str | None = None, timeout: float = 8.0):
-        self.base_url = (base_url or VIT_CHAIN_URL or "https://vit-chain.onrender.com").rstrip("/")
+        self.base_url = (base_url or VIT_CHAIN_URL or "https://vit-chain-5bd9.onrender.com").rstrip("/")
         self.timeout = timeout
 
     async def _get(self, path: str, **params: Any) -> Any:

@@ -50,6 +50,12 @@ def get_int_env(key: str, default: int = 0) -> int:
     """Read an integer from the environment. Accepts default as int (not str)."""
     return int(os.getenv(key, str(default)))
 
+def in_process_schedulers_enabled() -> bool:
+    """Whether this process starts recurring background work."""
+    return get_env("ENABLE_IN_PROCESS_SCHEDULERS", "true").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
 def _clean_redis_url(url: str) -> str:
     if not url: return ""
     if url.startswith("redis://") or url.startswith("rediss://"):
@@ -206,7 +212,7 @@ PYTORCH_DEVICE: str = get_val("app", "pytorch_device", "cpu")
 BOOTSTRAP_MATCH_MONTHS: int = int(get_val("app", "bootstrap_match_months", 6))
 
 # Base L2 removed. VIT Chain standalone: VIT_CHAIN_URL points to vitnetwork/vit-chain.
-VIT_CHAIN_URL: str = get_val("chain", "vit_chain_url", "")
+VIT_CHAIN_URL: str = get_val("chain", "vit_chain_url", "https://vit-chain-5bd9.onrender.com")
 VIT_CHAIN_MODE: str = resolve_chain_mode(environment=ENVIRONMENT, chain_url=VIT_CHAIN_URL)
 
 ENABLE_SCRAPING: bool = os.getenv("ENABLE_SCRAPING", "false").lower() == "true"

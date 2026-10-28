@@ -138,7 +138,7 @@ class Watchdog:
 
 watchdog = Watchdog()
 watchdog.register("gateway", os.getenv("VIT_GATEWAY_URL", f"http://127.0.0.1:{os.getenv('PORT', '8000')}"), "/ping", "vitnetwork")
-watchdog.register("ai", os.getenv("VIT_AI_URL", "https://vit-ai.onrender.com"))
-watchdog.register("storage", os.getenv("VIT_STORAGE_URL", "https://vit-storage-4trt.onrender.com"))
-watchdog.register("chain", os.getenv("VIT_CHAIN_URL", "https://vit-chain.onrender.com"))
+watchdog.register("ai", os.getenv("VIT_AI_URL", "https://vit-ai-z3d4.onrender.com"))
+watchdog.register("storage", os.getenv("VIT_STORAGE_URL", "https://vitstorage.onrender.com"))
+watchdog.register("chain", os.getenv("VIT_CHAIN_URL", "https://vit-chain-5bd9.onrender.com"))
 watchdog.register("explorer", os.getenv("VIT_EXPLORER_URL", "https://vit-explorer.onrender.com"))

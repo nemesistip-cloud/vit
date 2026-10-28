@@ -17,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from fastapi.exceptions import RequestValidationError
 from app.core.errors import AppError, error_response
 
-from app.config import APP_NAME, APP_VERSION, get_env, get_int_env, CORS_ALLOWED_ORIGINS, ENVIRONMENT, validate_runtime_security
+from app.config import APP_NAME, APP_VERSION, get_env, get_int_env, CORS_ALLOWED_ORIGINS, ENVIRONMENT, in_process_schedulers_enabled, validate_runtime_security
 from app.core.kernel import kernel, setup_signal_handlers
 from app.core.subsystems import register_core_subsystems
 from app.db.database import engine, get_db
@@ -124,36 +124,41 @@ async def lifespan(app: FastAPI):
             logging.getLogger(__name__).warning("[lifespan] workflow dispatcher start failed: %s", _we)
         await asyncio.sleep(0)
 
-        # TRACK-008: Start Tachyon Storage Challenge Scheduler
-        try:
-            from tachyon.core.challenge import challenge_scheduler
-            await challenge_scheduler.start()
-            logging.getLogger(__name__).info("[lifespan] Tachyon Challenge Scheduler started")
-        except Exception as _ce:
-            logging.getLogger(__name__).warning("[lifespan] challenge scheduler start failed: %s", _ce)
-        await asyncio.sleep(0)
+        if in_process_schedulers_enabled():
+            # Keep current single-service deployments operational until their
+            # external worker is provisioned; production can disable these
+            # loops after ownership has moved to that worker.
+            try:
+                from tachyon.core.challenge import challenge_scheduler
+                await challenge_scheduler.start()
+                logging.getLogger(__name__).info("[lifespan] Tachyon Challenge Scheduler started")
+            except Exception as _ce:
+                logging.getLogger(__name__).warning("[lifespan] challenge scheduler start failed: %s", _ce)
+            await asyncio.sleep(0)
 
-        # TRACK-008: Start Tachyon Verification Worker
-        try:
-            from tachyon.core.worker import TachyonVerificationWorker
-            _tachyon_worker = TachyonVerificationWorker(interval_seconds=3600)
-            _tachyon_worker_task = asyncio.create_task(
-                _tachyon_worker.start(), name="tachyon-verification-worker"
+            try:
+                from tachyon.core.worker import TachyonVerificationWorker
+                _tachyon_worker = TachyonVerificationWorker(interval_seconds=3600)
+                _tachyon_worker_task = asyncio.create_task(
+                    _tachyon_worker.start(), name="tachyon-verification-worker"
+                )
+                logging.getLogger(__name__).info("[lifespan] Tachyon Verification Worker started")
+            except Exception as _te:
+                logging.getLogger(__name__).warning("[lifespan] tachyon verification worker failed: %s", _te)
+            await asyncio.sleep(0)
+
+            try:
+                from app.core.swarm_orchestrator import init_swarm as _init_swarm
+                _swarm = _init_swarm()
+                _swarm.start_scheduler()
+                logging.getLogger(__name__).info("[lifespan] SwarmOrchestrator APScheduler started (%d agents)", len(_swarm._agents))
+            except Exception as _sch_e:
+                logging.getLogger(__name__).warning("[lifespan] swarm scheduler start failed (agents will not auto-run): %s", _sch_e)
+            await asyncio.sleep(0)
+        else:
+            logging.getLogger(__name__).info(
+                "[lifespan] In-process schedules disabled; external job owner must be active."
             )
-            logging.getLogger(__name__).info("[lifespan] Tachyon Verification Worker started")
-        except Exception as _te:
-            logging.getLogger(__name__).warning("[lifespan] tachyon verification worker failed: %s", _te)
-        await asyncio.sleep(0)
-
-        # TRACK-009: Start in-process APScheduler for autonomous agents (replaces Celery Beat)
-        try:
-            from app.core.swarm_orchestrator import init_swarm as _init_swarm
-            _swarm = _init_swarm()
-            _swarm.start_scheduler()
-            logging.getLogger(__name__).info("[lifespan] SwarmOrchestrator APScheduler started (%d agents)", len(_swarm._agents))
-        except Exception as _sch_e:
-            logging.getLogger(__name__).warning("[lifespan] swarm scheduler start failed (agents will not auto-run): %s", _sch_e)
-        await asyncio.sleep(0)
 
         # Bootstrap AI Engine model registry — ensures ModelMetadata table is populated
         # for dashboard and admin endpoints. Must run after kernel.boot() so orchestrator
@@ -222,16 +227,17 @@ async def lifespan(app: FastAPI):
         await _wd.stop()
     except Exception:
         pass
-    try:
-        from tachyon.core.challenge import challenge_scheduler as _cs
-        await _cs.stop()
-    except Exception:
-        pass
-    try:
-        from app.core.swarm_orchestrator import get_swarm as _gs
-        _gs().stop_scheduler()
-    except Exception:
-        pass
+    if in_process_schedulers_enabled():
+        try:
+            from tachyon.core.challenge import challenge_scheduler as _cs
+            await _cs.stop()
+        except Exception:
+            pass
+        try:
+            from app.core.swarm_orchestrator import get_swarm as _gs
+            _gs().stop_scheduler()
+        except Exception:
+            pass
     try:
         from app.core.event_bus import event_bus as _eb
         await _eb.disconnect_redis()
@@ -247,6 +253,16 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url=None,
 )
+
+try:
+    from app.api.routes.scheduled_jobs import router as scheduled_jobs_router
+    app.include_router(scheduled_jobs_router)
+except Exception as _scheduled_jobs_error:
+    logging.getLogger(__name__).error(
+        "scheduled jobs router not mounted: %s",
+        _scheduled_jobs_error,
+        exc_info=True,
+    )
 
 
 @app.get("/docs", include_in_schema=False)
@@ -264,7 +280,7 @@ async def swagger_docs():
 async def emergency_control_guard(request: Request, call_next):
     """Enforce persisted emergency controls for user-facing operations."""
     path = request.url.path
-    if path.startswith(("/api/admin", "/admin", "/health", "/ping", "/readiness", "/api/auth", "/auth")):
+    if path.startswith(("/api/admin", "/admin", "/health", "/ping", "/readiness", "/api/auth", "/auth", "/api/v1/scheduled-jobs")):
         return await call_next(request)
 
     control = None
