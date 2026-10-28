@@ -408,11 +408,21 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 @app.get("/")
 async def root():
-    # Do not expose version, environment, or internal subsystem names publicly
-    return {
-        "name": "VIT Platform",
-        "status": "healthy",
-    }
+    # The root URL is the visitor-facing app. Keep API liveness on /ping and
+    # /health rather than returning a JSON status payload from the homepage.
+    index_path = Path(__file__).resolve().parent.parent / "frontend" / "dist" / "index.html"
+    if index_path.is_file():
+        from fastapi.responses import FileResponse
+
+        return FileResponse(
+            index_path,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
+    return {"name": "VIT Platform", "status": "healthy"}
 
 @app.get("/ping")
 async def ping():

@@ -15,10 +15,6 @@ if [[ "${DATABASE_URL}" == *"postgres"* ]]; then
     # Run DB setup asynchronously in background so uvicorn binds immediately and
     # Render port scan never times out waiting for remote DB connection/lock.
     (
-      echo "[production] [bg] Running DB table bootstrap (init_db.py)..."
-      python3 scripts/init_db.py \
-        || echo "[production] [bg] WARNING: init_db failed — schema may be incomplete." >&2
-
       echo "[production] [bg] Running pre-flight schema guard (ensure_columns.py)..."
       python3 scripts/ensure_columns.py \
         || echo "[production] [bg] WARNING: ensure_columns failed." >&2
@@ -33,10 +29,6 @@ if [[ "${DATABASE_URL}" == *"postgres"* ]]; then
       echo "[production] [bg] Checking user reset flag (RESET_USERS_ON_BOOT)..."
       python3 scripts/reset_users.py \
         || echo "[production] [bg] WARNING: reset_users failed — existing users retained." >&2
-
-      echo "[production] [bg] Ensuring admin user exists..."
-      python3 scripts/ensure_admin.py \
-        || echo "[production] [bg] WARNING: ensure_admin failed — admin user may be missing." >&2
 
       echo "[production] [bg] Seeding match predictions..."
       python3 scripts/seed_predictions.py \

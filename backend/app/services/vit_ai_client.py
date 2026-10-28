@@ -36,7 +36,10 @@ class VitAIClient:
         self.base_url = get_env("VIT_AI_URL", "https://vit-ai.onrender.com").rstrip("/")
         # Outgoing API key for vit-ai inter-service auth (X-API-KEY header)
         self._api_key = get_env("VIT_AI_API_KEY", "")
-        self.client = httpx.AsyncClient(timeout=10.0, limits=httpx.Limits(max_keepalive_connections=50, max_connections=100))
+        self.client = httpx.AsyncClient(
+            timeout=10.0,
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+        )
 
         # Circuit Breaker state
         self.failure_threshold = 5
@@ -49,7 +52,7 @@ class VitAIClient:
         self.cache_ttl = 300 # 5 minutes default
 
         self._initialized = True
-        logger.info(f"[VitAIClient] Initialized on {self.base_url} with limits (100 max, 50 keepalive)")
+        logger.info(f"[VitAIClient] Initialized on {self.base_url} with limits (10 max, 5 keepalive)")
 
     def _record_failure(self):
         self.failure_count += 1
