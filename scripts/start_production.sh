@@ -15,6 +15,20 @@ if [[ "${DATABASE_URL}" == *"postgres"* ]]; then
     # Run DB setup asynchronously in background so uvicorn binds immediately and
     # Render port scan never times out waiting for remote DB connection/lock.
     (
+      api_ready=false
+      for attempt in $(seq 1 60); do
+        if curl -fsS --connect-timeout 1 --max-time 1 "http://127.0.0.1:${PORT}/ping" >/dev/null; then
+          api_ready=true
+          break
+        fi
+        sleep 1
+      done
+
+      if [[ "${api_ready}" != "true" ]]; then
+        echo "[production] [bg] API did not become ready; skipping auxiliary DB setup." >&2
+        exit 0
+      fi
+
       echo "[production] [bg] Running pre-flight schema guard (ensure_columns.py)..."
       python3 scripts/ensure_columns.py \
         || echo "[production] [bg] WARNING: ensure_columns failed." >&2
