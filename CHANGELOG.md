@@ -1,3 +1,5 @@
+- 2026-10-28 `07a31e7` fix: update Dockerfile and build scripts for improved dependency mana…
+
 - 2026-10-28 `102be93` Fix/render free tier wake retries
 
 - 2026-10-26 `27ddb9b` Fix server failure bugs, container OOM kills, and startup health timeouts
