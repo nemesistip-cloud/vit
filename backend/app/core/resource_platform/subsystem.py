@@ -26,16 +26,25 @@ class ResourcePlatformSubsystem(Subsystem):
         self.scheduler = None
         self.lock_manager = None
         self.rate_limiter = None
+        self._disabled_reason = None
 
     async def _on_initialize(self, config: Dict[str, Any]):
-        from app.core.redis import require_redis
+        # Redis connects in RedisSubsystem._on_start, after all modules initialize.
+        # Keep this optional subsystem from opening duplicate startup connections.
+        logger.info("[kernel] Resource Platform initialization deferred until Redis is available.")
 
-        # We need Redis for most components
-        class MockApp:
-            state = type('State', (), {'redis': None})
-        app = MockApp()
-        await require_redis(app)
-        redis_client = app.state.redis
+    async def _on_start(self):
+        from app.core.redis import redis_client
+
+        if redis_client is None:
+            self._disabled_reason = "Redis unavailable"
+            obs_manager.health.update_status(
+                self.name,
+                HealthStatus.DEGRADED,
+                "Redis unavailable; queued task execution is disabled",
+            )
+            logger.warning("[kernel] Resource Platform disabled for this process: Redis unavailable.")
+            return
 
         self.resource_manager = ResourceManager()
         self.queue = TaskQueue(redis_client)
@@ -44,9 +53,6 @@ class ResourcePlatformSubsystem(Subsystem):
         self.lock_manager = DistributedLockManager(redis_client)
         self.rate_limiter = RateLimiter(redis_client)
 
-        logger.info("[kernel] Resource Platform components initialized.")
-
-    async def _on_start(self):
         # Start workers
         worker_count = 2 # Default for small systems
         await self.worker_manager.start_workers(worker_count)
@@ -67,8 +73,9 @@ class ResourcePlatformSubsystem(Subsystem):
     async def health_check(self) -> bool:
         # Check if we can reach Redis
         try:
-            if self.lock_manager:
-                await self.lock_manager.redis.ping()
+            if self.lock_manager is None:
+                return False
+            await self.lock_manager.redis.ping()
             return True
         except Exception as e:
             logger.error(f"Resource Platform health check failed: {e}")

@@ -159,19 +159,25 @@ class EventBus:
     # ── Redis layer ───────────────────────────────────────────────────────────
 
     async def connect_redis(self, redis_url: Optional[str] = None) -> None:
-        """Connect the Redis pub/sub layer. Safe to call multiple times."""
+        """Attach pub/sub to the shared client without opening a second connection."""
         url = redis_url or os.getenv("REDIS_URL", "")
         if not url:
             logger.info("[event_bus] REDIS_URL not set — Redis pub/sub disabled")
             return
         try:
-            from app.core.redis import build_redis_client
-            self._redis = build_redis_client(url, decode_responses=True)
-            await self._redis.ping()
+            from app.core.redis import redis_client
+
+            if redis_client is None:
+                self._redis = None
+                self._redis_enabled = False
+                logger.warning("[event_bus] Shared Redis client unavailable — pub/sub disabled")
+                return
+            self._redis = redis_client
+            await asyncio.wait_for(self._redis.ping(), timeout=1.5)
             self._redis_enabled = True
             logger.info("[event_bus] Redis pub/sub connected on channel '%s'", self._redis_channel)
         except Exception as exc:
-            logger.warning("[event_bus] Redis connect failed: %s — pub/sub disabled", exc)
+            logger.warning("[event_bus] Redis pub/sub unavailable (%s)", type(exc).__name__)
             self._redis = None
             self._redis_enabled = False
 

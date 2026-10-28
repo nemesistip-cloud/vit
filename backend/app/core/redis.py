@@ -10,6 +10,7 @@ rather than silently using ephemeral in-memory state.
 """
 import logging
 import os
+import asyncio
 from typing import Any, Optional
 
 import redis.asyncio as redis
@@ -82,7 +83,13 @@ async def get_redis():
     return redis_client
 
 
-async def require_redis(app):
+async def require_redis(
+    app,
+    *,
+    socket_connect_timeout: float = 5,
+    socket_timeout: float = 5,
+    ping_timeout: float | None = None,
+):
     global redis_client
     REDIS_URL = _clean_redis_url(os.getenv("REDIS_URL", ""))
     if not REDIS_URL:
@@ -95,19 +102,31 @@ async def require_redis(app):
             app.state.redis = redis_client
             return
 
+    client = None
     try:
-        client = build_redis_client(REDIS_URL)
-        await client.ping()
+        client = build_redis_client(
+            REDIS_URL,
+            socket_connect_timeout=socket_connect_timeout,
+            socket_timeout=socket_timeout,
+        )
+        await asyncio.wait_for(client.ping(), timeout=ping_timeout or socket_timeout + 0.5)
         redis_client = client
         app.state.redis = client
         logger.info("Successfully connected to Redis at %s", REDIS_URL.split("@")[-1])
     except Exception as e:
+        if client is not None:
+            try:
+                await client.aclose()
+            except Exception:
+                pass
+        redis_client = None
         if ENVIRONMENT == "production":
-            logger.critical("Failed to connect to Redis: %s", e)
-            raise RuntimeError(f"Redis connection failed: {e}") from e
+                logger.critical("Failed to connect to Redis (%s)", type(e).__name__)
+                raise RuntimeError("Redis connection failed") from e
         else:
             logger.warning(
-                "Redis connection failed: %s. Falling back to fakeredis (development).", e
+                    "Redis connection failed (%s). Falling back to fakeredis (development).",
+                    type(e).__name__,
             )
             redis_client = FakeAsyncRedis()
             app.state.redis = redis_client
