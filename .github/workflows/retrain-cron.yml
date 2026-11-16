@@ -24,7 +24,9 @@ jobs:
 
       - name: Run retrain script
         env:
-          TACHYON_STORAGE_ENABLED: 'true'
-          TACHYON_ENDPOINT: 'https://vitnetwork-nls4.onrender.com/api/tachyon'
+          TACHYON_STORAGE_ENABLED: ${{ secrets.VIT_STORAGE_API_KEY != '' && secrets.SERVICE_TOKEN_SECRET != '' }}
+          TACHYON_ENDPOINT: 'https://vitstorage.onrender.com/api/tachyon'
+          VIT_STORAGE_API_KEY: ${{ secrets.VIT_STORAGE_API_KEY }}
+          SERVICE_TOKEN_SECRET: ${{ secrets.SERVICE_TOKEN_SECRET }}
           PYTHONPATH: backend
         run: python scripts/retrain_cron.py

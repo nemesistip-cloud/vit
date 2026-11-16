@@ -155,9 +155,9 @@ def test_production_cors_requires_explicit_non_wildcard_allowlist():
     with pytest.raises(RuntimeError, match="explicit non-wildcard"):
         _resolve_cors_origins("", "production")
     with pytest.raises(RuntimeError, match="explicit non-wildcard"):
-        _resolve_cors_origins("https://vitnetwork-nls4.onrender.com,*", "production")
+        _resolve_cors_origins("https://vit-fwjz.onrender.com,*", "production")
 
-    assert _resolve_cors_origins("https://vitnetwork-nls4.onrender.com", "production") == [
-        "https://vitnetwork-nls4.onrender.com"
+    assert _resolve_cors_origins("https://vit-fwjz.onrender.com", "production") == [
+        "https://vit-fwjz.onrender.com"
     ]
     assert _resolve_cors_origins("", "testing") == ["*"]

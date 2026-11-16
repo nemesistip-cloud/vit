@@ -40,12 +40,12 @@ def _url(key: str, default: str) -> str:
 
 def _service_urls() -> dict[str, str]:
     return {
-        "gateway":    _url("VIT_GATEWAY_URL",    "https://vitnetwork-nls4.onrender.com"),
+        "gateway":    _url("VIT_GATEWAY_URL",    "https://vit-fwjz.onrender.com"),
         "ai":         _url("VIT_AI_URL",          "https://vit-ai-z3d4.onrender.com"),
         "storage":    _url("VIT_STORAGE_URL",     "https://vitstorage.onrender.com"),
         "blockchain": _url("VIT_BLOCKCHAIN_URL",  "https://vit-chain-5bd9.onrender.com"),
         "explorer":   _url("VIT_EXPLORER_URL",    "https://vit-explorer.onrender.com"),
-        "wallet":     _url("VIT_WALLET_URL",      "https://vitnetwork-nls4.onrender.com"),
+        "wallet":     _url("VIT_WALLET_URL",      "https://vit-fwjz.onrender.com"),
     }
 
 

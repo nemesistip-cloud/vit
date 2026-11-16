@@ -16,7 +16,7 @@ jobs:
             echo "Attempt $i/8: checking the lightweight gateway health endpoint..."
             STATUS=$(curl -sS --connect-timeout 10 --max-time 20 \
               -o /dev/null -w '%{http_code}' \
-              https://vitnetwork-nls4.onrender.com/ping || true)
+              https://vit-fwjz.onrender.com/ping || true)
             STATUS="${STATUS:-000}"
             echo "/ping: HTTP $STATUS"
 

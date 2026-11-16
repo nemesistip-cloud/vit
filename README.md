@@ -15,10 +15,10 @@ The operating principle is simple: **no evidence, no claim**. Every prediction i
 
 | Surface | Role | Link |
 | --- | --- | --- |
-| **VIT Network** | Main application, APIs, sports intelligence, wallet and marketplace | [Live app](https://vitnetwork-nls4.onrender.com) |
-| **VIT AI** | Intelligence and orchestration services | [Service](https://vit-ai.onrender.com) |
-| **VIT Chain** | Standalone chain and settlement layer, Chain ID 7764 | [Service](https://vit-chain.onrender.com) |
-| **Tachyon** | Verifiable distributed storage fabric | [Service](https://vit-storage-4trt.onrender.com) |
+| **VIT Network** | Main application, APIs, sports intelligence, wallet and marketplace | [Live app](https://vit-fwjz.onrender.com) |
+| **VIT AI** | Intelligence and orchestration services | [Service](https://vit-ai-z3d4.onrender.com) |
+| **VIT Chain** | Standalone chain and settlement layer, Chain ID 7764 | [Service](https://vit-chain-5bd9.onrender.com) |
+| **Tachyon** | Verifiable distributed storage fabric | [Service](https://vitstorage.onrender.com) |
 | **VIT SDK** | Python client for application and chain integrations | [SDK guide](sdk/README.md) |
 | **VIT Node** | Community storage and network participation client | [Node guide](backend/vit_node/README.md) |
 
@@ -77,7 +77,7 @@ The repository also includes focused checks for provider health, evidence qualit
 
 ## Deploy
 
-The production service is containerized and deployed on Render. Pushing to `main` triggers the configured deployment in [`render.yaml`](render.yaml). Database migrations run as part of the production startup path.
+The production service is containerized and deployed on Render. Pushing to `main` triggers Render auto-deploy; GitHub Actions verifies readiness and runs scheduled maintenance workflows. See the [Render deployment and secrets guide](docs/deployment/render.md).
 
 ## Documentation map
 

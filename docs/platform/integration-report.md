@@ -38,7 +38,8 @@ Browser → VIT Frontend → vitnetwork /health  → GatewayHealth
 ## Environment Variables
 
 ```
-VITE_GATEWAY_URL  = https://vitnetwork-nls4.onrender.com
-VITE_AI_URL       = https://vit-ai.onrender.com
-VITE_STORAGE_URL  = https://vit-storage-4trt.onrender.com
+VITE_GATEWAY_URL  = https://vit-fwjz.onrender.com
+VITE_AI_URL       = https://vit-ai-z3d4.onrender.com
+VITE_STORAGE_URL  = https://vitstorage.onrender.com
+VITE_CHAIN_URL    = https://vit-chain-5bd9.onrender.com
 ```

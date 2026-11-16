@@ -116,7 +116,7 @@ async def test_vit_ai_client_call_ai_parsing():
         200,
         headers={"content-type": "application/json"},
         json={"request_id": "req-123", "model_id": "ensemble_v1", "result": "Home Win 2-1", "latency": 120.0},
-        request=Request("POST", "https://vit-ai.onrender.com/api/v1/chat")
+        request=Request("POST", "https://vit-ai-z3d4.onrender.com/api/v1/chat")
     )
 
     with patch.object(c, "_execute_with_retry", new_callable=AsyncMock) as mock_exec:
@@ -138,7 +138,7 @@ async def test_vit_ai_client_rejects_structured_error_response():
             "model_id": "xgb_v1",
             "result": {"status": "error", "message": "model artifact invalid"},
         },
-        request=Request("POST", "https://vit-ai.onrender.com/api/v1/chat"),
+        request=Request("POST", "https://vit-ai-z3d4.onrender.com/api/v1/chat"),
     )
 
     with patch.object(c, "_execute_with_retry", new_callable=AsyncMock) as mock_exec:

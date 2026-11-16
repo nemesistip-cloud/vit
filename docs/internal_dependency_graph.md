@@ -4,22 +4,15 @@ This file summarizes the primary services, runtime roles, and integration links 
 
 ## Services (from render.yaml)
 
-- vitnetwork (web)
+- vit (web; in-process schedules enabled, GitHub Actions handles periodic workflows)
   - DATABASE_URL -> vitnetwork
   - REDIS_URL -> vitnetwork-redis
-  - VIT_AI_URL -> https://vit-ai.onrender.com
-  - TACHYON_URL -> https://vit-storage-4trt.onrender.com
-  - VITE_GATEWAY_URL -> https://vitnetwork-nls4.onrender.com
-  - VITE_AI_URL -> https://vit-ai.onrender.com
-  - VITE_STORAGE_URL -> https://vit-storage-4trt.onrender.com
-  - VITE_CHAIN_URL -> https://vit-chain.onrender.com
-
-- vitnetwork-worker (worker)
-  - DATABASE_URL -> vitnetwork
-  - REDIS_URL -> vitnetwork-redis
-  - VIT_AI_URL -> https://vit-ai.onrender.com
-  - TACHYON_URL -> https://vit-storage-4trt.onrender.com
-  - VITE_* build-time variables same as web
+  - VIT_AI_URL -> https://vit-ai-z3d4.onrender.com
+  - TACHYON_URL -> https://vitstorage.onrender.com
+  - VITE_GATEWAY_URL -> https://vit-fwjz.onrender.com
+  - VITE_AI_URL -> https://vit-ai-z3d4.onrender.com
+  - VITE_STORAGE_URL -> https://vitstorage.onrender.com
+  - VITE_CHAIN_URL -> https://vit-chain-5bd9.onrender.com
 
 ## Repositories / Modules in workspace
 
@@ -39,7 +32,7 @@ This file summarizes the primary services, runtime roles, and integration links 
 
 - `tachyon/` — storage service with hooks used by `app/` and worker tasks.
 
-- `worker/` and `app/worker` — background tasks and Celery workers.
+- `app/worker` — Celery task definitions; no separate paid worker is provisioned.
 
 ## Key Config / Defaults
 
@@ -55,7 +48,6 @@ This file summarizes the primary services, runtime roles, and integration links 
 
 ## Next actions
 
-1. Static analysis to produce a service→service call graph (HTTP imports & RPC usages).
-2. Identify TODO/FIXME occurrences prioritized by runtime impact.
-3. Run tests and lints to surface failing workflows.
+1. Keep this map in sync with Render and GitHub Actions when service URLs change.
+2. Verify production workflows after updating GitHub Actions secrets.
 

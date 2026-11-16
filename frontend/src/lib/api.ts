@@ -13,7 +13,7 @@
 let _gatewayUrl = (import.meta.env.VITE_GATEWAY_URL ?? '').replace(/\/$/, '')
 let _aiUrl      = (import.meta.env.VITE_AI_URL      ?? '').replace(/\/$/, '')
 let _storageUrl = (import.meta.env.VITE_STORAGE_URL ?? '').replace(/\/$/, '')
-let _chainUrl   = (import.meta.env.VITE_CHAIN_URL   ?? 'https://vit-chain.onrender.com').replace(/\/$/, '')
+let _chainUrl   = (import.meta.env.VITE_CHAIN_URL   ?? 'https://vit-chain-5bd9.onrender.com').replace(/\/$/, '')
 
 /**
  * Live URL accessors. Getter properties ensure that code reading

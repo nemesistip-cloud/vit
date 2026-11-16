@@ -52,7 +52,7 @@ body:
     attributes:
       label: "Environment"
       options:
-        - Production (vitnetwork-nls4.onrender.com)
+        - Production (vit-fwjz.onrender.com)
         - Staging
         - Local development
         - CI

@@ -1167,10 +1167,10 @@ function DeveloperTab() {
           <p className="text-sm font-medium text-white mb-1">Service Endpoints</p>
           <div className="space-y-1.5 mt-2">
             {[
-              { label: 'Gateway',  url: 'https://vitnetwork-nls4.onrender.com' },
-              { label: 'AI',       url: 'https://vit-ai.onrender.com'          },
-              { label: 'Storage',  url: 'https://vit-storage-4trt.onrender.com'},
-              { label: 'Chain',    url: 'https://vit-chain.onrender.com'       },
+              { label: 'Gateway',  url: 'https://vit-fwjz.onrender.com'        },
+              { label: 'AI',       url: 'https://vit-ai-z3d4.onrender.com'     },
+              { label: 'Storage',  url: 'https://vitstorage.onrender.com'      },
+              { label: 'Chain',    url: 'https://vit-chain-5bd9.onrender.com'  },
             ].map(ep => (
               <div key={ep.label} className="flex items-center justify-between text-xs">
                 <span className="text-white/40 w-16">{ep.label}</span>

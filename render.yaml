@@ -1,17 +1,18 @@
+# In-process schedulers and GitHub Actions handle periodic tasks; no paid
+# background worker is defined here.
 services:
     - type: web
-      name: vitnetwork
-      runtime: python
-      region: oregon
+      name: vit
+      runtime: docker
+      region: virginia
       plan: free
-      buildCommand: bash scripts/build.sh
-      startCommand: bash scripts/start_production.sh
+      numInstances: 1
       healthCheckPath: /ping
       envVars:
         - key: ENVIRONMENT
           value: production
         - key: CORS_ALLOWED_ORIGINS
-          value: https://vitnetwork-nls4.onrender.com
+          value: https://vit-fwjz.onrender.com
         - key: DATABASE_URL
           fromDatabase:
             name: vitnetwork
@@ -20,7 +21,7 @@ services:
           value: "true"
         - key: REDIS_URL
           fromService:
-            type: redis
+            type: keyvalue
             name: vitnetwork-redis
             property: connectionString
         - key: SECRET_KEY
@@ -72,94 +73,26 @@ services:
           value: external
         - key: VIT_CHAIN_URL
           value: https://vit-chain-5bd9.onrender.com
+        - key: VIT_GATEWAY_URL
+          value: https://vit-fwjz.onrender.com
         - key: SERVICE_TOKEN_SECRET
           sync: false
         - key: VIT_AI_API_KEY
+          sync: false
+        - key: VIT_STORAGE_API_KEY
           sync: false
         - key: P2P_NODE_ID
           sync: false
         - key: P2P_PUBLIC_KEY
           sync: false
-        # ── Frontend build-time service URLs (baked into Vite bundle) ────────
-        - key: VITE_GATEWAY_URL
-          value: https://vitnetwork-nls4.onrender.com
-        - key: VITE_AI_URL
-          value: https://vit-ai-z3d4.onrender.com
-        - key: VITE_STORAGE_URL
-          value: https://vitstorage.onrender.com
-        - key: VITE_CHAIN_URL
-          value: https://vit-chain-5bd9.onrender.com
 
-    - type: worker
-      name: vitnetwork-worker
-      runtime: python
-      region: oregon
+    - type: keyvalue
+      name: vitnetwork-redis
+      region: virginia
       plan: free
-      buildCommand: bash scripts/build.sh
-      startCommand: bash scripts/start_worker.sh
-      envVars:
-        - key: ENVIRONMENT
-          value: production
-        - key: WORKER_MODE
-          value: "true"
-        - key: DATABASE_URL
-          fromDatabase:
-            name: vitnetwork
-            property: connectionString
-        - key: REDIS_URL
-          fromService:
-            type: redis
-            name: vitnetwork-redis
-            property: connectionString
-        - key: JWT_SECRET_KEY
-          sync: false
-        - key: VIT_TREASURY_PRIVATE_KEY
-          sync: false
-        - key: GENESIS_VALIDATOR_KEY
-          sync: false
-        - key: GENESIS_VALIDATOR_ADDRESS
-          sync: false
-        - key: GENESIS_VALIDATORS
-          sync: false
-        - key: FOOTBALL_DATA_API_KEY
-          sync: false
-        - key: ODDS_API_KEY
-          sync: false
-        - key: VIT_AI_URL
-          value: https://vit-ai-z3d4.onrender.com
-        - key: TACHYON_URL
-          value: https://vitstorage.onrender.com
-        - key: TACHYON_ENDPOINT
-          value: https://vitstorage.onrender.com/api/tachyon
-        - key: VIT_CHAIN_MODE
-          value: external
-        - key: VIT_CHAIN_URL
-          value: https://vit-chain-5bd9.onrender.com
-        - key: SERVICE_TOKEN_SECRET
-          sync: false
-        - key: VIT_AI_API_KEY
-          sync: false
-        - key: P2P_NODE_ID
-          sync: false
-        - key: P2P_PUBLIC_KEY
-          sync: false
-        # ── Frontend build-time service URLs (baked into Vite bundle) ────────
-        - key: VITE_GATEWAY_URL
-          value: https://vitnetwork-nls4.onrender.com
-        - key: VITE_AI_URL
-          value: https://vit-ai-z3d4.onrender.com
-        - key: VITE_STORAGE_URL
-          value: https://vitstorage.onrender.com
-        - key: VITE_CHAIN_URL
-          value: https://vit-chain-5bd9.onrender.com
+      ipAllowList: []
 
 databases:
   - name: vitnetwork
-    region: oregon
+    region: virginia
     plan: free
-
-redis:
-  - name: vitnetwork-redis
-    region: oregon
-    plan: free
-    ipAllowList: []

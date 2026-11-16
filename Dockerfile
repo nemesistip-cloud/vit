@@ -7,7 +7,7 @@ FROM python:3.11-slim
     LABEL org.opencontainers.image.version="1.1.0"
     LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
     LABEL org.opencontainers.image.source="https://github.com/nemesistip-cloud/vit"
-    LABEL org.opencontainers.image.url="https://vitnetwork-nls4.onrender.com"
+    LABEL org.opencontainers.image.url="https://vit-fwjz.onrender.com"
     LABEL org.opencontainers.image.vendor="VIT Network"
 
     WORKDIR /app
@@ -43,10 +43,10 @@ FROM python:3.11-slim
     # Inject build-time Vite env vars so the frontend bundle bakes in the correct
     # production service URLs.  Defaults match the live Render deployment.
     # Override at docker build time with --build-arg VITE_GATEWAY_URL=...
-    ARG VITE_GATEWAY_URL=https://vitnetwork-nls4.onrender.com
-    ARG VITE_AI_URL=https://vit-ai.onrender.com
-    ARG VITE_STORAGE_URL=https://vit-storage-4trt.onrender.com
-    ARG VITE_CHAIN_URL=https://vit-chain.onrender.com
+    ARG VITE_GATEWAY_URL=https://vit-fwjz.onrender.com
+    ARG VITE_AI_URL=https://vit-ai-z3d4.onrender.com
+    ARG VITE_STORAGE_URL=https://vitstorage.onrender.com
+    ARG VITE_CHAIN_URL=https://vit-chain-5bd9.onrender.com
     # Promote ARGs to ENV so Vite reads them from the Node.js process environment.
     ENV VITE_GATEWAY_URL=$VITE_GATEWAY_URL \
         VITE_AI_URL=$VITE_AI_URL \

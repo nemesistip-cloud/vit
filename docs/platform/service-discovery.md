@@ -37,6 +37,7 @@ Future services register with the gateway and immediately appear in:
 
 | Name         | URL |
 |--------------|-----|
-| vitnetwork   | https://vitnetwork-nls4.onrender.com |
-| vit-ai       | https://vit-ai.onrender.com |
-| vit-storage  | https://vit-storage-4trt.onrender.com |
+| vitnetwork   | https://vit-fwjz.onrender.com |
+| vit-ai       | https://vit-ai-z3d4.onrender.com |
+| vit-storage  | https://vitstorage.onrender.com |
+| vit-chain    | https://vit-chain-5bd9.onrender.com |
