@@ -1,3 +1,5 @@
+- 2026-11-16 `e86cccf` build(deps): bump seroval from 1.6.9 to 1.6.12 in the npm_and_yarn group across 1 directory
+
 - 2026-10-28 `d2bddd5` [render-only] Fix Redis-degraded gateway startup
 
 - 2026-10-28 `3411527` Audit system logs and establish Render uptime best practices
