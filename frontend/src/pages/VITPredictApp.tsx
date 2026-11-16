@@ -3,6 +3,7 @@ import { Activity, ArrowRight, Brain, CircleAlert, LineChart, ShieldCheck, Layer
 import { Link } from 'react-router-dom'
 import { ENDPOINTS } from '@/lib/api'
 import { vitpredictApiPath } from '@/lib/vitpredictApi'
+import { authHeaders, getAuthToken } from '@/hooks/useAuth'
 
 interface AppHealth {
   app_id: string
@@ -29,6 +30,8 @@ interface AccumulatorData {
 }
 
 export default function VITPredictApp() {
+  const isAuthenticated = Boolean(getAuthToken())
+
   const health = useQuery<AppHealth>({
     queryKey: ['vitpredict-health'],
     queryFn: async ({ signal }) => {
@@ -43,8 +46,12 @@ export default function VITPredictApp() {
 
   const accumulator = useQuery<AccumulatorData>({
     queryKey: ['vitpredict-daily-accumulator'],
+    enabled: isAuthenticated,
     queryFn: async ({ signal }) => {
-      const response = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/predict/accumulator?limit=3')}`, { signal })
+      const response = await fetch(`${ENDPOINTS.gateway}${vitpredictApiPath('/api/predict/accumulator?limit=3')}`, {
+        signal,
+        headers: authHeaders(),
+      })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.detail ?? `Forecast shortlist unavailable (${response.status})`)
       return data
@@ -103,7 +110,13 @@ export default function VITPredictApp() {
           )}
         </div>
 
-        {accumulator.isPending ? (
+        {!isAuthenticated ? (
+          <p role="status" className="text-xs text-white/50 py-2">
+            <Link to="/login" className="text-emerald-300 hover:text-emerald-200">Sign in</Link>
+            {' '}to view the daily forecast shortlist, or{' '}
+            <Link to="/register" className="text-emerald-300 hover:text-emerald-200">create an account</Link>.
+          </p>
+        ) : accumulator.isPending ? (
           <p className="text-xs text-white/40 py-2">Loading stored forecasts and market data...</p>
         ) : accumulator.isError ? (
           <p role="status" className="text-xs text-amber-200 py-2">
